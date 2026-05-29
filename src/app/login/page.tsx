@@ -1,23 +1,30 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   const signIn = async () => {
     setErr(""); setLoading(true);
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      password,
     });
-    setLoading(false);
-    if (error) setErr(error.message);
-    else setSent(true);
+    if (error) {
+      setLoading(false);
+      setErr(error.message);
+      return;
+    }
+    // Password sign-in resolves immediately — go straight into the app.
+    router.push("/");
+    router.refresh();
   };
 
   return (
@@ -27,23 +34,22 @@ export default function LoginPage() {
         <h1 style={S.h1}>Marketing Command Center</h1>
         <p style={S.sub}>Sign in with your work email. Access is limited to the team.</p>
 
-        {sent ? (
-          <div style={S.sentBox}>
-            Check <strong>{email}</strong> for a sign-in link. You can close this tab after clicking it.
-          </div>
-        ) : (
-          <>
-            <input
-              style={S.input} type="email" placeholder="you@company.com"
-              value={email} onChange={e => setEmail(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && signIn()}
-            />
-            <button style={S.btn} onClick={signIn} disabled={loading || !email}>
-              {loading ? "Sending…" : "Send sign-in link"}
-            </button>
-            {err && <div style={S.err}>{err}</div>}
-          </>
-        )}
+        <input
+          style={S.input} type="email" placeholder="you@company.com"
+          value={email} onChange={e => setEmail(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && signIn()}
+          autoComplete="email"
+        />
+        <input
+          style={S.input} type="password" placeholder="Password"
+          value={password} onChange={e => setPassword(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && signIn()}
+          autoComplete="current-password"
+        />
+        <button style={S.btn} onClick={signIn} disabled={loading || !email || !password}>
+          {loading ? "Signing in…" : "Sign in"}
+        </button>
+        {err && <div style={S.err}>{err}</div>}
       </div>
     </div>
   );
@@ -63,6 +69,4 @@ const S: Record<string, React.CSSProperties> = {
   btn: { width: "100%", padding: "11px", background: "#F47B27", color: "#fff", border: "none",
     borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: "pointer" },
   err: { marginTop: 12, color: "#E0564B", fontSize: 13 },
-  sentBox: { background: "#f0f7f1", border: "1px solid #cfe8d4", borderRadius: 10, padding: 16,
-    fontSize: 13.5, color: "#2a5f3a", lineHeight: 1.5 },
 };
