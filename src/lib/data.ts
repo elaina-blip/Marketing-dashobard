@@ -13,6 +13,18 @@ export type Task = {
   attachments: Attachment[];
 };
 
+export type NewTaskInput = {
+  company_id: string;
+  track: "seo" | "paid_social";
+  phase: string;
+  title: string;
+  priority?: Task["priority"];
+  status?: Task["status"];
+  cadence?: Task["cadence"];
+  deadline?: string | null;
+  recurring?: boolean;
+};
+
 export type Attachment = {
   id: string; task_id: string; kind: "file" | "link";
   name: string; url?: string; storage_path?: string; mime?: string;
@@ -45,6 +57,28 @@ export async function updateTask(id: string, patch: Partial<Task>) {
   const clean: any = {};
   for (const k of allowed) if (k in patch) clean[k] = (patch as any)[k];
   if (Object.keys(clean).length) await supabase.from("tasks").update(clean).eq("id", id);
+}
+
+export async function createTask(input: NewTaskInput) {
+  const { data: maxRows } = await supabase.from("tasks").select("sort_order").order("sort_order", { ascending: false }).limit(1);
+  const sort_order = (maxRows?.[0]?.sort_order ?? -1) + 1;
+
+  const payload = {
+    company_id: input.company_id,
+    track: input.track,
+    phase: input.phase,
+    title: input.title,
+    priority: input.priority ?? "medium",
+    status: input.status ?? "not_started",
+    cadence: input.cadence ?? "one-time",
+    deadline: input.deadline || null,
+    recurring: input.recurring ?? false,
+    sort_order,
+  };
+
+  const { data, error } = await supabase.from("tasks").insert(payload).select().single();
+  if (error) throw error;
+  return data;
 }
 
 // ---- Assignees ----
