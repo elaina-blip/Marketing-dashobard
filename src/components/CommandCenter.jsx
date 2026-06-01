@@ -479,7 +479,8 @@ export default function App() {
           />
         ) : view === "calendar" ? (
           <CalendarView tasks={tasks} companyId={companyId} calMonth={calMonth}
-            setCalMonth={setCalMonth} selectedDay={selectedDay} onOpen={setOpenTask} onSelectDay={setSelectedDay} />
+            setCalMonth={setCalMonth} selectedDay={selectedDay} onOpen={setOpenTask}
+            onSelectDay={setSelectedDay} onCloseDay={() => setSelectedDay(null)} />
         ) : (
           <div style={S.board}>
             {grouped.length === 0 && <div style={S.empty}>No tasks match this filter.</div>}
@@ -525,12 +526,6 @@ export default function App() {
         />
       )}
 
-      {selectedDay && (
-        <DayPanel ds={selectedDay.ds}
-          tasks={tasks.filter(t => t.deadline === selectedDay.ds && (companyId === "all" || t.companyId === companyId))}
-          onClose={() => setSelectedDay(null)}
-          onOpen={(id) => { setSelectedDay(null); setOpenTask(id); }} />
-      )}
     </div>
   );
 }
@@ -546,7 +541,7 @@ function NavItem({ icon: Icon, label, active, onClick }) {
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-function CalendarView({ tasks, companyId, calMonth, setCalMonth, selectedDay, onOpen, onSelectDay }) {
+function CalendarView({ tasks, companyId, calMonth, setCalMonth, selectedDay, onOpen, onSelectDay, onCloseDay }) {
   const { y, m } = calMonth;
 
   // tasks with a deadline in scope (both areas show on calendar)
@@ -579,6 +574,17 @@ function CalendarView({ tasks, companyId, calMonth, setCalMonth, selectedDay, on
   const prev = () => setCalMonth(m === 0 ? { y: y - 1, m: 11 } : { y, m: m - 1 });
   const next = () => setCalMonth(m === 11 ? { y: y + 1, m: 0 } : { y, m: m + 1 });
   const today = () => { const d = new Date(); setCalMonth({ y: d.getFullYear(), m: d.getMonth() }); };
+
+  if (selectedDay) {
+    return (
+      <DayAgendaView
+        ds={selectedDay.ds}
+        tasks={tasks.filter(t => t.deadline === selectedDay.ds && (companyId === "all" || t.companyId === companyId))}
+        onBack={onCloseDay}
+        onOpenTask={onOpen}
+      />
+    );
+  }
 
   return (
     <div style={S.calWrap}>
@@ -663,6 +669,66 @@ function CalendarView({ tasks, companyId, calMonth, setCalMonth, selectedDay, on
           <span key={c.id} style={S.legendItem}><span style={{ ...S.dot, background: c.color }} /> {c.short}</span>
         ))}
         <span style={{ marginLeft: "auto", color: "#9aa3b2", fontSize: 12 }}>Click a day to see all its tasks · click a task to open it</span>
+      </div>
+    </div>
+  );
+}
+
+function DayAgendaView({ ds, tasks, onBack, onOpenTask }) {
+  const date = new Date(ds + "T00:00:00");
+  const heading = date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const allDay = [...tasks].sort((a, b) => {
+    const order = { high: 0, medium: 1, low: 2 };
+    return order[a.priority] - order[b.priority];
+  });
+
+  const hours = Array.from({ length: 24 }, (_, hour) => hour);
+
+  const fmtHour = (hour) => {
+    const labelHour = hour % 12 === 0 ? 12 : hour % 12;
+    return `${labelHour} ${hour < 12 ? "AM" : "PM"}`;
+  };
+
+  return (
+    <div style={S.dayAgendaWrap}>
+      <div style={S.dayAgendaTop}>
+        <button style={S.dayAgendaBack} onClick={onBack}>
+          <ChevronLeft size={16} /> Month
+        </button>
+        <div style={S.dayAgendaHeadingWrap}>
+          <div style={S.dayAgendaDateLabel}>{heading}</div>
+          <div style={S.dayAgendaSub}>{allDay.length} task{allDay.length !== 1 ? "s" : ""} due</div>
+        </div>
+      </div>
+
+      <div style={S.dayAgendaShell}>
+        <div style={S.dayAgendaAllDay}>
+          <div style={S.dayAgendaAllDayLabel}>All day</div>
+          <div style={S.dayAgendaAllDayList}>
+            {allDay.length === 0 ? (
+              <div style={S.dayAgendaEmpty}>No tasks due today.</div>
+            ) : allDay.map(task => {
+              const co = COMPANIES.find(c => c.id === task.companyId);
+              const status = STATUSES[task.status];
+              return (
+                <button key={task.id} style={S.dayAgendaEvent} onClick={() => onOpenTask(task.id)}>
+                  <span style={{ ...S.dayAgendaEventDot, background: co.color }} />
+                  <span style={S.dayAgendaEventText}>{task.title}</span>
+                  <span style={S.dayAgendaEventMeta}>{co.short} · {status.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={S.dayAgendaGrid}>
+          {hours.map(hour => (
+            <div key={hour} style={S.dayAgendaRow}>
+              <div style={S.dayAgendaTime}>{fmtHour(hour)}</div>
+              <div style={S.dayAgendaLine} />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -1279,6 +1345,25 @@ const S = {
   ganttFooter: { display: "flex", gap: 18, marginTop: 14, paddingTop: 12, borderTop: "1px solid #e8edf4", fontSize: 12, color: "#6b7587", flexWrap: "wrap" },
   ganttLegendItem: { display: "flex", alignItems: "center", gap: 6 },
   ganttSwatch: { width: 11, height: 11, borderRadius: 3 },
+  dayAgendaWrap: { flex: 1, display: "flex", flexDirection: "column", padding: "20px 30px 24px", overflow: "hidden" },
+  dayAgendaTop: { display: "flex", alignItems: "center", gap: 14, marginBottom: 12, flexWrap: "wrap" },
+  dayAgendaBack: { display: "inline-flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #dfe4ec", borderRadius: 999, padding: "8px 13px", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#4a5468" },
+  dayAgendaHeadingWrap: { display: "flex", flexDirection: "column", gap: 4 },
+  dayAgendaDateLabel: { fontSize: 22, fontWeight: 700, letterSpacing: "-.03em", color: "#1d2433" },
+  dayAgendaSub: { fontSize: 12.5, fontWeight: 600, color: "#6b7587" },
+  dayAgendaShell: { flex: 1, overflow: "auto", background: "#fff", border: "1px solid #dfe4ec", borderRadius: 14 },
+  dayAgendaAllDay: { display: "grid", gridTemplateColumns: "120px 1fr", borderBottom: "1px solid #e8edf4", background: "#fbfcfe" },
+  dayAgendaAllDayLabel: { padding: "14px 12px", fontSize: 11.5, fontWeight: 700, color: "#6b7587", textTransform: "uppercase", letterSpacing: ".08em", borderRight: "1px solid #e8edf4" },
+  dayAgendaAllDayList: { padding: 10, display: "flex", flexDirection: "column", gap: 8 },
+  dayAgendaEvent: { display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: "1px solid #e8edf4", background: "#fff", cursor: "pointer", textAlign: "left" },
+  dayAgendaEventDot: { width: 10, height: 10, borderRadius: "50%", flexShrink: 0 },
+  dayAgendaEventText: { fontSize: 13.5, fontWeight: 600, color: "#1d2433", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  dayAgendaEventMeta: { fontSize: 11.5, color: "#8a94a6", fontWeight: 600 },
+  dayAgendaEmpty: { fontSize: 13, color: "#9aa3b2", fontStyle: "italic", padding: "6px 2px" },
+  dayAgendaGrid: { display: "flex", flexDirection: "column" },
+  dayAgendaRow: { display: "grid", gridTemplateColumns: "120px 1fr", minHeight: 38, borderBottom: "1px solid #eef1f6" },
+  dayAgendaTime: { padding: "10px 12px", fontSize: 12, color: "#8a94a6", fontWeight: 600, borderRight: "1px solid #eef1f6" },
+  dayAgendaLine: { position: "relative" },
   timelineDetailMeta: { display: "flex", gap: 10, flexWrap: "wrap", color: "#6b7587", fontSize: 12.5, fontWeight: 600, marginBottom: 14 },
   timelineDetailTasks: { display: "flex", flexDirection: "column", gap: 8 },
   timelineDetailTask: { display: "flex", alignItems: "flex-start", gap: 10, padding: "11px 12px", borderRadius: 11,
