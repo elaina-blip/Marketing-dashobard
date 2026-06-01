@@ -10,7 +10,7 @@ import {
   loadTasks, updateTask as dbUpdate, setAssignee as dbSetAssignee,
   addNote as dbAddNote, addLink as dbAddLink, uploadFile as dbUploadFile,
   fileUrl as dbFileUrl, removeAttachment as dbRemoveAttachment,
-  getTeam, currentEmail, signOut as dbSignOut,
+  getTeam, currentEmail, signOut as dbSignOut, createTask as dbCreateTask,
 } from "@/lib/data";
 
 /* ────────────────────────────────────────────────────────────────
@@ -249,6 +249,104 @@ function SetupScreen({ onDone, me }) {
   );
 }
 
+function NewTaskModal({ open, onClose, onCreate, defaults, companyId, track }) {
+  const [title, setTitle] = useState("");
+  const [phase, setPhase] = useState(defaults.phase);
+  const [priority, setPriority] = useState("medium");
+  const [cadence, setCadence] = useState("one-time");
+  const [deadline, setDeadline] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setTitle("");
+    setPhase(defaults.phase);
+    setPriority("medium");
+    setCadence("one-time");
+    setDeadline("");
+  }, [open, defaults.phase]);
+
+  if (!open) return null;
+
+  const submit = async () => {
+    if (!title.trim()) return;
+    setCreating(true);
+    try {
+      await onCreate({
+        company_id: companyId,
+        track,
+        phase,
+        title: title.trim(),
+        priority,
+        cadence,
+        deadline: deadline || null,
+      });
+      onClose();
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div style={S.overlay} onClick={onClose}>
+      <div style={{ ...S.drawer, width: 520 }} onClick={e => e.stopPropagation()}>
+        <div style={S.drawerHead}>
+          <span style={{ ...S.tag, background: "#F47B2722", color: "#F47B27" }}>New task</span>
+          <button style={S.closeBtn} onClick={onClose}><X size={18} /></button>
+        </div>
+        <h2 style={S.drawerTitle}>Add a task</h2>
+
+        <div style={S.field}>
+          <label style={S.label}>Task title</label>
+          <input autoFocus value={title} onChange={e => setTitle(e.target.value)} placeholder="Enter a task title" style={S.dateInput} />
+        </div>
+
+        <div style={S.field}>
+          <label style={S.label}>Phase</label>
+          <select value={phase} onChange={e => setPhase(e.target.value)} style={S.dateInput}>
+            {track === "seo"
+              ? SEO_TIMELINE.map(p => <option key={p.phase} value={p.phase}>{p.phase}</option>)
+              : PAID_MASTER.map(([phaseName]) => <option key={phaseName} value={phaseName}>{phaseName}</option>)}
+          </select>
+        </div>
+
+        <div style={S.field}>
+          <label style={S.label}>Priority</label>
+          <div style={S.chipRow}>
+            {["high", "medium", "low"].map(p => (
+              <button key={p} type="button" onClick={() => setPriority(p)} style={{ ...S.chip, ...(priority === p ? S.chipOn : {}) }}>
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={S.field}>
+          <label style={S.label}>Cadence</label>
+          <select value={cadence} onChange={e => setCadence(e.target.value)} style={S.dateInput}>
+            <option value="one-time">One-time</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
+          </select>
+        </div>
+
+        <div style={S.field}>
+          <label style={S.label}>Deadline</label>
+          <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} style={S.dateInput} />
+        </div>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button style={{ ...S.noteBtn, background: "#f1f4f9", color: "#4a5468" }} onClick={onClose}>Cancel</button>
+          <button style={S.noteBtn} onClick={submit} disabled={creating || !title.trim()}>
+            {creating ? "Creating…" : "Create task"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -282,6 +380,7 @@ export default function App() {
   const [selectedDay, setSelectedDay] = useState(null);
   const [selectedPhase, setSelectedPhase] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
 
   const activeCompany = companyId === "all"
     ? { id: "all", name: "All Companies", short: "ALL", color: "#9b8cff" }
@@ -330,6 +429,16 @@ export default function App() {
     if (Object.keys(dbPatch).length) dbUpdate(id, dbPatch);
   };
   const detail = openTask ? tasks.find(t => t.id === openTask) : null;
+  const currentPhaseDefaults = useMemo(() => {
+    if (view === "timeline") return { phase: SEO_TIMELINE[0].phase };
+    if (track === "seo") return { phase: SEO_TIMELINE[0].phase };
+    return { phase: PAID_MASTER[0][0] };
+  }, [track, view]);
+
+  const createTask = async (input) => {
+    await dbCreateTask(input);
+    await reload();
+  };
 
   const selectedPhaseData = useMemo(() => {
     if (view !== "timeline" || !selectedPhase) return null;
@@ -463,7 +572,7 @@ export default function App() {
                 </select>
               </div>
             )}
-            <button style={S.addBtn}><Plus size={15} /> Add task</button>
+            <button style={S.addBtn} onClick={() => setNewTaskOpen(true)}><Plus size={15} /> Add task</button>
           </div>
         </header>
 
@@ -525,6 +634,15 @@ export default function App() {
           onOpenTask={(id) => { setSelectedPhase(null); setOpenTask(id); }}
         />
       )}
+
+      <NewTaskModal
+        open={newTaskOpen}
+        onClose={() => setNewTaskOpen(false)}
+        onCreate={createTask}
+        defaults={currentPhaseDefaults}
+        companyId={companyId === "all" ? COMPANIES[0].id : companyId}
+        track={track}
+      />
 
     </div>
   );
