@@ -688,103 +688,104 @@ function TimelineView({ tasks, companyId, setCompanyId, onOpenTask, selectedPhas
   const activeName = selectedPhase?.phase || null;
 
   return (
-    <div style={S.timelineWrap}>
-      <div style={S.timelineHero}>
+    <div style={S.ganttWrap}>
+      <div style={S.ganttHero}>
         <div>
-          <div style={S.timelineKicker}>
-            <Building2 size={13} /> {activeCompany.name}{companyId !== "all" && activeCompany.site ? <span style={S.site}>· {activeCompany.site}</span> : null}
+          <div style={S.ganttCtxLine}>
+            <Building2 size={13} />
+            <span>{activeCompany.name}{companyId !== "all" && activeCompany.site ? ` · ${activeCompany.site}` : ""}</span>
           </div>
-          <h2 style={S.timelineTitle}>SEO Setup &amp; Management</h2>
+          <h2 style={S.ganttTitle}>SEO Setup &amp; Management</h2>
         </div>
-        <div style={S.timelineBadge}>12-week rollout</div>
+        <div style={S.ganttBadge}>12-week rollout</div>
       </div>
 
-      <div style={S.timelineTabs}>
+      <div style={S.ganttTabs}>
         {[{ id: "all", short: "ALL", name: "All Companies" }, ...COMPANIES].map(c => {
           const active = companyId === c.id;
           return (
             <button
               key={c.id}
               style={{
-                ...S.timelineTab,
-                ...(active ? { borderColor: c.color, background: c.color, color: "#fff" } : {}),
+                ...S.ganttTab,
+                ...(active ? { background: c.color, borderColor: c.color, color: "#fff" } : {}),
               }}
               onClick={() => setCompanyId(c.id)}
             >
-              <span style={{ ...S.timelineDot, background: active ? "rgba(255,255,255,.9)" : c.color }} />
+              <span style={{ ...S.ganttTabDot, background: active ? "rgba(255,255,255,.9)" : c.color }} />
               {c.short}
             </button>
           );
         })}
       </div>
 
-      <div style={S.timelineLegend}>
-        <span style={S.timelineLegendItem}><span style={{ ...S.timelineSwatch, background: "#7F77DD" }} /> One-time setup</span>
-        <span style={S.timelineLegendItem}><span style={{ ...S.timelineSwatch, background: "#1D9E75" }} /> Recurring / ongoing</span>
-        <span style={S.timelineLegendItem}><i className="ti ti-flag-filled" style={{ color: "#D85A30", fontSize: 13 }} aria-hidden="true" /> Milestone</span>
-        <span style={{ marginLeft: "auto", color: "#8a94a6" }}>Click a phase bar to see the task list.</span>
+      <div style={S.ganttLegend}>
+        <span style={S.ganttLegendItem}><span style={{ ...S.ganttSwatch, background: "#7F77DD" }} /> One-time setup</span>
+        <span style={S.ganttLegendItem}><span style={{ ...S.ganttSwatch, background: "#1D9E75" }} /> Recurring / ongoing</span>
+        <span style={S.ganttLegendItem}><i className="ti ti-flag-filled" style={{ color: "#D85A30", fontSize: 13 }} aria-hidden="true" /> Milestone</span>
+        <span style={{ marginLeft: "auto", color: "#8a94a6" }}>Click a bar to reveal the tasks in that phase.</span>
       </div>
 
-      <div style={S.timelineScroll}>
-        <table style={S.timelineTable}>
+      <div style={S.ganttScroll}>
+        <table style={S.ganttTable}>
           <colgroup>
-            <col style={{ width: 300 }} />
-            <col style={{ width: 56 }} />
-            <col style={{ width: 1 }} />
+            <col style={{ width: 270 }} />
+            <col style={{ width: 46 }} />
+            <col style={{ width: 6.25 + "%" }} /><col style={{ width: 6.25 + "%" }} /><col style={{ width: 6.25 + "%" }} /><col style={{ width: 6.25 + "%" }} />
+            <col style={{ width: 6.25 + "%" }} /><col style={{ width: 6.25 + "%" }} /><col style={{ width: 6.25 + "%" }} /><col style={{ width: 6.25 + "%" }} />
+            <col style={{ width: 6.25 + "%" }} /><col style={{ width: 6.25 + "%" }} /><col style={{ width: 6.25 + "%" }} /><col style={{ width: 6.25 + "%" }} />
           </colgroup>
           <thead>
-            <tr style={S.timelineHeadRow}>
-              <th style={{ ...S.timelineHeadCell, textAlign: "left" }}>Phase</th>
-              <th style={{ ...S.timelineHeadCell, textAlign: "center" }}>Tasks</th>
-              <th style={S.timelineWeekHeadCell}>
-                <div style={S.timelineWeeks}>
-                  {Array.from({ length: 12 }, (_, i) => (
-                    <span key={i} style={S.timelineWeekLabel}>W{i + 1}</span>
-                  ))}
-                </div>
-              </th>
+            <tr style={S.ganttHeadRow}>
+              <th style={{ ...S.ganttHeadCell, textAlign: "left" }}>Phase</th>
+              <th style={{ ...S.ganttHeadCell, textAlign: "center" }}>Tasks</th>
+              {Array.from({ length: 12 }, (_, i) => (
+                <th key={i} style={S.ganttWeekCell}>W{i + 1}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {rows.map((phase, index) => {
+            {rows.map((phase) => {
               const isOpen = activeName === phase.phase;
-              const left = `${((phase.start - 1) / 12) * 100}%`;
-              const width = `${(phase.len / 12) * 100}%`;
               return (
-                <tr key={phase.phase} style={{ ...S.timelineRow, ...(isOpen ? S.timelineRowActive : {}) }}>
-                  <td style={S.timelinePhaseCell}>
-                    <button
-                      style={S.timelinePhaseButton}
-                      onClick={() => onSelectPhase(phase.phase)}
-                    >
-                      <span style={S.timelinePhaseTitle}>{phase.phase}</span>
-                      <span style={S.timelinePhaseMeta}>{phase.kind === "recurring" ? "Recurring" : "One-time"}</span>
+                <tr key={phase.phase} style={{ ...S.ganttRow, ...(isOpen ? S.ganttRowActive : {}) }}>
+                  <td style={S.ganttPhaseCell}>
+                    <button style={S.ganttPhaseButton} onClick={() => onSelectPhase(phase.phase)}>
+                      <span style={S.ganttPhaseTitle}>{phase.phase}</span>
+                      <span style={S.ganttPhaseMeta}>{phase.kind === "recurring" ? "Recurring" : "One-time"}</span>
                     </button>
                   </td>
-                  <td style={S.timelineTaskCountCell}>
-                    <button style={S.timelineTaskCountButton} onClick={() => onSelectPhase(phase.phase)}>
-                      {phase.doneCount}/{phase.tasks.length}
-                    </button>
+                  <td style={S.ganttTaskCell}>
+                    <button style={S.ganttTaskButton} onClick={() => onSelectPhase(phase.phase)}>{phase.doneCount}/{phase.tasks.length}</button>
                   </td>
-                  <td style={S.timelineTrackCell}>
-                    <div style={S.timelineTrack}>
-                      {Array.from({ length: 11 }, (_, i) => (
-                        <span key={i} style={{ ...S.timelineTrackLine, left: `${((i + 1) / 12) * 100}%` }} />
-                      ))}
-                      <button
-                        style={{ ...S.timelineBar, left, width, background: phase.kind === "recurring" ? "#1D9E75" : "#7F77DD", ...(isOpen ? S.timelineBarActive : {}) }}
-                        onClick={() => onSelectPhase(phase.phase)}
-                        title={`${phase.phase} · ${phase.tasks.length} tasks`}
-                      >
-                        <span style={S.timelineBarLabel}>{phase.phase}</span>
-                      </button>
-                      {phase.milestone && (
-                        <span style={{ ...S.timelineMilestone, left: `${((phase.milestone - 1) / 12) * 100}%` }} title={`Milestone at W${phase.milestone}`}>
-                          <i className="ti ti-flag-filled" aria-hidden="true" />
-                        </span>
-                      )}
-                    </div>
-                  </td>
+                  {Array.from({ length: 12 }, (_, weekIndex) => {
+                    const week = weekIndex + 1;
+                    const isBarStart = week === phase.start;
+                    const isBarBody = week > phase.start && week < phase.start + phase.len;
+                    const isMilestone = phase.milestone === week;
+                    return (
+                      <td key={week} style={S.ganttWeekSlot}>
+                        <div style={S.ganttWeekSlotInner}>
+                          {isBarStart && (
+                            <button
+                              style={{
+                                ...S.ganttBar,
+                                background: phase.kind === "recurring" ? "#1D9E75" : "#7F77DD",
+                                ...(isOpen ? S.ganttBarActive : {}),
+                                width: `calc(${phase.len * 100}% - 2px)`,
+                              }}
+                              onClick={() => onSelectPhase(phase.phase)}
+                              title={`${phase.phase} · ${phase.tasks.length} tasks`}
+                            >
+                              <span style={S.ganttBarLabel}>{phase.phase}</span>
+                            </button>
+                          )}
+                          {isBarBody && <div style={S.ganttBarFill} />}
+                          {isMilestone && <i className="ti ti-flag-filled" style={S.ganttMilestone} aria-hidden="true" />}
+                        </div>
+                      </td>
+                    );
+                  })}
                 </tr>
               );
             })}
@@ -792,10 +793,43 @@ function TimelineView({ tasks, companyId, setCompanyId, onOpenTask, selectedPhas
         </table>
       </div>
 
-      <div style={S.timelineFooter}>
+      <div style={S.ganttDetailWrap}>
+        {selectedPhase ? (
+          <div style={S.ganttDetailCard}>
+            <div style={S.ganttDetailHead}>
+              <span style={S.ganttDetailTitle}>
+                <span style={{ ...S.ganttDetailSwatch, background: selectedPhase.kind === "recurring" ? "#1D9E75" : "#7F77DD" }} />
+                Phase {selectedPhase.phase}
+              </span>
+              <span style={S.ganttDetailMetaRight}>
+                <span>{selectedPhase.tasks.length} tasks</span>
+                <span>Weeks {selectedPhase.start}–{selectedPhase.start + selectedPhase.len - 1}</span>
+                <span>{selectedPhase.kind === "recurring" ? "Recurring" : "One-time"}</span>
+              </span>
+            </div>
+            <ul style={S.ganttDetailList}>
+              {selectedPhase.tasks.map(task => (
+                <li key={task.id} style={S.ganttDetailItem}>
+                  <button style={S.ganttDetailTaskButton} onClick={() => onOpenTask(task.id)}>
+                    <i className="ti ti-circle" style={S.ganttDetailDot} aria-hidden="true" />
+                    <span style={S.ganttDetailTaskText}>{task.title}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button style={S.ganttDetailClose} onClick={onClosePhase}>Close phase</button>
+          </div>
+        ) : (
+          <div style={S.ganttDetailEmpty}>
+            Click any phase bar above to open its task list here.
+          </div>
+        )}
+      </div>
+
+      <div style={S.ganttFooter}>
         <span><i className="ti ti-list-check" style={{ verticalAlign: -2 }} aria-hidden="true" /> {totalTasks} tasks · {rows.length} phases</span>
         <span><i className="ti ti-circle-check" style={{ verticalAlign: -2, color: "#1D9E75" }} aria-hidden="true" /> {totalDone} completed</span>
-        <span>Phases 6–10 keep rolling after launch.</span>
+        <span><i className="ti ti-repeat" style={{ verticalAlign: -2, color: "#1D9E75" }} aria-hidden="true" /> Phases 6–10 continue ongoing</span>
       </div>
     </div>
   );
@@ -1198,48 +1232,53 @@ const S = {
   calExpandedLabel: { fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".08em", color: "#C35A10", fontWeight: 800 },
   calExpandedHeading: { marginTop: 4, fontSize: 13.5, fontWeight: 800, color: "#1d2433" },
   calExpandedCopy: { marginTop: 5, fontSize: 12, lineHeight: 1.45, color: "#6b7587" },
-  timelineWrap: { flex: 1, display: "flex", flexDirection: "column", padding: "20px 30px 24px", overflow: "hidden" },
-  timelineHero: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16,
-    padding: "14px 16px", border: "1px solid #dfe4ec", borderRadius: 14, background: "#fff",
-    boxShadow: "0 8px 24px rgba(16,23,37,.04)", marginBottom: 12 },
-  timelineKicker: { display: "flex", alignItems: "center", gap: 6, color: "#6b7587", fontSize: 12.5, fontWeight: 600, marginBottom: 4 },
-  timelineTitle: { margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-.03em" },
-  timelineBadge: { background: "#FAEEDA", color: "#854F0B", borderRadius: 11, padding: "6px 11px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" },
-  timelineTabs: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 },
-  timelineTab: { display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 12px", borderRadius: 999,
-    border: "1px solid #dfe4ec", background: "#fff", color: "#4a5468", cursor: "pointer", fontSize: 12.5, fontWeight: 700 },
-  timelineDot: { width: 8, height: 8, borderRadius: "50%", flexShrink: 0 },
-  timelineLegend: { display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 12, fontSize: 12.5, color: "#4a5468", fontWeight: 600 },
-  timelineLegendItem: { display: "flex", alignItems: "center", gap: 6 },
-  timelineSwatch: { width: 11, height: 11, borderRadius: 3, flexShrink: 0 },
-  timelineScroll: { flex: 1, overflow: "auto", background: "#fff", border: "1px solid #dfe4ec", borderRadius: 14 },
-  timelineTable: { width: "100%", minWidth: 980, borderCollapse: "collapse", tableLayout: "fixed" },
-  timelineHeadRow: { position: "sticky", top: 0, zIndex: 2, background: "#fbfcfe" },
-  timelineHeadCell: { padding: "12px 14px", borderBottom: "1px solid #e8edf4", color: "#6b7587", fontSize: 11.5, textTransform: "uppercase", letterSpacing: ".08em" },
-  timelineWeekHeadCell: { padding: "0 14px 12px 8px", borderBottom: "1px solid #e8edf4" },
-  timelineWeeks: { display: "grid", gridTemplateColumns: "repeat(12,1fr)", gap: 0, height: 18, alignItems: "end" },
-  timelineWeekLabel: { fontSize: 11, color: "#8a94a6", textAlign: "center", fontWeight: 700 },
-  timelineRow: { borderBottom: "1px solid #f1f4f9" },
-  timelineRowActive: { background: "#fbfcfe" },
-  timelinePhaseCell: { padding: "12px 14px", verticalAlign: "middle" },
-  timelinePhaseButton: { width: "100%", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4,
-    background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" },
-  timelinePhaseTitle: { fontSize: 13.5, fontWeight: 800, color: "#1d2433", lineHeight: 1.35 },
-  timelinePhaseMeta: { fontSize: 11.5, color: "#8a94a6", fontWeight: 700, letterSpacing: ".02em" },
-  timelineTaskCountCell: { padding: "12px 10px", verticalAlign: "middle", textAlign: "center" },
-  timelineTaskCountButton: { background: "#f1f4f9", color: "#4a5468", border: "none", borderRadius: 999, minWidth: 42,
-    padding: "6px 10px", cursor: "pointer", fontSize: 12, fontWeight: 800 },
-  timelineTrackCell: { padding: "12px 14px 12px 8px", verticalAlign: "middle" },
-  timelineTrack: { position: "relative", height: 30, borderRadius: 999,
-    background: "repeating-linear-gradient(90deg, #ffffff 0, #ffffff calc(8.333% - 1px), #eef1f6 calc(8.333% - 1px), #eef1f6 8.333%)" },
-  timelineTrackLine: { position: "absolute", top: 0, bottom: 0, width: 1, background: "rgba(223,228,236,.9)" },
-  timelineBar: { position: "absolute", top: 3, height: 24, border: "none", borderRadius: 999, color: "#fff",
-    display: "flex", alignItems: "center", padding: "0 10px", cursor: "pointer", boxShadow: "0 8px 18px rgba(16,23,37,.08)",
-    overflow: "hidden" },
-  timelineBarActive: { boxShadow: "0 0 0 2px #D85A30, 0 10px 22px rgba(16,23,37,.12)" },
-  timelineBarLabel: { fontSize: 11.5, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
-  timelineMilestone: { position: "absolute", top: -5, transform: "translateX(-50%)", color: "#D85A30", fontSize: 13 },
-  timelineFooter: { display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", marginTop: 12, fontSize: 12, color: "#6b7587", fontWeight: 600 },
+  ganttWrap: { flex: 1, display: "flex", flexDirection: "column", padding: "20px 30px 24px", overflow: "hidden" },
+  ganttHero: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 },
+  ganttCtxLine: { display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "#6b7587" },
+  ganttTitle: { margin: "4px 0 0", fontSize: 20, fontWeight: 600, letterSpacing: "-.02em" },
+  ganttBadge: { background: "#FAEEDA", color: "#854F0B", fontSize: 12, fontWeight: 600, padding: "5px 11px", borderRadius: 10 },
+  ganttTabs: { display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" },
+  ganttTab: { padding: "6px 16px", fontSize: 13, fontWeight: 500, borderRadius: 10, cursor: "pointer", border: "1px solid #dfe4ec", background: "#fff", color: "#6b7587", display: "inline-flex", alignItems: "center", gap: 8 },
+  ganttTabDot: { width: 11, height: 11, borderRadius: 3, flexShrink: 0 },
+  ganttLegend: { display: "flex", gap: 14, margin: "0 0 10px", fontSize: 12, flexWrap: "wrap", color: "#4a5468" },
+  ganttLegendItem: { display: "flex", alignItems: "center", gap: 6 },
+  ganttSwatch: { width: 11, height: 11, borderRadius: 3, display: "inline-block" },
+  ganttScroll: { overflowX: "auto" },
+  ganttTable: { width: "100%", minWidth: 860, borderCollapse: "collapse", tableLayout: "fixed", fontSize: 13, background: "#fff", borderRadius: 14, border: "1px solid #dfe4ec" },
+  ganttHeadRow: { color: "#6b7587" },
+  ganttHeadCell: { padding: 8, textAlign: "left", fontWeight: 500, borderBottom: "1px solid #e8edf4" },
+  ganttWeekCell: { padding: 8, fontWeight: 500, fontSize: 11, textAlign: "center", borderBottom: "1px solid #e8edf4", color: "#6b7587" },
+  ganttRow: { borderTop: "1px solid #eef1f6", cursor: "pointer" },
+  ganttRowActive: { background: "#fbfcfe" },
+  ganttPhaseCell: { padding: "9px 8px", verticalAlign: "middle" },
+  ganttPhaseButton: { background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left", width: "100%" },
+  ganttPhaseTitle: { fontSize: 13.5, fontWeight: 500, color: "#1d2433", lineHeight: 1.35, display: "block" },
+  ganttPhaseMeta: { fontSize: 11.5, color: "#8a94a6", display: "block", marginTop: 2 },
+  ganttTaskCell: { padding: "9px 4px", textAlign: "center", color: "#6b7587", fontSize: 12 },
+  ganttTaskButton: { background: "#f1f4f9", border: "none", borderRadius: 999, minWidth: 42, padding: "6px 10px", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#4a5468" },
+  ganttWeekSlot: { padding: "9px 0", height: 22, verticalAlign: "middle", borderLeft: "1px solid #eef1f6" },
+  ganttWeekSlotInner: { position: "relative", height: 18 },
+  ganttBar: { position: "absolute", top: -9, left: 1, height: 18, border: "none", borderRadius: 5, minWidth: 14, opacity: .9, cursor: "pointer", boxShadow: "0 0 0 0 rgba(0,0,0,0)", padding: 0, overflow: "hidden" },
+  ganttBarActive: { opacity: 1, outline: "2px solid #185FA5", outlineOffset: 1 },
+  ganttBarFill: { position: "absolute", top: -9, left: 0, right: 0, height: 18, background: "inherit", borderRadius: 5, opacity: .9 },
+  ganttBarLabel: { display: "block", padding: "0 8px", lineHeight: "18px", color: "#fff", fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  ganttMilestone: { color: "#D85A30", fontSize: 13, position: "relative", top: -1, right: -1, display: "block", textAlign: "right" },
+  ganttDetailWrap: { marginTop: 14, paddingTop: 12, borderTop: "1px solid #e8edf4" },
+  ganttDetailCard: { background: "#fafafa", borderRadius: 10, padding: 12, border: "1px solid #e8edf4" },
+  ganttDetailHead: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, gap: 10, flexWrap: "wrap" },
+  ganttDetailTitle: { display: "inline-flex", alignItems: "center", gap: 7, fontWeight: 500 },
+  ganttDetailSwatch: { width: 10, height: 10, borderRadius: 3, display: "inline-block" },
+  ganttDetailMetaRight: { fontSize: 12, color: "#6b7587", display: "flex", gap: 10, flexWrap: "wrap" },
+  ganttDetailList: { listStyle: "none", margin: "6px 0 0", padding: 0, fontSize: 13 },
+  ganttDetailItem: { padding: 0 },
+  ganttDetailTaskButton: { width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderTop: "1px solid #e8edf4", background: "none", borderLeft: "none", borderRight: "none", borderBottom: "none", cursor: "pointer", textAlign: "left" },
+  ganttDetailDot: { fontSize: 13, color: "#8a94a6", flexShrink: 0 },
+  ganttDetailTaskText: { fontSize: 13, color: "#1d2433" },
+  ganttDetailClose: { marginTop: 10, background: "#101725", color: "#fff", border: "none", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" },
+  ganttDetailEmpty: { background: "#fafafa", borderRadius: 10, padding: 12, border: "1px solid #e8edf4", fontSize: 12.5, color: "#8a94a6" },
+  ganttFooter: { display: "flex", gap: 18, marginTop: 14, paddingTop: 12, borderTop: "1px solid #e8edf4", fontSize: 12, color: "#6b7587", flexWrap: "wrap" },
+  ganttLegendItem: { display: "flex", alignItems: "center", gap: 6 },
+  ganttSwatch: { width: 11, height: 11, borderRadius: 3 },
   timelineDetailMeta: { display: "flex", gap: 10, flexWrap: "wrap", color: "#6b7587", fontSize: 12.5, fontWeight: 600, marginBottom: 14 },
   timelineDetailTasks: { display: "flex", flexDirection: "column", gap: 8 },
   timelineDetailTask: { display: "flex", alignItems: "flex-start", gap: 10, padding: "11px 12px", borderRadius: 11,
