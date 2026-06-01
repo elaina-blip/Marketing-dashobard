@@ -195,6 +195,19 @@ const PAID_MASTER = [
   ]],
 ];
 
+const SEO_TIMELINE = [
+  { phase: "Phase 1 — Foundations & Access", start: 1, len: 2, kind: "one-time" },
+  { phase: "Phase 2 — Measurement & Verification", start: 1, len: 2, kind: "one-time", milestone: 2 },
+  { phase: "Phase 3 — Keyword & Market Research", start: 2, len: 2, kind: "one-time" },
+  { phase: "Phase 4 — Technical SEO", start: 3, len: 3, kind: "one-time" },
+  { phase: "Phase 5 — On-Page SEO", start: 4, len: 2, kind: "one-time" },
+  { phase: "Phase 6 — Content & E-E-A-T", start: 5, len: 3, kind: "recurring", milestone: 6 },
+  { phase: "Phase 7 — Local SEO", start: 6, len: 2, kind: "recurring" },
+  { phase: "Phase 8 — Off-Page & Authority", start: 7, len: 6, kind: "recurring" },
+  { phase: "Phase 9 — AI Search Readiness (AEO/GEO)", start: 8, len: 5, kind: "recurring" },
+  { phase: "Phase 10 — Measurement & Reporting", start: 9, len: 4, kind: "recurring" },
+];
+
 function fmtDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -262,11 +275,12 @@ export default function App() {
     })();
   }, []);
   const [track, setTrack] = useState("seo");
-  const [view, setView] = useState("board"); // "board" | "calendar"
+  const [view, setView] = useState("board"); // "board" | "calendar" | "timeline"
   const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [companyMenu, setCompanyMenu] = useState(false);
   const [openTask, setOpenTask] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null);
+  const [selectedPhase, setSelectedPhase] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
 
   const activeCompany = companyId === "all"
@@ -316,6 +330,18 @@ export default function App() {
     if (Object.keys(dbPatch).length) dbUpdate(id, dbPatch);
   };
   const detail = openTask ? tasks.find(t => t.id === openTask) : null;
+
+  const selectedPhaseData = useMemo(() => {
+    if (view !== "timeline" || !selectedPhase) return null;
+    const meta = SEO_TIMELINE.find(p => p.phase === selectedPhase);
+    if (!meta) return null;
+    const phaseTasks = tasks.filter(t =>
+      t.track === "seo" &&
+      (companyId === "all" || t.companyId === companyId) &&
+      t.phase === meta.phase
+    );
+    return { ...meta, tasks: phaseTasks };
+  }, [tasks, companyId, selectedPhase, view]);
 
   if (loading) {
     return (
@@ -377,8 +403,18 @@ export default function App() {
         <nav style={S.nav}>
           <div style={S.navLabel}>AREAS</div>
           <NavItem icon={Search} label="SEO" active={track === "seo"} onClick={() => setTrack("seo")} />
-          <NavItem icon={Megaphone} label="Paid + Social" active={track === "paid_social"} onClick={() => setTrack("paid_social")} />
+          <NavItem
+            icon={Megaphone}
+            label="Paid + Social"
+            active={track === "paid_social"}
+            onClick={() => {
+              setTrack("paid_social");
+              setSelectedPhase(null);
+              if (view === "timeline") setView("board");
+            }}
+          />
           <div style={{ ...S.navLabel, marginTop: 16 }}>VIEW</div>
+          <NavItem icon={CalendarDays} label="Timeline" active={view === "timeline"} onClick={() => { setTrack("seo"); setView("timeline"); }} />
           <NavItem icon={LayoutGrid} label="Board" active={view === "board"} onClick={() => setView("board")} />
           <NavItem icon={CalendarDays} label="Calendar" active={view === "calendar"} onClick={() => setView("calendar")} />
         </nav>
@@ -414,7 +450,7 @@ export default function App() {
               {companyId !== "all" && activeCompany.site && <span style={S.site}>· {activeCompany.site}</span>}
             </div>
             <h1 style={S.h1}>
-              {view === "calendar" ? "Calendar" : (track === "seo" ? "SEO Setup & Management" : "Paid + Social")}
+              {view === "timeline" ? "SEO Timeline" : view === "calendar" ? "Calendar" : (track === "seo" ? "SEO Setup & Management" : "Paid + Social")}
             </h1>
           </div>
           <div style={S.headerRight}>
@@ -431,9 +467,19 @@ export default function App() {
           </div>
         </header>
 
-        {view === "calendar" ? (
+        {view === "timeline" ? (
+          <TimelineView
+            tasks={tasks}
+            companyId={companyId}
+            setCompanyId={(nextCompany) => setCompanyId(nextCompany)}
+            onOpenTask={setOpenTask}
+            selectedPhase={selectedPhaseData}
+            onSelectPhase={(phase) => { setOpenTask(null); setSelectedPhase(phase); }}
+            onClosePhase={() => setSelectedPhase(null)}
+          />
+        ) : view === "calendar" ? (
           <CalendarView tasks={tasks} companyId={companyId} calMonth={calMonth}
-            setCalMonth={setCalMonth} onOpen={setOpenTask} onSelectDay={setSelectedDay} />
+            setCalMonth={setCalMonth} selectedDay={selectedDay} onOpen={setOpenTask} onSelectDay={setSelectedDay} />
         ) : (
           <div style={S.board}>
             {grouped.length === 0 && <div style={S.empty}>No tasks match this filter.</div>}
@@ -470,6 +516,15 @@ export default function App() {
           company={COMPANIES.find(c => c.id === detail.companyId)} me={me} onChanged={reload} />
       )}
 
+      {selectedPhaseData && (
+        <PhaseDrawer
+          phase={selectedPhaseData}
+          company={companyId === "all" ? { name: "All Companies", short: "ALL", color: "#9b8cff" } : COMPANIES.find(c => c.id === companyId)}
+          onClose={() => setSelectedPhase(null)}
+          onOpenTask={(id) => { setSelectedPhase(null); setOpenTask(id); }}
+        />
+      )}
+
       {selectedDay && (
         <DayPanel ds={selectedDay.ds}
           tasks={tasks.filter(t => t.deadline === selectedDay.ds && (companyId === "all" || t.companyId === companyId))}
@@ -491,7 +546,7 @@ function NavItem({ icon: Icon, label, active, onClick }) {
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-function CalendarView({ tasks, companyId, calMonth, setCalMonth, onOpen, onSelectDay }) {
+function CalendarView({ tasks, companyId, calMonth, setCalMonth, selectedDay, onOpen, onSelectDay }) {
   const { y, m } = calMonth;
 
   // tasks with a deadline in scope (both areas show on calendar)
@@ -544,19 +599,34 @@ function CalendarView({ tasks, companyId, calMonth, setCalMonth, onOpen, onSelec
             if (!cell) return <div key={i} style={{ ...S.calCell, background: "#f7f9fc" }} />;
             const isToday = cell.ds === todayStr;
             const hasTasks = cell.tasks.length > 0;
+            const isSelected = selectedDay?.ds === cell.ds;
             return (
               <div key={i}
-                style={{ ...S.calCell, ...(isToday ? S.calCellToday : {}) }}>
+                style={{
+                  ...S.calCell,
+                  ...(isToday ? S.calCellToday : {}),
+                  ...(isSelected ? S.calCellSelected : {}),
+                }}>
                 <div
-                  style={{ ...S.calCellTop, ...(hasTasks ? S.calCellTopClickable : {}) }}
+                  style={{
+                    ...S.calCellTop,
+                    ...(hasTasks ? S.calCellTopClickable : {}),
+                    ...(isSelected ? S.calCellTopSelected : {}),
+                  }}
                   className={hasTasks ? "calhead" : ""}
-                  onClick={() => hasTasks && onSelectDay(cell)}
-                  title={hasTasks ? "Click to see all tasks this day" : ""}>
-                  <div style={{ ...S.calDayNum, ...(isToday ? S.calDayNumToday : {}) }}>{cell.d}</div>
+                  onClick={() => onSelectDay(cell)}
+                  title="Click to expand this day">
+                  <div style={{
+                    ...S.calDayNum,
+                    ...(isToday ? S.calDayNumToday : {}),
+                    ...(isSelected ? S.calDayNumSelected : {}),
+                  }}>{cell.d}</div>
                   {cell.tasks.length > 0 &&
-                    <span style={S.calDayBadge}>{cell.tasks.length} task{cell.tasks.length !== 1 ? "s" : ""}</span>}
+                    <span style={{ ...S.calDayBadge, ...(isSelected ? S.calDayBadgeSelected : {}) }}>
+                      {cell.tasks.length} task{cell.tasks.length !== 1 ? "s" : ""}
+                    </span>}
                 </div>
-                <div style={S.calTasks}>
+                <div style={{ ...S.calTasks, ...(isSelected ? S.calTasksSelected : {}) }}>
                   {cell.tasks.slice(0, 8).map(t => {
                     const co = COMPANIES.find(c => c.id === t.companyId);
                     const done = t.status === "done";
@@ -573,6 +643,15 @@ function CalendarView({ tasks, companyId, calMonth, setCalMonth, onOpen, onSelec
                       +{cell.tasks.length - 8} more — view all
                     </button>}
                 </div>
+                {isSelected && (
+                  <div style={S.calExpandedPanel}>
+                    <div style={S.calExpandedLabel}>Selected day</div>
+                    <div style={S.calExpandedHeading}>{cell.ds}</div>
+                    <div style={S.calExpandedCopy}>
+                      {cell.tasks.length} task{cell.tasks.length !== 1 ? "s" : ""} are due. Open the drawer on the right for the full list.
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -584,6 +663,187 @@ function CalendarView({ tasks, companyId, calMonth, setCalMonth, onOpen, onSelec
           <span key={c.id} style={S.legendItem}><span style={{ ...S.dot, background: c.color }} /> {c.short}</span>
         ))}
         <span style={{ marginLeft: "auto", color: "#9aa3b2", fontSize: 12 }}>Click a day to see all its tasks · click a task to open it</span>
+      </div>
+    </div>
+  );
+}
+
+function TimelineView({ tasks, companyId, setCompanyId, onOpenTask, selectedPhase, onSelectPhase, onClosePhase }) {
+  const activeCompany = companyId === "all"
+    ? { id: "all", short: "ALL", name: "All Companies", site: "" }
+    : COMPANIES.find(c => c.id === companyId);
+
+  const seoTasks = useMemo(() => tasks.filter(t =>
+    t.track === "seo" && (companyId === "all" || t.companyId === companyId)
+  ), [tasks, companyId]);
+
+  const rows = useMemo(() => SEO_TIMELINE.map(meta => {
+    const phaseTasks = seoTasks.filter(t => t.phase === meta.phase);
+    const doneCount = phaseTasks.filter(t => t.status === "done").length;
+    return { ...meta, tasks: phaseTasks, doneCount };
+  }), [seoTasks]);
+
+  const totalTasks = seoTasks.length;
+  const totalDone = seoTasks.filter(t => t.status === "done").length;
+  const activeName = selectedPhase?.phase || null;
+
+  return (
+    <div style={S.timelineWrap}>
+      <div style={S.timelineHero}>
+        <div>
+          <div style={S.timelineKicker}>
+            <Building2 size={13} /> {activeCompany.name}{companyId !== "all" && activeCompany.site ? <span style={S.site}>· {activeCompany.site}</span> : null}
+          </div>
+          <h2 style={S.timelineTitle}>SEO Setup &amp; Management</h2>
+        </div>
+        <div style={S.timelineBadge}>12-week rollout</div>
+      </div>
+
+      <div style={S.timelineTabs}>
+        {[{ id: "all", short: "ALL", name: "All Companies" }, ...COMPANIES].map(c => {
+          const active = companyId === c.id;
+          return (
+            <button
+              key={c.id}
+              style={{
+                ...S.timelineTab,
+                ...(active ? { borderColor: c.color, background: c.color, color: "#fff" } : {}),
+              }}
+              onClick={() => setCompanyId(c.id)}
+            >
+              <span style={{ ...S.timelineDot, background: active ? "rgba(255,255,255,.9)" : c.color }} />
+              {c.short}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={S.timelineLegend}>
+        <span style={S.timelineLegendItem}><span style={{ ...S.timelineSwatch, background: "#7F77DD" }} /> One-time setup</span>
+        <span style={S.timelineLegendItem}><span style={{ ...S.timelineSwatch, background: "#1D9E75" }} /> Recurring / ongoing</span>
+        <span style={S.timelineLegendItem}><i className="ti ti-flag-filled" style={{ color: "#D85A30", fontSize: 13 }} aria-hidden="true" /> Milestone</span>
+        <span style={{ marginLeft: "auto", color: "#8a94a6" }}>Click a phase bar to see the task list.</span>
+      </div>
+
+      <div style={S.timelineScroll}>
+        <table style={S.timelineTable}>
+          <colgroup>
+            <col style={{ width: 300 }} />
+            <col style={{ width: 56 }} />
+            <col style={{ width: 1 }} />
+          </colgroup>
+          <thead>
+            <tr style={S.timelineHeadRow}>
+              <th style={{ ...S.timelineHeadCell, textAlign: "left" }}>Phase</th>
+              <th style={{ ...S.timelineHeadCell, textAlign: "center" }}>Tasks</th>
+              <th style={S.timelineWeekHeadCell}>
+                <div style={S.timelineWeeks}>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <span key={i} style={S.timelineWeekLabel}>W{i + 1}</span>
+                  ))}
+                </div>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((phase, index) => {
+              const isOpen = activeName === phase.phase;
+              const left = `${((phase.start - 1) / 12) * 100}%`;
+              const width = `${(phase.len / 12) * 100}%`;
+              return (
+                <tr key={phase.phase} style={{ ...S.timelineRow, ...(isOpen ? S.timelineRowActive : {}) }}>
+                  <td style={S.timelinePhaseCell}>
+                    <button
+                      style={S.timelinePhaseButton}
+                      onClick={() => onSelectPhase(phase.phase)}
+                    >
+                      <span style={S.timelinePhaseTitle}>{phase.phase}</span>
+                      <span style={S.timelinePhaseMeta}>{phase.kind === "recurring" ? "Recurring" : "One-time"}</span>
+                    </button>
+                  </td>
+                  <td style={S.timelineTaskCountCell}>
+                    <button style={S.timelineTaskCountButton} onClick={() => onSelectPhase(phase.phase)}>
+                      {phase.doneCount}/{phase.tasks.length}
+                    </button>
+                  </td>
+                  <td style={S.timelineTrackCell}>
+                    <div style={S.timelineTrack}>
+                      {Array.from({ length: 11 }, (_, i) => (
+                        <span key={i} style={{ ...S.timelineTrackLine, left: `${((i + 1) / 12) * 100}%` }} />
+                      ))}
+                      <button
+                        style={{ ...S.timelineBar, left, width, background: phase.kind === "recurring" ? "#1D9E75" : "#7F77DD", ...(isOpen ? S.timelineBarActive : {}) }}
+                        onClick={() => onSelectPhase(phase.phase)}
+                        title={`${phase.phase} · ${phase.tasks.length} tasks`}
+                      >
+                        <span style={S.timelineBarLabel}>{phase.phase}</span>
+                      </button>
+                      {phase.milestone && (
+                        <span style={{ ...S.timelineMilestone, left: `${((phase.milestone - 1) / 12) * 100}%` }} title={`Milestone at W${phase.milestone}`}>
+                          <i className="ti ti-flag-filled" aria-hidden="true" />
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={S.timelineFooter}>
+        <span><i className="ti ti-list-check" style={{ verticalAlign: -2 }} aria-hidden="true" /> {totalTasks} tasks · {rows.length} phases</span>
+        <span><i className="ti ti-circle-check" style={{ verticalAlign: -2, color: "#1D9E75" }} aria-hidden="true" /> {totalDone} completed</span>
+        <span>Phases 6–10 keep rolling after launch.</span>
+      </div>
+    </div>
+  );
+}
+
+function PhaseDrawer({ phase, company, onClose, onOpenTask }) {
+  const sortedTasks = [...phase.tasks].sort((a, b) => {
+    const order = { high: 0, medium: 1, low: 2 };
+    return order[a.priority] - order[b.priority];
+  });
+
+  return (
+    <div style={S.overlay} onClick={onClose}>
+      <div style={{ ...S.drawer, width: 520 }} onClick={e => e.stopPropagation()}>
+        <div style={S.drawerHead}>
+          <span style={{ ...S.tag, background: company.color + "22", color: company.color }}>{company.short}</span>
+          <button style={S.closeBtn} onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <div style={S.phaseTag}>SEO timeline phase</div>
+        <h2 style={S.drawerTitle}>{phase.phase}</h2>
+        <div style={S.timelineDetailMeta}>
+          <span>Weeks {phase.start}–{phase.start + phase.len - 1}</span>
+          <span>{sortedTasks.length} tasks</span>
+          <span>{phase.kind === "recurring" ? "Recurring" : "One-time"}</span>
+        </div>
+
+        <div style={S.timelineDetailTasks}>
+          {sortedTasks.length === 0 && <div style={S.noNotes}>No tasks loaded for this phase yet.</div>}
+          {sortedTasks.map(task => {
+            const companyTag = COMPANIES.find(c => c.id === task.companyId) || company;
+            const status = STATUSES[task.status];
+            return (
+              <button key={task.id} style={S.timelineDetailTask} onClick={() => onOpenTask(task.id)}>
+                <div style={{ ...S.timelineStatusDot, background: status.color }} />
+                <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                  <div style={S.timelineDetailTaskTitle}>{task.title}</div>
+                  <div style={S.timelineDetailTaskMeta}>
+                    <span style={{ ...S.tag, background: companyTag.color + "22", color: companyTag.color }}>{companyTag.short}</span>
+                    <span style={{ ...S.cadence, background: "#eef1f6" }}>{status.label}</span>
+                    {task.assignees.length > 0 && <span>{task.assignees.join(", ")}</span>}
+                  </div>
+                </div>
+                <ChevronRight size={15} style={{ color: "#9aa3b2" }} />
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -901,17 +1161,29 @@ const S = {
     color: "#4a5468", letterSpacing: ".08em", position: "sticky", top: 0, zIndex: 2, textTransform: "uppercase" },
   calCell: { background: "#fff", padding: "7px 8px", display: "flex", flexDirection: "column",
     minHeight: 0, overflow: "hidden" },
+  calCellSelected: {
+    minHeight: 260,
+    border: "2px solid #F47B27",
+    boxShadow: "0 14px 28px rgba(244,123,39,.14)",
+    transform: "translateY(-1px)",
+    zIndex: 1,
+    position: "relative",
+  },
   calCellTop: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexShrink: 0,
     paddingBottom: 6, borderBottom: "1px solid #eef1f6" },
+  calCellTopSelected: { marginBottom: 10, paddingBottom: 8, borderBottomColor: "#f7d7bc" },
   calCellTopClickable: { cursor: "pointer", borderRadius: 7, padding: "3px 5px", margin: "-3px -5px 4px",
     border: "1px solid transparent" },
   calCellToday: { background: "#fff7f0" },
   calDayNum: { fontSize: 14, fontWeight: 700, color: "#4a5468" },
+  calDayNumSelected: { fontSize: 18, width: 30, height: 30, borderRadius: 10, display: "grid", placeItems: "center", background: "#F47B27", color: "#fff" },
   calDayBadge: { fontSize: 10.5, fontWeight: 700, color: "#3FA7D6", background: "#e7f3fb",
     borderRadius: 9, padding: "2px 8px" },
+  calDayBadgeSelected: { background: "#fff0e4", color: "#C35A10" },
   calDayNumToday: { color: "#fff", background: "#F47B27", width: 22, height: 22, borderRadius: "50%",
     display: "grid", placeItems: "center", fontWeight: 700 },
   calTasks: { display: "flex", flexDirection: "column", gap: 5, overflowY: "auto", minHeight: 0, paddingBottom: 2 },
+  calTasksSelected: { gap: 6, maxHeight: 132 },
   calTask: { display: "flex", alignItems: "center", gap: 6, background: "#f6f8fb", borderLeft: "3px solid #ccc",
     borderRadius: 8, padding: "6px 8px", cursor: "pointer", border: "none", borderLeftStyle: "solid",
     borderLeftWidth: 3, textAlign: "left", width: "100%" },
@@ -922,6 +1194,59 @@ const S = {
     border: "none", cursor: "pointer", textAlign: "left", width: "100%" },
   calLegend: { display: "flex", alignItems: "center", gap: 16, marginTop: 14, fontSize: 12.5, color: "#4a5468", fontWeight: 600 },
   legendItem: { display: "flex", alignItems: "center", gap: 6 },
+  calExpandedPanel: { marginTop: 10, padding: "10px 11px", borderRadius: 11, background: "linear-gradient(180deg, #fff8f1 0%, #fff 100%)", border: "1px solid #f4d7bc" },
+  calExpandedLabel: { fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".08em", color: "#C35A10", fontWeight: 800 },
+  calExpandedHeading: { marginTop: 4, fontSize: 13.5, fontWeight: 800, color: "#1d2433" },
+  calExpandedCopy: { marginTop: 5, fontSize: 12, lineHeight: 1.45, color: "#6b7587" },
+  timelineWrap: { flex: 1, display: "flex", flexDirection: "column", padding: "20px 30px 24px", overflow: "hidden" },
+  timelineHero: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16,
+    padding: "14px 16px", border: "1px solid #dfe4ec", borderRadius: 14, background: "#fff",
+    boxShadow: "0 8px 24px rgba(16,23,37,.04)", marginBottom: 12 },
+  timelineKicker: { display: "flex", alignItems: "center", gap: 6, color: "#6b7587", fontSize: 12.5, fontWeight: 600, marginBottom: 4 },
+  timelineTitle: { margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-.03em" },
+  timelineBadge: { background: "#FAEEDA", color: "#854F0B", borderRadius: 11, padding: "6px 11px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" },
+  timelineTabs: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 },
+  timelineTab: { display: "inline-flex", alignItems: "center", gap: 8, padding: "7px 12px", borderRadius: 999,
+    border: "1px solid #dfe4ec", background: "#fff", color: "#4a5468", cursor: "pointer", fontSize: 12.5, fontWeight: 700 },
+  timelineDot: { width: 8, height: 8, borderRadius: "50%", flexShrink: 0 },
+  timelineLegend: { display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: 12, fontSize: 12.5, color: "#4a5468", fontWeight: 600 },
+  timelineLegendItem: { display: "flex", alignItems: "center", gap: 6 },
+  timelineSwatch: { width: 11, height: 11, borderRadius: 3, flexShrink: 0 },
+  timelineScroll: { flex: 1, overflow: "auto", background: "#fff", border: "1px solid #dfe4ec", borderRadius: 14 },
+  timelineTable: { width: "100%", minWidth: 980, borderCollapse: "collapse", tableLayout: "fixed" },
+  timelineHeadRow: { position: "sticky", top: 0, zIndex: 2, background: "#fbfcfe" },
+  timelineHeadCell: { padding: "12px 14px", borderBottom: "1px solid #e8edf4", color: "#6b7587", fontSize: 11.5, textTransform: "uppercase", letterSpacing: ".08em" },
+  timelineWeekHeadCell: { padding: "0 14px 12px 8px", borderBottom: "1px solid #e8edf4" },
+  timelineWeeks: { display: "grid", gridTemplateColumns: "repeat(12,1fr)", gap: 0, height: 18, alignItems: "end" },
+  timelineWeekLabel: { fontSize: 11, color: "#8a94a6", textAlign: "center", fontWeight: 700 },
+  timelineRow: { borderBottom: "1px solid #f1f4f9" },
+  timelineRowActive: { background: "#fbfcfe" },
+  timelinePhaseCell: { padding: "12px 14px", verticalAlign: "middle" },
+  timelinePhaseButton: { width: "100%", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4,
+    background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" },
+  timelinePhaseTitle: { fontSize: 13.5, fontWeight: 800, color: "#1d2433", lineHeight: 1.35 },
+  timelinePhaseMeta: { fontSize: 11.5, color: "#8a94a6", fontWeight: 700, letterSpacing: ".02em" },
+  timelineTaskCountCell: { padding: "12px 10px", verticalAlign: "middle", textAlign: "center" },
+  timelineTaskCountButton: { background: "#f1f4f9", color: "#4a5468", border: "none", borderRadius: 999, minWidth: 42,
+    padding: "6px 10px", cursor: "pointer", fontSize: 12, fontWeight: 800 },
+  timelineTrackCell: { padding: "12px 14px 12px 8px", verticalAlign: "middle" },
+  timelineTrack: { position: "relative", height: 30, borderRadius: 999,
+    background: "repeating-linear-gradient(90deg, #ffffff 0, #ffffff calc(8.333% - 1px), #eef1f6 calc(8.333% - 1px), #eef1f6 8.333%)" },
+  timelineTrackLine: { position: "absolute", top: 0, bottom: 0, width: 1, background: "rgba(223,228,236,.9)" },
+  timelineBar: { position: "absolute", top: 3, height: 24, border: "none", borderRadius: 999, color: "#fff",
+    display: "flex", alignItems: "center", padding: "0 10px", cursor: "pointer", boxShadow: "0 8px 18px rgba(16,23,37,.08)",
+    overflow: "hidden" },
+  timelineBarActive: { boxShadow: "0 0 0 2px #D85A30, 0 10px 22px rgba(16,23,37,.12)" },
+  timelineBarLabel: { fontSize: 11.5, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  timelineMilestone: { position: "absolute", top: -5, transform: "translateX(-50%)", color: "#D85A30", fontSize: 13 },
+  timelineFooter: { display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", marginTop: 12, fontSize: 12, color: "#6b7587", fontWeight: 600 },
+  timelineDetailMeta: { display: "flex", gap: 10, flexWrap: "wrap", color: "#6b7587", fontSize: 12.5, fontWeight: 600, marginBottom: 14 },
+  timelineDetailTasks: { display: "flex", flexDirection: "column", gap: 8 },
+  timelineDetailTask: { display: "flex", alignItems: "flex-start", gap: 10, padding: "11px 12px", borderRadius: 11,
+    border: "1px solid #e8edf4", background: "#f9fbfd", cursor: "pointer", width: "100%", textAlign: "left" },
+  timelineStatusDot: { width: 10, height: 10, borderRadius: "50%", marginTop: 4, flexShrink: 0 },
+  timelineDetailTaskTitle: { fontSize: 13.5, fontWeight: 700, color: "#1d2433", lineHeight: 1.35 },
+  timelineDetailTaskMeta: { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 5, fontSize: 11.5, color: "#6b7587", alignItems: "center" },
   dayTask: { display: "flex", alignItems: "flex-start", gap: 11, padding: "11px 13px", background: "#f6f8fb",
     border: "1px solid #eef1f6", borderRadius: 10, cursor: "pointer", width: "100%" },
   phase: { marginBottom: 26, background: "#fff", borderRadius: 14, border: "1px solid #e3e8f0",
