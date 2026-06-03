@@ -381,6 +381,7 @@ export default function App() {
   const [selectedPhase, setSelectedPhase] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [calendarTab, setCalendarTab] = useState("legend");
 
   const activeCompany = companyId === "all"
     ? { id: "all", name: "All Companies", short: "ALL", color: "#9b8cff" }
@@ -589,7 +590,8 @@ export default function App() {
         ) : view === "calendar" ? (
           <CalendarView tasks={tasks} companyId={companyId} calMonth={calMonth}
             setCalMonth={setCalMonth} selectedDay={selectedDay} onOpen={setOpenTask}
-            onSelectDay={setSelectedDay} onCloseDay={() => setSelectedDay(null)} />
+            onSelectDay={setSelectedDay} onCloseDay={() => setSelectedDay(null)}
+            calendarTab={calendarTab} setCalendarTab={setCalendarTab} />
         ) : (
           <div style={S.board}>
             {grouped.length === 0 && <div style={S.empty}>No tasks match this filter.</div>}
@@ -659,8 +661,24 @@ function NavItem({ icon: Icon, label, active, onClick }) {
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-function CalendarView({ tasks, companyId, calMonth, setCalMonth, selectedDay, onOpen, onSelectDay, onCloseDay }) {
+function CalendarView({ tasks, companyId, calMonth, setCalMonth, selectedDay, onOpen, onSelectDay, onCloseDay, calendarTab, setCalendarTab }) {
   const { y, m } = calMonth;
+  const SOCIAL_PLATFORMS = ["Facebook", "Instagram", "LinkedIn", "TikTok", "X"];
+  const STORAGE_KEY = "marketing-social-logins-v1";
+
+  const emptyCreds = useMemo(() => {
+    const base = {};
+    for (const company of COMPANIES) {
+      base[company.id] = {};
+      for (const platform of SOCIAL_PLATFORMS) {
+        base[company.id][platform] = { username: "", password: "" };
+      }
+    }
+    return base;
+  }, []);
+
+  const [credentials, setCredentials] = useState(emptyCreds);
+  const [saveMessage, setSaveMessage] = useState("");
 
   // tasks with a deadline in scope (both areas show on calendar)
   const dated = useMemo(() => tasks.filter(t =>
@@ -692,6 +710,51 @@ function CalendarView({ tasks, companyId, calMonth, setCalMonth, selectedDay, on
   const prev = () => setCalMonth(m === 0 ? { y: y - 1, m: 11 } : { y, m: m - 1 });
   const next = () => setCalMonth(m === 11 ? { y: y + 1, m: 0 } : { y, m: m + 1 });
   const today = () => { const d = new Date(); setCalMonth({ y: d.getFullYear(), m: d.getMonth() }); };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      setCredentials(curr => {
+        const nextState = JSON.parse(JSON.stringify(curr));
+        for (const company of COMPANIES) {
+          for (const platform of SOCIAL_PLATFORMS) {
+            const saved = parsed?.[company.id]?.[platform];
+            if (!saved) continue;
+            nextState[company.id][platform] = {
+              username: saved.username || "",
+              password: saved.password || "",
+            };
+          }
+        }
+        return nextState;
+      });
+    } catch {
+      // Ignore malformed browser data.
+    }
+  }, [STORAGE_KEY, SOCIAL_PLATFORMS]);
+
+  const updateCredential = (company, platform, field, value) => {
+    setCredentials(curr => ({
+      ...curr,
+      [company]: {
+        ...curr[company],
+        [platform]: {
+          ...curr[company][platform],
+          [field]: value,
+        },
+      },
+    }));
+  };
+
+  const saveCredentials = () => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(credentials));
+    setSaveMessage("Saved in this browser");
+    window.setTimeout(() => setSaveMessage(""), 2000);
+  };
 
   if (selectedDay) {
     return (
@@ -782,11 +845,72 @@ function CalendarView({ tasks, companyId, calMonth, setCalMonth, selectedDay, on
         </div>
       </div>
 
-      <div style={S.calLegend}>
-        {COMPANIES.map(c => (
-          <span key={c.id} style={S.legendItem}><span style={{ ...S.dot, background: c.color }} /> {c.short}</span>
-        ))}
-        <span style={{ marginLeft: "auto", color: "#9aa3b2", fontSize: 12 }}>Click a day to see all its tasks · click a task to open it</span>
+      <div style={S.calTabsWrap}>
+        <div style={S.calTabBar}>
+          <button
+            style={{ ...S.calTab, ...(calendarTab === "legend" ? S.calTabActive : {}) }}
+            onClick={() => setCalendarTab("legend")}
+          >
+            Calendar legend
+          </button>
+          <button
+            style={{ ...S.calTab, ...(calendarTab === "social" ? S.calTabActive : {}) }}
+            onClick={() => setCalendarTab("social")}
+          >
+            Social logins
+          </button>
+        </div>
+
+        {calendarTab === "legend" ? (
+          <div style={S.calLegend}>
+            {COMPANIES.map(c => (
+              <span key={c.id} style={S.legendItem}><span style={{ ...S.dot, background: c.color }} /> {c.short}</span>
+            ))}
+            <span style={{ marginLeft: "auto", color: "#9aa3b2", fontSize: 12 }}>Click a day to see all its tasks · click a task to open it</span>
+          </div>
+        ) : (
+          <div style={S.loginVault}>
+            <div style={S.loginVaultHead}>
+              <div>
+                <div style={S.loginVaultTitle}>Social media usernames and passwords</div>
+                <div style={S.loginVaultSub}>Add login details for all three companies.</div>
+              </div>
+              <div style={S.loginVaultActions}>
+                {saveMessage && <span style={S.loginSaved}>{saveMessage}</span>}
+                <button style={S.todayBtn} onClick={saveCredentials}>Save logins</button>
+              </div>
+            </div>
+
+            {COMPANIES.map(company => (
+              <div key={company.id} style={S.loginCompanyCard}>
+                <div style={S.loginCompanyHead}>
+                  <span style={{ ...S.dot, background: company.color }} />
+                  <strong>{company.name}</strong>
+                </div>
+                <div style={S.loginGrid}>
+                  {SOCIAL_PLATFORMS.map(platform => (
+                    <div key={platform} style={S.loginRow}>
+                      <div style={S.loginPlatform}>{platform}</div>
+                      <input
+                        value={credentials[company.id][platform].username}
+                        onChange={e => updateCredential(company.id, platform, "username", e.target.value)}
+                        placeholder="Username"
+                        style={S.loginInput}
+                      />
+                      <input
+                        type="password"
+                        value={credentials[company.id][platform].password}
+                        onChange={e => updateCredential(company.id, platform, "password", e.target.value)}
+                        placeholder="Password"
+                        style={S.loginInput}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1412,6 +1536,23 @@ const S = {
     border: "none", cursor: "pointer", textAlign: "left", width: "100%" },
   calLegend: { display: "flex", alignItems: "center", gap: 16, marginTop: 14, fontSize: 12.5, color: "#4a5468", fontWeight: 600 },
   legendItem: { display: "flex", alignItems: "center", gap: 6 },
+  calTabsWrap: { marginTop: 12, background: "#fff", border: "1px solid #dfe4ec", borderRadius: 14, padding: 12 },
+  calTabBar: { display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" },
+  calTab: { border: "1px solid #dfe4ec", background: "#f7f9fc", color: "#4a5468", borderRadius: 999,
+    padding: "7px 12px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" },
+  calTabActive: { background: "#101725", borderColor: "#101725", color: "#fff" },
+  loginVault: { display: "flex", flexDirection: "column", gap: 10 },
+  loginVaultHead: { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" },
+  loginVaultTitle: { fontSize: 14, fontWeight: 700, color: "#1d2433" },
+  loginVaultSub: { fontSize: 12, color: "#6b7587", marginTop: 2 },
+  loginVaultActions: { display: "flex", alignItems: "center", gap: 10 },
+  loginSaved: { color: "#1D9E75", fontSize: 12, fontWeight: 700 },
+  loginCompanyCard: { border: "1px solid #e8edf4", borderRadius: 11, padding: 10, background: "#fbfcfe" },
+  loginCompanyHead: { display: "flex", alignItems: "center", gap: 7, marginBottom: 8, fontSize: 13.5, color: "#1d2433" },
+  loginGrid: { display: "grid", gap: 8 },
+  loginRow: { display: "grid", gridTemplateColumns: "130px minmax(0,1fr) minmax(0,1fr)", gap: 8, alignItems: "center" },
+  loginPlatform: { fontSize: 12.5, fontWeight: 700, color: "#4a5468" },
+  loginInput: { padding: "8px 10px", borderRadius: 8, border: "1px solid #d5dce7", fontSize: 12.5, fontFamily: "inherit", width: "100%" },
   calExpandedPanel: { marginTop: 10, padding: "10px 11px", borderRadius: 11, background: "linear-gradient(180deg, #fff8f1 0%, #fff 100%)", border: "1px solid #f4d7bc" },
   calExpandedLabel: { fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".08em", color: "#C35A10", fontWeight: 800 },
   calExpandedHeading: { marginTop: 4, fontSize: 13.5, fontWeight: 800, color: "#1d2433" },
