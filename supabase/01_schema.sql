@@ -116,6 +116,21 @@ create table if not exists public.attachments (
 create index if not exists attachments_task_idx on public.attachments (task_id);
 
 -- ============================================================
+--  6b. COMPANY LOGINS (shared across all allowed users)
+-- ============================================================
+create table if not exists public.company_logins (
+  id         uuid primary key default gen_random_uuid(),
+  company_id text not null references public.companies(id) on delete cascade,
+  media      text not null default '',
+  username   text not null default '',
+  password   text not null default '',
+  sort_order int not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists company_logins_company_idx on public.company_logins (company_id, sort_order);
+
+-- ============================================================
 --  7. updated_at trigger on tasks
 -- ============================================================
 create or replace function public.touch_updated_at()
@@ -135,6 +150,7 @@ alter table public.tasks          enable row level security;
 alter table public.task_assignees enable row level security;
 alter table public.notes          enable row level security;
 alter table public.attachments    enable row level security;
+alter table public.company_logins enable row level security;
 alter table public.allowed_users  enable row level security;
 
 -- companies: allow-listed users can read; no client writes (seeded above)
@@ -146,7 +162,7 @@ create policy companies_read on public.companies
 do $$
 declare t text;
 begin
-  foreach t in array array['tasks','task_assignees','notes','attachments']
+  foreach t in array array['tasks','task_assignees','notes','attachments','company_logins']
   loop
     execute format('drop policy if exists %1$s_all on public.%1$s;', t);
     execute format(
