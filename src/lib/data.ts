@@ -31,6 +31,12 @@ export type Attachment = {
   size?: number; added_by?: string; created_at: string;
 };
 
+export type CompanyLoginRow = {
+  media: string;
+  username: string;
+  password: string;
+};
+
 // ---- Load everything in scope, stitched into Task objects ----
 export async function loadTasks(): Promise<Task[]> {
   const [{ data: tasks }, { data: assignees }, { data: notes }, { data: atts }] =
@@ -140,4 +146,42 @@ export async function currentEmail(): Promise<string> {
 export async function signOut() {
   await supabase.auth.signOut();
   window.location.href = "/login";
+}
+
+export async function loadCompanyLogins(): Promise<Record<string, CompanyLoginRow[]>> {
+  const { data, error } = await supabase
+    .from("company_logins")
+    .select("company_id, media, username, password, sort_order")
+    .order("sort_order", { ascending: true });
+
+  if (error) throw error;
+
+  const rowsByCompany: Record<string, CompanyLoginRow[]> = { aps: [], ads: [], tgr: [] };
+  for (const row of data || []) {
+    const key = row.company_id;
+    if (!rowsByCompany[key]) rowsByCompany[key] = [];
+    rowsByCompany[key].push({
+      media: row.media || "",
+      username: row.username || "",
+      password: row.password || "",
+    });
+  }
+  return rowsByCompany;
+}
+
+export async function replaceCompanyLogins(companyId: string, rows: CompanyLoginRow[]) {
+  await supabase.from("company_logins").delete().eq("company_id", companyId);
+
+  if (!rows.length) return;
+
+  const payload = rows.map((row, idx) => ({
+    company_id: companyId,
+    media: row.media,
+    username: row.username,
+    password: row.password,
+    sort_order: idx,
+  }));
+
+  const { error } = await supabase.from("company_logins").insert(payload);
+  if (error) throw error;
 }
