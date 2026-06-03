@@ -4,7 +4,8 @@ import {
   Search, Megaphone, LayoutGrid, Plus, X, Check, Clock,
   AlertTriangle, Circle, Star, Users, Calendar, MessageSquare,
   ChevronDown, Building2, Filter, CalendarDays, ChevronLeft, ChevronRight,
-  Paperclip, Link2, FileText, Image as ImageIcon, Film, Download, Trash2
+  Paperclip, Link2, FileText, Image as ImageIcon, Film, Download, Trash2,
+  Eye, EyeOff, Copy
 } from "lucide-react";
 import {
   loadTasks, updateTask as dbUpdate, setAssignee as dbSetAssignee,
@@ -373,7 +374,7 @@ export default function App() {
     })();
   }, []);
   const [track, setTrack] = useState("seo");
-  const [view, setView] = useState("board"); // "board" | "calendar" | "timeline"
+  const [view, setView] = useState("board"); // "board" | "calendar" | "timeline" | "logins"
   const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [companyMenu, setCompanyMenu] = useState(false);
   const [openTask, setOpenTask] = useState(null);
@@ -381,7 +382,6 @@ export default function App() {
   const [selectedPhase, setSelectedPhase] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [newTaskOpen, setNewTaskOpen] = useState(false);
-  const [calendarTab, setCalendarTab] = useState("legend");
 
   const activeCompany = companyId === "all"
     ? { id: "all", name: "All Companies", short: "ALL", color: "#9b8cff" }
@@ -527,6 +527,7 @@ export default function App() {
           <NavItem icon={CalendarDays} label="Timeline" active={view === "timeline"} onClick={() => { setTrack("seo"); setView("timeline"); }} />
           <NavItem icon={LayoutGrid} label="Board" active={view === "board"} onClick={() => setView("board")} />
           <NavItem icon={CalendarDays} label="Calendar" active={view === "calendar"} onClick={() => setView("calendar")} />
+          <NavItem icon={Link2} label="Logins" active={view === "logins"} onClick={() => setView("logins")} />
         </nav>
 
         <div style={S.progressCard}>
@@ -560,7 +561,7 @@ export default function App() {
               {companyId !== "all" && activeCompany.site && <span style={S.site}>· {activeCompany.site}</span>}
             </div>
             <h1 style={S.h1}>
-              {view === "timeline" ? "SEO Timeline" : view === "calendar" ? "Calendar" : (track === "seo" ? "SEO Setup & Management" : "Paid + Social")}
+              {view === "timeline" ? "SEO Timeline" : view === "calendar" ? "Calendar" : view === "logins" ? "Logins" : (track === "seo" ? "SEO Setup & Management" : "Paid + Social")}
             </h1>
           </div>
           <div style={S.headerRight}>
@@ -590,8 +591,9 @@ export default function App() {
         ) : view === "calendar" ? (
           <CalendarView tasks={tasks} companyId={companyId} calMonth={calMonth}
             setCalMonth={setCalMonth} selectedDay={selectedDay} onOpen={setOpenTask}
-            onSelectDay={setSelectedDay} onCloseDay={() => setSelectedDay(null)}
-            calendarTab={calendarTab} setCalendarTab={setCalendarTab} />
+            onSelectDay={setSelectedDay} onCloseDay={() => setSelectedDay(null)} />
+        ) : view === "logins" ? (
+          <LoginsView companyId={companyId} />
         ) : (
           <div style={S.board}>
             {grouped.length === 0 && <div style={S.empty}>No tasks match this filter.</div>}
@@ -661,24 +663,8 @@ function NavItem({ icon: Icon, label, active, onClick }) {
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-function CalendarView({ tasks, companyId, calMonth, setCalMonth, selectedDay, onOpen, onSelectDay, onCloseDay, calendarTab, setCalendarTab }) {
+function CalendarView({ tasks, companyId, calMonth, setCalMonth, selectedDay, onOpen, onSelectDay, onCloseDay }) {
   const { y, m } = calMonth;
-  const SOCIAL_PLATFORMS = ["Facebook", "Instagram", "LinkedIn", "TikTok", "X"];
-  const STORAGE_KEY = "marketing-social-logins-v1";
-
-  const emptyCreds = useMemo(() => {
-    const base = {};
-    for (const company of COMPANIES) {
-      base[company.id] = {};
-      for (const platform of SOCIAL_PLATFORMS) {
-        base[company.id][platform] = { username: "", password: "" };
-      }
-    }
-    return base;
-  }, []);
-
-  const [credentials, setCredentials] = useState(emptyCreds);
-  const [saveMessage, setSaveMessage] = useState("");
 
   // tasks with a deadline in scope (both areas show on calendar)
   const dated = useMemo(() => tasks.filter(t =>
@@ -710,51 +696,6 @@ function CalendarView({ tasks, companyId, calMonth, setCalMonth, selectedDay, on
   const prev = () => setCalMonth(m === 0 ? { y: y - 1, m: 11 } : { y, m: m - 1 });
   const next = () => setCalMonth(m === 11 ? { y: y + 1, m: 0 } : { y, m: m + 1 });
   const today = () => { const d = new Date(); setCalMonth({ y: d.getFullYear(), m: d.getMonth() }); };
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      setCredentials(curr => {
-        const nextState = JSON.parse(JSON.stringify(curr));
-        for (const company of COMPANIES) {
-          for (const platform of SOCIAL_PLATFORMS) {
-            const saved = parsed?.[company.id]?.[platform];
-            if (!saved) continue;
-            nextState[company.id][platform] = {
-              username: saved.username || "",
-              password: saved.password || "",
-            };
-          }
-        }
-        return nextState;
-      });
-    } catch {
-      // Ignore malformed browser data.
-    }
-  }, [STORAGE_KEY, SOCIAL_PLATFORMS]);
-
-  const updateCredential = (company, platform, field, value) => {
-    setCredentials(curr => ({
-      ...curr,
-      [company]: {
-        ...curr[company],
-        [platform]: {
-          ...curr[company][platform],
-          [field]: value,
-        },
-      },
-    }));
-  };
-
-  const saveCredentials = () => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(credentials));
-    setSaveMessage("Saved in this browser");
-    window.setTimeout(() => setSaveMessage(""), 2000);
-  };
 
   if (selectedDay) {
     return (
@@ -844,73 +785,185 @@ function CalendarView({ tasks, companyId, calMonth, setCalMonth, selectedDay, on
           })}
         </div>
       </div>
+    </div>
+  );
+}
 
-      <div style={S.calTabsWrap}>
-        <div style={S.calTabBar}>
-          <button
-            style={{ ...S.calTab, ...(calendarTab === "legend" ? S.calTabActive : {}) }}
-            onClick={() => setCalendarTab("legend")}
-          >
-            Calendar legend
-          </button>
-          <button
-            style={{ ...S.calTab, ...(calendarTab === "social" ? S.calTabActive : {}) }}
-            onClick={() => setCalendarTab("social")}
-          >
-            Social logins
-          </button>
+function LoginsView({ companyId }) {
+  const STORAGE_KEY = "marketing-company-logins-v1";
+  const blankRow = () => ({ media: "", username: "", password: "" });
+  const emptyLogins = useMemo(() => {
+    const base = {};
+    for (const company of COMPANIES) {
+      base[company.id] = [blankRow()];
+    }
+    return base;
+  }, []);
+
+  const [logins, setLogins] = useState(emptyLogins);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [visiblePasswords, setVisiblePasswords] = useState({});
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      const normalizeCompanyRows = (value, fallback) => {
+        if (Array.isArray(value)) {
+          const cleaned = value
+            .map(v => ({ media: v?.media || "", username: v?.username || "", password: v?.password || "" }))
+            .filter(v => v.media || v.username || v.password);
+          return cleaned.length ? cleaned : fallback;
+        }
+        if (value && typeof value === "object") {
+          return [{ media: value.media || "", username: value.username || "", password: value.password || "" }];
+        }
+        return fallback;
+      };
+      setLogins(curr => ({
+        aps: normalizeCompanyRows(parsed?.aps, curr.aps),
+        ads: normalizeCompanyRows(parsed?.ads, curr.ads),
+        tgr: normalizeCompanyRows(parsed?.tgr, curr.tgr),
+      }));
+    } catch {
+      // Ignore malformed browser data.
+    }
+  }, [STORAGE_KEY]);
+
+  const companies = companyId === "all" ? COMPANIES : COMPANIES.filter(c => c.id === companyId);
+
+  const setField = (cid, rowIndex, field, value) => {
+    setLogins(curr => ({
+      ...curr,
+      [cid]: curr[cid].map((row, idx) => idx === rowIndex ? { ...row, [field]: value } : row),
+    }));
+  };
+
+  const addRow = (cid) => {
+    setLogins(curr => ({ ...curr, [cid]: [...curr[cid], blankRow()] }));
+  };
+
+  const removeRow = (cid, rowIndex) => {
+    setLogins(curr => {
+      if (curr[cid].length === 1) return curr;
+      return { ...curr, [cid]: curr[cid].filter((_, idx) => idx !== rowIndex) };
+    });
+  };
+
+  const saveLogins = () => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(logins));
+    setSaveMessage("Saved in this browser");
+    window.setTimeout(() => setSaveMessage(""), 2000);
+  };
+
+  const rowKey = (cid, rowIndex) => `${cid}-${rowIndex}`;
+  const togglePassword = (cid, rowIndex) => {
+    const key = rowKey(cid, rowIndex);
+    setVisiblePasswords(curr => ({ ...curr, [key]: !curr[key] }));
+  };
+
+  const copyField = async (value, label) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setSaveMessage(`${label} copied`);
+      window.setTimeout(() => setSaveMessage(""), 1200);
+    } catch {
+      setSaveMessage("Copy failed");
+      window.setTimeout(() => setSaveMessage(""), 1200);
+    }
+  };
+
+  return (
+    <div style={S.board}>
+      <div style={S.loginVault}>
+        <div style={S.loginVaultHead}>
+          <div>
+            <div style={S.loginVaultTitle}>Company social logins</div>
+            <div style={S.loginVaultSub}>Each company has 3 text boxes: Media, Username, Password.</div>
+          </div>
+          <div style={S.loginVaultActions}>
+            {saveMessage && <span style={S.loginSaved}>{saveMessage}</span>}
+            <button style={S.noteBtn} onClick={saveLogins}>Save logins</button>
+          </div>
         </div>
 
-        {calendarTab === "legend" ? (
-          <div style={S.calLegend}>
-            {COMPANIES.map(c => (
-              <span key={c.id} style={S.legendItem}><span style={{ ...S.dot, background: c.color }} /> {c.short}</span>
-            ))}
-            <span style={{ marginLeft: "auto", color: "#9aa3b2", fontSize: 12 }}>Click a day to see all its tasks · click a task to open it</span>
-          </div>
-        ) : (
-          <div style={S.loginVault}>
-            <div style={S.loginVaultHead}>
-              <div>
-                <div style={S.loginVaultTitle}>Social media usernames and passwords</div>
-                <div style={S.loginVaultSub}>Add login details for all three companies.</div>
+        {companies.map(company => (
+          <div key={company.id} style={S.loginCompanyCard}>
+            <div style={S.loginCompanyHead}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <span style={{ ...S.dot, background: company.color }} />
+                <strong>{company.name}</strong>
               </div>
-              <div style={S.loginVaultActions}>
-                {saveMessage && <span style={S.loginSaved}>{saveMessage}</span>}
-                <button style={S.todayBtn} onClick={saveCredentials}>Save logins</button>
-              </div>
+              <button style={S.noteBtn} onClick={() => addRow(company.id)}>+ Add row</button>
             </div>
-
-            {COMPANIES.map(company => (
-              <div key={company.id} style={S.loginCompanyCard}>
-                <div style={S.loginCompanyHead}>
-                  <span style={{ ...S.dot, background: company.color }} />
-                  <strong>{company.name}</strong>
-                </div>
-                <div style={S.loginGrid}>
-                  {SOCIAL_PLATFORMS.map(platform => (
-                    <div key={platform} style={S.loginRow}>
-                      <div style={S.loginPlatform}>{platform}</div>
-                      <input
-                        value={credentials[company.id][platform].username}
-                        onChange={e => updateCredential(company.id, platform, "username", e.target.value)}
-                        placeholder="Username"
-                        style={S.loginInput}
-                      />
-                      <input
-                        type="password"
-                        value={credentials[company.id][platform].password}
-                        onChange={e => updateCredential(company.id, platform, "password", e.target.value)}
-                        placeholder="Password"
-                        style={S.loginInput}
-                      />
-                    </div>
-                  ))}
-                </div>
+            <div style={S.loginRowsWrap}>
+              <div style={S.loginRowLabels}>
+                <span style={S.loginRowLabel}>Media</span>
+                <span style={S.loginRowLabel}>Username</span>
+                <span style={S.loginRowLabel}>Password</span>
+                <span style={S.loginRowLabel}>Actions</span>
               </div>
-            ))}
+              {logins[company.id].map((row, rowIndex) => (
+                <div key={`${company.id}-${rowIndex}`} style={S.loginTripleRow}>
+                  <input
+                    value={row.media}
+                    onChange={e => setField(company.id, rowIndex, "media", e.target.value)}
+                    placeholder="Media"
+                    style={S.loginInput}
+                  />
+                  <input
+                    value={row.username}
+                    onChange={e => setField(company.id, rowIndex, "username", e.target.value)}
+                    placeholder="Username"
+                    style={S.loginInput}
+                  />
+                  <input
+                    type={visiblePasswords[rowKey(company.id, rowIndex)] ? "text" : "password"}
+                    value={row.password}
+                    onChange={e => setField(company.id, rowIndex, "password", e.target.value)}
+                    placeholder="Password"
+                    style={S.loginInput}
+                  />
+                  <div style={S.loginActionGroup}>
+                    <button
+                      style={S.loginMiniBtn}
+                      onClick={() => copyField(row.username, "Username")}
+                      title="Copy username"
+                    >
+                      <Copy size={14} />
+                    </button>
+                    <button
+                      style={S.loginMiniBtn}
+                      onClick={() => copyField(row.password, "Password")}
+                      title="Copy password"
+                    >
+                      <Copy size={14} />
+                    </button>
+                    <button
+                      style={S.loginMiniBtn}
+                      onClick={() => togglePassword(company.id, rowIndex)}
+                      title={visiblePasswords[rowKey(company.id, rowIndex)] ? "Hide password" : "Show password"}
+                    >
+                      {visiblePasswords[rowKey(company.id, rowIndex)] ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                    <button
+                      style={S.loginRemoveBtn}
+                      onClick={() => removeRow(company.id, rowIndex)}
+                      disabled={logins[company.id].length === 1}
+                      title="Remove row"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
@@ -1548,11 +1601,18 @@ const S = {
   loginVaultActions: { display: "flex", alignItems: "center", gap: 10 },
   loginSaved: { color: "#1D9E75", fontSize: 12, fontWeight: 700 },
   loginCompanyCard: { border: "1px solid #e8edf4", borderRadius: 11, padding: 10, background: "#fbfcfe" },
-  loginCompanyHead: { display: "flex", alignItems: "center", gap: 7, marginBottom: 8, fontSize: 13.5, color: "#1d2433" },
+  loginCompanyHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8, fontSize: 13.5, color: "#1d2433", flexWrap: "wrap" },
+  loginRowsWrap: { display: "flex", flexDirection: "column", gap: 8 },
+  loginRowLabels: { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 176px", gap: 8, padding: "0 2px" },
+  loginRowLabel: { fontSize: 11, fontWeight: 700, color: "#7c869a", letterSpacing: ".04em", textTransform: "uppercase" },
+  loginTripleRow: { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto", gap: 8, alignItems: "center" },
   loginGrid: { display: "grid", gap: 8 },
   loginRow: { display: "grid", gridTemplateColumns: "130px minmax(0,1fr) minmax(0,1fr)", gap: 8, alignItems: "center" },
   loginPlatform: { fontSize: 12.5, fontWeight: 700, color: "#4a5468" },
   loginInput: { padding: "8px 10px", borderRadius: 8, border: "1px solid #d5dce7", fontSize: 12.5, fontFamily: "inherit", width: "100%" },
+  loginActionGroup: { display: "flex", alignItems: "center", gap: 6 },
+  loginMiniBtn: { border: "1px solid #dfe4ec", background: "#fff", color: "#6b7587", borderRadius: 8, width: 34, height: 34, display: "grid", placeItems: "center", cursor: "pointer" },
+  loginRemoveBtn: { border: "1px solid #dfe4ec", background: "#fff", color: "#8a94a6", borderRadius: 8, width: 34, height: 34, display: "grid", placeItems: "center", cursor: "pointer" },
   calExpandedPanel: { marginTop: 10, padding: "10px 11px", borderRadius: 11, background: "linear-gradient(180deg, #fff8f1 0%, #fff 100%)", border: "1px solid #f4d7bc" },
   calExpandedLabel: { fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".08em", color: "#C35A10", fontWeight: 800 },
   calExpandedHeading: { marginTop: 4, fontSize: 13.5, fontWeight: 800, color: "#1d2433" },
