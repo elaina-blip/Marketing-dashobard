@@ -12,6 +12,7 @@ import {
   addNote as dbAddNote, addLink as dbAddLink, uploadFile as dbUploadFile,
   fileUrl as dbFileUrl, removeAttachment as dbRemoveAttachment,
   getTeam, currentEmail, signOut as dbSignOut, createTask as dbCreateTask,
+  loadCompanyLogins as dbLoadCompanyLogins, replaceCompanyLogins as dbReplaceCompanyLogins,
 } from "@/lib/data";
 
 /* ────────────────────────────────────────────────────────────────
@@ -790,7 +791,6 @@ function CalendarView({ tasks, companyId, calMonth, setCalMonth, selectedDay, on
 }
 
 function LoginsView({ companyId }) {
-  const STORAGE_KEY = "marketing-company-logins-v1";
   const blankRow = () => ({ media: "", username: "", password: "" });
   const emptyLogins = useMemo(() => {
     const base = {};
@@ -803,34 +803,31 @@ function LoginsView({ companyId }) {
   const [logins, setLogins] = useState(emptyLogins);
   const [saveMessage, setSaveMessage] = useState("");
   const [visiblePasswords, setVisiblePasswords] = useState({});
+  const [loadingRows, setLoadingRows] = useState(true);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      const normalizeCompanyRows = (value, fallback) => {
-        if (Array.isArray(value)) {
-          const cleaned = value
-            .map(v => ({ media: v?.media || "", username: v?.username || "", password: v?.password || "" }))
-            .filter(v => v.media || v.username || v.password);
-          return cleaned.length ? cleaned : fallback;
-        }
-        if (value && typeof value === "object") {
-          return [{ media: value.media || "", username: value.username || "", password: value.password || "" }];
-        }
-        return fallback;
-      };
-      setLogins(curr => ({
-        aps: normalizeCompanyRows(parsed?.aps, curr.aps),
-        ads: normalizeCompanyRows(parsed?.ads, curr.ads),
-        tgr: normalizeCompanyRows(parsed?.tgr, curr.tgr),
-      }));
-    } catch {
-      // Ignore malformed browser data.
-    }
-  }, [STORAGE_KEY]);
+    let canceled = false;
+    (async () => {
+      setLoadingRows(true);
+      try {
+        const shared = await dbLoadCompanyLogins();
+        if (canceled) return;
+        setLogins(curr => {
+          const next = { ...curr };
+          for (const company of COMPANIES) {
+            const rows = shared[company.id] || [];
+            next[company.id] = rows.length ? rows : [blankRow()];
+          }
+          return next;
+        });
+      } catch {
+        if (!canceled) setSaveMessage("Failed to load shared logins");
+      } finally {
+        if (!canceled) setLoadingRows(false);
+      }
+    })();
+    return () => { canceled = true; };
+  }, []);
 
   const companies = companyId === "all" ? COMPANIES : COMPANIES.filter(c => c.id === companyId);
 
@@ -852,11 +849,18 @@ function LoginsView({ companyId }) {
     });
   };
 
-  const saveLogins = () => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(logins));
-    setSaveMessage("Saved in this browser");
-    window.setTimeout(() => setSaveMessage(""), 2000);
+  const saveLogins = async () => {
+    try {
+      for (const company of COMPANIES) {
+        const cleaned = (logins[company.id] || []).filter(row => row.media || row.username || row.password);
+        await dbReplaceCompanyLogins(company.id, cleaned);
+      }
+      setSaveMessage("Saved for all users");
+      window.setTimeout(() => setSaveMessage(""), 2000);
+    } catch {
+      setSaveMessage("Save failed");
+      window.setTimeout(() => setSaveMessage(""), 2000);
+    }
   };
 
   const rowKey = (cid, rowIndex) => `${cid}-${rowIndex}`;
@@ -964,6 +968,8 @@ function LoginsView({ companyId }) {
             </div>
           </div>
         ))}
+
+        {loadingRows && <div style={S.noNotes}>Loading shared logins…</div>}
       </div>
     </div>
   );
