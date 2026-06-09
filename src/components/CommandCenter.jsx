@@ -908,6 +908,26 @@ function CalendarView({tasks,companyId,theme:t}){
   );
 }
 
+function SelPhasePanel({ph,onClose,t}){
+  return(
+    <div style={{marginTop:14,paddingTop:12,borderTop:`1px solid ${t.line}`}}>
+      <div style={{background:t.bgCard,borderRadius:10,padding:16,border:`1px solid ${t.line}`}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8,flexWrap:"wrap",gap:10}}>
+          <div style={{display:"inline-flex",alignItems:"center",gap:7,fontWeight:500,color:t.ink}}>
+            <span style={{width:10,height:10,borderRadius:3,background:ph.kind==="recurring"?"#1D9E75":"#7F77DD",display:"inline-block"}}/>{ph.phase}
+          </div>
+          <div style={{fontSize:12,color:t.inkFaint,display:"flex",gap:10}}><span>{ph.tasks.length} tasks</span><span>Weeks {ph.start}–{ph.start+ph.len-1}</span></div>
+        </div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+          {ph.tasks.slice(0,8).map(tk=><div key={tk.id} style={{fontSize:12,color:t.inkMuted,background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:7,padding:"5px 10px"}}>{tk.title}</div>)}
+          {ph.tasks.length===0&&<div style={{fontSize:13,color:t.inkFaint,fontStyle:"italic"}}>No tasks loaded yet.</div>}
+        </div>
+        <button onClick={onClose} style={{marginTop:10,background:t.bgElevated,color:t.inkMuted,border:`1px solid ${t.line}`,borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
+      </div>
+    </div>
+  );
+}
+
 // ── TIMELINE VIEW ─────────────────────────────────────────────
 function TimelineView({tasks,companyId,setCompanyId,theme:t}){
   const [sel,setSel]=useState(null);
@@ -965,23 +985,7 @@ function TimelineView({tasks,companyId,setCompanyId,theme:t}){
           })}</tbody>
         </table>
       </div>
-      {sel&&(()=>{const ph=rows.find(r=>r.phase===sel);if(!ph)return null;return(
-        <div style={{marginTop:14,paddingTop:12,borderTop:`1px solid ${t.line}`}}>
-          <div style={{background:t.bgCard,borderRadius:10,padding:16,border:`1px solid ${t.line}`}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8,flexWrap:"wrap",gap:10}}>
-              <div style={{display:"inline-flex",alignItems:"center",gap:7,fontWeight:500,color:t.ink}}>
-                <span style={{width:10,height:10,borderRadius:3,background:ph.kind==="recurring"?"#1D9E75":"#7F77DD",display:"inline-block"}}/>{ph.phase}
-              </div>
-              <div style={{fontSize:12,color:t.inkFaint,display:"flex",gap:10}}><span>{ph.tasks.length} tasks</span><span>Weeks {ph.start}–{ph.start+ph.len-1}</span></div>
-            </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-              {ph.tasks.slice(0,8).map(tk=><div key={tk.id} style={{fontSize:12,color:t.inkMuted,background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:7,padding:"5px 10px"}}>{tk.title}</div>)}
-              {ph.tasks.length===0&&<div style={{fontSize:13,color:t.inkFaint,fontStyle:"italic"}}>No tasks loaded yet.</div>}
-            </div>
-            <button onClick={()=>setSel(null)} style={{marginTop:10,background:t.bgElevated,color:t.inkMuted,border:`1px solid ${t.line}`,borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
-          </div>
-        </div>
-      );}()}
+      {sel&&rows.find(r=>r.phase===sel)&&<SelPhasePanel ph={rows.find(r=>r.phase===sel)} onClose={()=>setSel(null)} t={t}/>}
     </div>
   );
 }
