@@ -13,7 +13,7 @@ theme:{bg:"#0D0B18",bgCard:"#160F2B",bgElevated:"#1E1540",bgSunk:"#0A0814",ink:"
 theme:{bg:"#0E0F12",bgCard:"#17181D",bgElevated:"#1F2128",bgSunk:"#121317",ink:"#F5F2EE",inkMuted:"#A8A29B",inkFaint:"#6F6A63",inkGhost:"#3C3935",line:"rgba(255,180,120,.12)",lineStrong:"rgba(255,180,120,.24)",accent:"#FF7A1A",accentHover:"#FF9444",accentSoft:"rgba(255,122,26,.16)",accentWash:"rgba(255,122,26,.07)",accentDeep:"#FFA85C",gold:"#FFB020",goldSoft:"rgba(255,176,32,.16)",teal:"#2DD4BF",tealSoft:"rgba(45,212,191,.15)",indigo:"#A6B4FC",indigoSoft:"rgba(129,140,248,.17)",pink:"#F472B6",pinkSoft:"rgba(244,114,182,.16)",good:"#36D77E",goodSoft:"rgba(54,215,126,.15)",warn:"#FFB020",warnSoft:"rgba(255,176,32,.16)",bad:"#FF6B5E",badSoft:"rgba(255,107,94,.15)",sideBg:"#090A0C",sideText:"#C5BFB7",sideTextDim:"#6F6A63",shadowCard:"0 1px 2px rgba(0,0,0,.5),0 0 0 1px rgba(255,180,120,.06)",shadowHover:"0 16px 40px -18px rgba(0,0,0,.72),0 0 0 1px rgba(255,122,26,.22)",navActiveBg:"linear-gradient(90deg,rgba(255,122,26,.22),rgba(255,122,26,.05))",navActiveText:"#FFE6CF",gradBrand:"linear-gradient(150deg,#FF7A1A,#FFB020)",gradBg:"radial-gradient(700px 360px at -10% -8%,rgba(255,122,26,.14),transparent 60%),radial-gradient(620px 340px at 110% 108%,rgba(255,176,32,.10),transparent 62%)"}},
 ];
 
-let TEAM=["Marshall","Elaina","Weston","Dena"];
+let TEAM=["Marshall","Elaina","Weston","Deva"];
 const STATUSES={not_started:{label:"Not Started",icon:Circle},in_progress:{label:"In Progress",icon:Clock},blocked:{label:"Blocked",icon:AlertTriangle},done:{label:"Done",icon:Check}};
 const STATUS_ORDER=["not_started","in_progress","blocked","done"];
 const PRIORITIES={high:"#FF6B5E",medium:"#FFB020",low:"#6F6A63"};
@@ -57,6 +57,23 @@ function Pill({children,v="neutral",theme:t}){
   return <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,fontWeight:600,padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap",background:s.bg,color:s.c}}>{children}</span>;
 }
 function Bar({pct,color,theme:t}){return <div style={{height:6,borderRadius:20,background:t.bgSunk,overflow:"hidden"}}><div style={{width:`${pct}%`,height:"100%",borderRadius:20,background:color||t.accent,transition:"width .4s"}}/></div>;}
+function EmptyState({label="No data yet",sub="Connect a data source to populate this view.",theme:t,pad=40}){
+  return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:`${pad}px 20px`}}>
+      <div style={{width:38,height:38,borderRadius:10,border:`1px dashed ${t.lineStrong}`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:12,fontSize:18,color:t.inkGhost}}>—</div>
+      <div style={{fontSize:13.5,fontWeight:500,color:t.inkMuted}}>{label}</div>
+      <div style={{fontSize:12,color:t.inkFaint,marginTop:4,maxWidth:340}}>{sub}</div>
+    </div>
+  );
+}
+function EmptySpark({height=240}){
+  return(
+    <svg viewBox={`0 0 760 ${height}`} width="100%" height={height} preserveAspectRatio="none">
+      <g stroke="rgba(255,255,255,.06)" strokeWidth="1">{[20,70,120,170,220].map(y=><line key={y} x1="40" y1={y} x2="740" y2={y}/>)}</g>
+      <text x="390" y={height/2} textAnchor="middle" fontSize="12" fill="rgba(255,255,255,.28)" fontFamily="'IBM Plex Sans',sans-serif">No data yet</text>
+    </svg>
+  );
+}
 function Tabs2({tabs,active,onChange,theme:t}){
   return <div style={{display:"flex",gap:4,background:t.bgElevated,padding:3,borderRadius:8,border:`1px solid ${t.line}`}}>{tabs.map(tab=><button key={tab} onClick={()=>onChange(tab)} style={{padding:"4px 11px",borderRadius:6,fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:active===tab?t.bgCard:"transparent",color:active===tab?t.ink:t.inkMuted,boxShadow:active===tab?t.shadowCard:"none"}}>{tab}</button>)}</div>;
 }
@@ -132,307 +149,135 @@ function KwList({rows,theme:t}){
 // ── VIEWS ─────────────────────────────────────────────────────
 function OverviewView({theme:t,companyId}){
   const co=companyId==="all"?COMPANIES[0]:COMPANIES.find(c=>c.id===companyId)||COMPANIES[0];
-  const brand={aps:"permits brand",ads:"data brand",tgr:"AI pipeline"}[co.id]||"brand";
   return(
     <div style={{padding:"26px 38px 80px",maxWidth:1480}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:24,marginBottom:30,paddingBottom:22,borderBottom:`1px solid ${t.line}`}}>
         <div>
           <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".13em",color:t.inkFaint,marginBottom:7}}>Marketing Operations</div>
           <h1 style={{fontFamily:"'Fraunces',serif",fontSize:30,fontWeight:400,letterSpacing:"-.02em",color:t.ink,lineHeight:1.12,margin:0}}>
-            Good morning, Marshall — your <em style={{fontStyle:"italic",color:t.accentDeep,fontWeight:500,textShadow:`0 0 22px ${t.accent}66`}}>{brand}</em> is gaining ground.
+            <em style={{fontStyle:"italic",color:t.accentDeep,fontWeight:500}}>{co.name}</em> dashboard
           </h1>
-          <div style={{color:t.inkMuted,marginTop:8,fontSize:13.5}}>Last 30 days · Updated 4 minutes ago · <span style={{color:t.good}}>●</span> All channels synced</div>
+          <div style={{color:t.inkMuted,marginTop:8,fontSize:13.5}}>No data yet · <span style={{color:t.inkFaint}}>○</span> No sources connected</div>
         </div>
         <div style={{display:"flex",gap:9,flexShrink:0}}><Btn theme={t}>Last 30 days ▾</Btn><Btn theme={t} accent>+ New Campaign</Btn></div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:15,marginBottom:30}}>
-        <KpiCard label="Organic sessions" value="18,427" trend="▲ 23.4%" trendDir="up" sub="vs. prior 30 days" icon={TrendingUp} theme={t}/>
-        <KpiCard label="Avg. keyword position" value="14.2" trend="▲ 3.6 pos" trendDir="up" sub="184 tracked terms" icon={Search} theme={t}/>
-        <KpiCard label="Inbound leads" value="312" trend="▲ 11.8%" trendDir="up" sub="78% organic-sourced" icon={Users} theme={t}/>
-        <KpiCard label="Cost per lead" value="$48" trend="▼ 19.0%" trendDir="down-good" sub="vs vendor's $84" icon={BarChart2} theme={t}/>
+        <KpiCard label="Organic sessions" value="—" sub="No data" icon={TrendingUp} theme={t}/>
+        <KpiCard label="Avg. keyword position" value="—" sub="No data" icon={Search} theme={t}/>
+        <KpiCard label="Inbound leads" value="—" sub="No data" icon={Users} theme={t}/>
+        <KpiCard label="Cost per lead" value="—" sub="No data" icon={BarChart2} theme={t}/>
       </div>
-      <SecH title="Organic search performance" meta={<><span style={{color:t.good}}>●</span> Live from Google Search Console & GA4</>} theme={t}/>
+      <SecH title="Organic search performance" meta={<><span style={{color:t.inkFaint}}>○</span> No sources connected</>} theme={t}/>
       <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr",gap:15,marginBottom:30}}>
-        <Panel theme={t}><PHead title="Sessions & clicks" sub="Organic sessions · daily · last 30 days" theme={t} right={<Tabs2 tabs={["7d","30d","90d","1y"]} active="30d" onChange={()=>{}} theme={t}/>}/><Spark color={t.accent} uid="ov1"/></Panel>
-        <Panel theme={t}><PHead title="Top keyword movements" sub="Position changes · last 7 days" theme={t}/>
-          <KwList rows={[{kw:"florida building permit expediter",vol:"2,400/mo · KD 38",pos:"3",change:"▲5",dir:"up"},{kw:"solar permit florida fast",vol:"1,200/mo · KD 31",pos:"4",change:"▲8",dir:"up"},{kw:"orlando permit services",vol:"880/mo · KD 24",pos:"7",change:"▲3",dir:"up"},{kw:"permit expediter near me",vol:"6,600/mo · KD 44",pos:"18",change:"▲4",dir:"up"},{kw:"ai permit software",vol:"170/mo · KD 22",pos:"9",change:"NEW",dir:"new"}]} theme={t}/>
-        </Panel>
+        <Panel theme={t}><PHead title="Sessions & clicks" sub="Organic sessions · daily" theme={t}/><EmptySpark/></Panel>
+        <Panel theme={t}><PHead title="Top keyword movements" sub="Position changes" theme={t}/><EmptyState theme={t}/></Panel>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:15}}>
-        <Panel theme={t}><PHead title="Lead source attribution" sub="312 leads this month · what's driving pipeline" theme={t}/>
-          <div style={{display:"flex",height:14,borderRadius:7,overflow:"hidden",margin:"4px 0 20px"}}>
-            {[{w:42,c:t.accent},{w:18,c:t.good},{w:14,c:t.teal},{w:10,c:t.indigo},{w:8,c:t.pink},{w:8,c:t.gold}].map((x,i)=><div key={i} style={{flex:x.w,background:x.c}}/>)}
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:11}}>
-            {[["Organic search","131 · 42%",t.accent],["LinkedIn (organic)","56 · 18%",t.good],["Direct","44 · 14%",t.teal],["Referral","31 · 10%",t.indigo],["Email","25 · 8%",t.pink],["Paid (Google)","25 · 8%",t.gold]].map(([l,v,c],i)=>(
-              <div key={i} style={{display:"grid",gridTemplateColumns:"auto 1fr auto",gap:10,alignItems:"center"}}>
-                <div style={{width:10,height:10,borderRadius:3,background:c}}/>
-                <div style={{fontSize:13,color:t.ink}}>{l}</div>
-                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:t.inkMuted}}>{v}</div>
-              </div>
-            ))}
-          </div>
-        </Panel>
-        <Panel theme={t}><PHead title="Team activity" sub="Recent actions across channels" theme={t}/>
-          <div>{[
-            {icon:"📝",text:<><strong>Marshall</strong> published "Solar Permits — 2026 Cycle Times" to the blog.</>,time:"23m"},
-            {icon:"🔗",text:<>3 new backlinks detected from <strong>constructiondive.com</strong>.</>,time:"2h"},
-            {icon:"📈",text:<><strong>"orlando permit expediter"</strong> moved #6 → #3.</>,time:"5h"},
-            {icon:"✉️",text:<><strong>April newsletter</strong> sent · 38.4% open, 4.2% CTR.</>,time:"1d"},
-            {icon:"⚠️",text:<>Audit found <strong>3 new broken links</strong> in /resources.</>,time:"1d"},
-          ].map((it,i,a)=>(
-            <div key={i} style={{display:"grid",gridTemplateColumns:"auto 1fr auto",gap:12,alignItems:"flex-start",padding:"12px 0",borderBottom:i<a.length-1?`1px solid ${t.line}`:"none"}}>
-              <div style={{width:28,height:28,borderRadius:8,background:t.bgElevated,border:`1px solid ${t.line}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}}>{it.icon}</div>
-              <div style={{color:t.ink,lineHeight:1.45,fontSize:13}}>{it.text}</div>
-              <div style={{fontSize:11,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace",whiteSpace:"nowrap"}}>{it.time}</div>
-            </div>
-          ))}</div>
-        </Panel>
+        <Panel theme={t}><PHead title="Lead source attribution" sub="What's driving pipeline" theme={t}/><EmptyState theme={t}/></Panel>
+        <Panel theme={t}><PHead title="Team activity" sub="Recent actions across channels" theme={t}/><EmptyState label="No recent activity" sub="Activity will appear here as your team works." theme={t}/></Panel>
       </div>
     </div>
   );
 }
-
 function SeoView({theme:t}){
-  const [tab,setTab]=useState("28d");
   return(
     <div style={{padding:"26px 38px 80px",maxWidth:1480}}>
-      <TBar title={<>SEO & <em style={{fontStyle:"italic",color:t.accentDeep}}>Organic</em></>} sub="Google Search Console + GA4 + Ahrefs · last 28 days" actions={<><Btn theme={t}>Last 28 days ▾</Btn><Btn theme={t} accent>+ Track keyword</Btn></>} theme={t}/>
+      <TBar title={<>SEO & <em style={{fontStyle:"italic",color:t.accentDeep}}>Organic</em></>} sub="No data yet — connect Search Console, GA4, or Ahrefs" actions={<><Btn theme={t}>Last 28 days ▾</Btn><Btn theme={t} accent>+ Track keyword</Btn></>} theme={t}/>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:15,marginBottom:30}}>
-        <KpiCard label="Total clicks" value="9,184" trend="▲ 18.2%" trendDir="up" sub="vs prior period" theme={t}/>
-        <KpiCard label="Impressions" value="412K" trend="▲ 26.9%" trendDir="up" sub="rising visibility" theme={t}/>
-        <KpiCard label="Avg. CTR" value={<>2.23<small style={{fontSize:18,color:t.inkFaint}}>%</small></>} trend="▼ 0.3pt" trendDir="down" sub="impressions outpacing" theme={t}/>
-        <KpiCard label="Indexed pages" value="147" trend="▲ 12" trendDir="up" sub="9 pending discovery" theme={t}/>
+        <KpiCard label="Total clicks" value="—" sub="No data" theme={t}/>
+        <KpiCard label="Impressions" value="—" sub="No data" theme={t}/>
+        <KpiCard label="Avg. CTR" value="—" sub="No data" theme={t}/>
+        <KpiCard label="Indexed pages" value="—" sub="No data" theme={t}/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr",gap:15,marginBottom:30}}>
-        <Panel theme={t}><PHead title="Clicks vs. impressions" sub="Daily · Search Console" theme={t} right={<Tabs2 tabs={["7d","28d","3m"]} active={tab} onChange={setTab} theme={t}/>}/><Spark color={t.accent} height={240} uid="seo1"/></Panel>
-        <Panel theme={t}><PHead title="Ranking distribution" sub="184 tracked keywords by position bucket" theme={t}/>
-          <div style={{display:"flex",flexDirection:"column",gap:14,marginTop:6}}>
-            {[["Positions 1–3",22,30,t.good],["Positions 4–10",41,56,t.accent],["Positions 11–20",58,78,t.gold],["Positions 21–50",44,60,t.inkFaint],["Beyond 50",19,26,t.lineStrong]].map(([l,c,p,col])=>(
-              <div key={l}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:5,color:t.inkMuted}}><span>{l}</span><strong style={{fontFamily:"'JetBrains Mono',monospace",color:t.ink}}>{c}</strong></div><Bar pct={p} color={col} theme={t}/></div>
-            ))}
-          </div>
-          <div style={{marginTop:16,fontSize:12,color:t.inkFaint}}>63 keywords in the "striking distance" 11–20 band — highest ROI to push to page one.</div>
-        </Panel>
+        <Panel theme={t}><PHead title="Clicks vs. impressions" sub="Daily · Search Console" theme={t}/><EmptySpark/></Panel>
+        <Panel theme={t}><PHead title="Ranking distribution" sub="By position bucket" theme={t}/><EmptyState theme={t}/></Panel>
       </div>
-      <SecH title="Keyword universe" meta="184 tracked terms · click a column to sort" theme={t}/>
-      <Panel theme={t} flush style={{marginBottom:30}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-          <thead><tr style={{borderBottom:`1px solid ${t.line}`}}>{["Keyword","Position","7-day","Volume","KD","Clicks","URL"].map(h=><th key={h} style={{padding:"11px 14px",textAlign:h==="Keyword"||h==="URL"?"left":"right",fontSize:10.5,textTransform:"uppercase",letterSpacing:".07em",color:t.inkFaint,fontWeight:600,background:t.bgElevated}}>{h}</th>)}</tr></thead>
-          <tbody>{[
-            ["florida building permit expediter",3,"▲5","up",2400,38,684,"/services/florida"],
-            ["solar permit florida fast",4,"▲8","up",1200,31,402,"/solutions/solar"],
-            ["orlando permit services",7,"▲3","up",880,24,191,"/areas/orlando"],
-            ["ai permit software",9,"NEW","new",170,22,38,"/platform"],
-            ["commercial roofing permits tampa",11,"▼2","down",390,19,44,"/areas/tampa"],
-            ["permit expediter near me",18,"▲4","up",6600,44,121,"/"],
-            ["how long does a building permit take",14,"▲6","up",3300,29,88,"/blog/permit-timelines"],
-            ["broward county permit expeditor",2,"▲1","up",320,17,142,"/areas/broward"],
-          ].map((r,i)=>(
-            <tr key={i} className="tbl-row" style={{borderBottom:`1px solid ${t.line}`}}>
-              <td style={{padding:"12px 14px",fontWeight:500,color:t.ink}}>{r[0]}</td>
-              <td style={{padding:"12px 14px",textAlign:"right",fontWeight:600,color:t.ink,fontFamily:"'JetBrains Mono',monospace"}}>{r[1]}</td>
-              <td style={{padding:"12px 14px",textAlign:"right",fontFamily:"'JetBrains Mono',monospace",fontSize:11.5,fontWeight:600,color:r[3]==="up"?t.good:r[3]==="down"?t.bad:t.accent}}>{r[2]}</td>
-              <td style={{padding:"12px 14px",textAlign:"right",fontFamily:"'JetBrains Mono',monospace",color:t.inkMuted}}>{r[4].toLocaleString()}</td>
-              <td style={{padding:"12px 14px",textAlign:"right",fontFamily:"'JetBrains Mono',monospace",color:t.inkMuted}}>{r[5]}</td>
-              <td style={{padding:"12px 14px",textAlign:"right",fontFamily:"'JetBrains Mono',monospace",color:t.inkMuted}}>{r[6]}</td>
-              <td style={{padding:"12px 14px",fontSize:11,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>{r[7]}</td>
-            </tr>
-          ))}</tbody>
-        </table>
-      </Panel>
+      <SecH title="Keyword universe" meta="No keywords tracked yet" theme={t}/>
+      <Panel theme={t} style={{marginBottom:30}}><EmptyState label="No keywords tracked" sub="Track a keyword to start populating this table." theme={t}/></Panel>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:15}}>
-        <Panel theme={t} flush>
-          <PHead title="Technical health audit" sub="38 tracked items · 5 critical open" theme={t} b right={<Btn theme={t} sm>Re-scan</Btn>}/>
-          <div style={{padding:"6px 22px 14px"}}>{[
-            {title:"Duplicate meta descriptions site-wide",desc:"Placeholder copy showing in SERPs across 31 pages",sev:"bad",pill:"Critical"},
-            {title:"Identical <title> tags on every page",desc:"Highest-impact on-page fix — unique titles needed",sev:"bad",pill:"Critical"},
-            {title:"No canonical tags",desc:"Risk of duplicate-content dilution",sev:"warn",pill:"High"},
-            {title:"Missing structured data / schema",desc:"Organization, LocalBusiness, FAQ absent",sev:"warn",pill:"High"},
-            {title:"Image alt text missing",desc:"Affects 64 images across the site",sev:"neutral",pill:"Medium"},
-            {title:"XML sitemap submitted",desc:"Verified in Search Console May 24",sev:"good",pill:"Resolved"},
-          ].map((r,i)=>(
-            <div key={i} style={{display:"grid",gridTemplateColumns:"auto 1fr auto",gap:12,alignItems:"flex-start",padding:"12px 0",borderBottom:`1px solid ${t.line}`}}>
-              <span style={{width:8,height:8,borderRadius:"50%",marginTop:4,flexShrink:0,display:"block",background:r.sev==="bad"?t.bad:r.sev==="warn"?t.warn:r.sev==="good"?t.good:t.inkFaint}}/>
-              <div><div style={{fontSize:13,fontWeight:500,color:t.ink}}>{r.title}</div><div style={{fontSize:11.5,color:t.inkMuted,marginTop:2}}>{r.desc}</div></div>
-              <Pill v={r.sev==="bad"?"bad":r.sev==="warn"?"warn":r.sev==="good"?"good":"neutral"} theme={t}>{r.pill}</Pill>
-            </div>
-          ))}</div>
-        </Panel>
-        <Panel theme={t} flush>
-          <PHead title="Backlink profile" sub="Domain Rating 34 · 1,284 referring domains" theme={t} b right={<Pill v="good" theme={t}>+18 this mo</Pill>}/>
-          <div style={{padding:"6px 22px 14px"}}>{[
-            ["constructiondive.com","DR 78 · dofollow · /news/ai-permitting","info","New"],
-            ["jaxchamber.com","DR 61 · dofollow · member directory","info","New"],
-            ["solarpowerworldonline.com","DR 72 · dofollow · guest article","good","Live"],
-            ["builderonline.com","DR 69 · nofollow · roundup mention","neutral","Nofollow"],
-            ["spammydirectory.xyz","DR 4 · toxic · recommend disavow","bad","Toxic"],
-          ].map((r,i)=>(
-            <div key={i} style={{display:"grid",gridTemplateColumns:"1fr auto",gap:12,alignItems:"center",padding:"12px 0",borderBottom:`1px solid ${t.line}`}}>
-              <div><div style={{fontSize:13,fontWeight:500,color:t.ink}}>{r[0]}</div><div style={{fontSize:11.5,color:t.inkMuted,marginTop:2,fontFamily:"'JetBrains Mono',monospace"}}>{r[1]}</div></div>
-              <Pill v={r[2]} theme={t}>{r[3]}</Pill>
-            </div>
-          ))}</div>
-        </Panel>
+        <Panel theme={t}><PHead title="Technical health audit" sub="No scans run yet" theme={t}/><EmptyState theme={t}/></Panel>
+        <Panel theme={t}><PHead title="Backlink profile" sub="No backlink data yet" theme={t}/><EmptyState theme={t}/></Panel>
       </div>
     </div>
   );
 }
-
 function SocialView({theme:t}){
   const socials=[
-    {name:"LinkedIn",handle:"alliance-permitting-service",followers:"3,148",plus:"+184",eng:"6.4%",bg:"#0A66C2",letter:"in"},
-    {name:"Instagram",handle:"@permittingalliance",followers:"1,872",plus:"+62",eng:"3.1%",bg:"#E1306C",letter:"IG"},
-    {name:"Facebook",handle:"/alliancepermitting",followers:"2,401",plus:"+28",eng:"1.8%",bg:"#1877F2",letter:"fb"},
-    {name:"X / Twitter",handle:"@alliancepermit1",followers:"948",plus:"+12",eng:"2.2%",bg:"#14171A",letter:"X"},
+    {name:"LinkedIn",bg:"#0A66C2",letter:"in"},
+    {name:"Instagram",bg:"#E1306C",letter:"IG"},
+    {name:"Facebook",bg:"#1877F2",letter:"fb"},
+    {name:"X / Twitter",bg:"#14171A",letter:"X"},
   ];
   return(
     <div style={{padding:"26px 38px 80px",maxWidth:1480}}>
-      <TBar title={<>Social <em style={{fontStyle:"italic",color:t.accentDeep}}>Media</em></>} sub="4 connected channels · organic + scheduled · last 30 days" actions={<><Btn theme={t}>Last 30 days ▾</Btn><Btn theme={t} accent>+ Schedule post</Btn></>} theme={t}/>
+      <TBar title={<>Social <em style={{fontStyle:"italic",color:t.accentDeep}}>Media</em></>} sub="No data yet — connect your social channels" actions={<><Btn theme={t}>Last 30 days ▾</Btn><Btn theme={t} accent>+ Schedule post</Btn></>} theme={t}/>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:15,marginBottom:30}}>
         {socials.map(s=>(
           <Panel key={s.name} theme={t}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
               <div style={{width:30,height:30,borderRadius:8,background:s.bg,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:11,flexShrink:0}}>{s.letter}</div>
-              <div><div style={{fontSize:12.5,fontWeight:600,color:t.ink}}>{s.name}</div><div style={{fontSize:10.5,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>{s.handle}</div></div>
+              <div><div style={{fontSize:12.5,fontWeight:600,color:t.ink}}>{s.name}</div><div style={{fontSize:10.5,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>Not connected</div></div>
             </div>
-            <div style={{fontFamily:"'Fraunces',serif",fontSize:28,fontWeight:400,color:t.ink,marginBottom:10}}>{s.followers}</div>
+            <div style={{fontFamily:"'Fraunces',serif",fontSize:28,fontWeight:400,color:t.inkFaint,marginBottom:10}}>—</div>
             <div style={{display:"flex",gap:16}}>
-              <div><strong style={{fontFamily:"'JetBrains Mono',monospace",color:t.ink,fontSize:13,display:"block"}}>{s.plus}</strong><span style={{fontSize:11.5,color:t.inkMuted}}>new followers</span></div>
-              <div><strong style={{fontFamily:"'JetBrains Mono',monospace",color:t.ink,fontSize:13,display:"block"}}>{s.eng}</strong><span style={{fontSize:11.5,color:t.inkMuted}}>engagement</span></div>
+              <div><strong style={{fontFamily:"'JetBrains Mono',monospace",color:t.inkFaint,fontSize:13,display:"block"}}>—</strong><span style={{fontSize:11.5,color:t.inkMuted}}>new followers</span></div>
+              <div><strong style={{fontFamily:"'JetBrains Mono',monospace",color:t.inkFaint,fontSize:13,display:"block"}}>—</strong><span style={{fontSize:11.5,color:t.inkMuted}}>engagement</span></div>
             </div>
           </Panel>
         ))}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr",gap:15,marginBottom:30}}>
-        <Panel theme={t}><PHead title="Engagement trend" sub="Total interactions across channels · daily" theme={t} right={<Tabs2 tabs={["30d","90d"]} active="30d" onChange={()=>{}} theme={t}/>}/><Spark color={t.accent} uid="soc1"/></Panel>
-        <Panel theme={t}><PHead title="Best performing posts" sub="By engagement rate · last 30 days" theme={t}/>
-          <KwList rows={[
-            {kw:'"Permit nightmares" carousel',vol:"LinkedIn · 1,204 reactions",pos:"",change:"9.8%",dir:"up"},
-            {kw:"Dream Finders project reel",vol:"Instagram · 18.4K views",pos:"",change:"7.1%",dir:"up"},
-            {kw:'"3 days, not 3 weeks" before/after',vol:"LinkedIn · 642 reactions",pos:"",change:"6.2%",dir:"up"},
-            {kw:"Solar tax-credit deadline alert",vol:"Facebook · 88 shares",pos:"",change:"3.4%",dir:"flat"},
-          ]} theme={t}/>
-        </Panel>
+        <Panel theme={t}><PHead title="Engagement trend" sub="Total interactions · daily" theme={t}/><EmptySpark/></Panel>
+        <Panel theme={t}><PHead title="Best performing posts" sub="By engagement rate" theme={t}/><EmptyState theme={t}/></Panel>
       </div>
-      <SecH title="Publishing queue" meta="Scheduled across all channels" theme={t}/>
-      <Panel theme={t} flush>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-          <thead><tr style={{borderBottom:`1px solid ${t.line}`}}>{["Post","Channel","Type","Scheduled","Status"].map(h=><th key={h} style={{padding:"11px 14px",textAlign:"left",fontSize:10.5,textTransform:"uppercase",letterSpacing:".07em",color:t.inkFaint,fontWeight:600,background:t.bgElevated}}>{h}</th>)}</tr></thead>
-          <tbody>{[
-            ["Atlanta GA service-launch announcement","LinkedIn","Social","Wed · 10:00 AM","good","Queued"],
-            ["EV charger permit reel","Instagram","Video","Thu · 12:30 PM","good","Queued"],
-            ["Permit nightmares — part 5","LinkedIn","Social","Fri · 9:00 AM","warn","Draft"],
-            ["Weekend code-update digest","Facebook · X","Link","Sat · 8:00 AM","neutral","Idea"],
-          ].map((r,i)=>(
-            <tr key={i} className="tbl-row" style={{borderBottom:`1px solid ${t.line}`}}>
-              <td style={{padding:"12px 14px",fontWeight:500,color:t.ink}}>{r[0]}</td>
-              <td style={{padding:"12px 14px",color:t.inkMuted}}>{r[1]}</td>
-              <td style={{padding:"12px 14px"}}><CTag label={r[2]} theme={t}/></td>
-              <td style={{padding:"12px 14px",fontFamily:"'JetBrains Mono',monospace",color:t.inkMuted,fontSize:12}}>{r[3]}</td>
-              <td style={{padding:"12px 14px"}}><Pill v={r[4]} theme={t}>{r[5]}</Pill></td>
-            </tr>
-          ))}</tbody>
-        </table>
-      </Panel>
+      <SecH title="Publishing queue" meta="Nothing scheduled" theme={t}/>
+      <Panel theme={t}><EmptyState label="Nothing scheduled" sub="Scheduled posts will appear here." theme={t}/></Panel>
     </div>
   );
 }
-
 function PaidView({theme:t}){
   return(
     <div style={{padding:"26px 38px 80px",maxWidth:1480}}>
-      <TBar title={<>Paid <em style={{fontStyle:"italic",color:t.accentDeep}}>Advertising</em></>} sub="Google Ads + Meta · run lean, in-house · last 30 days" actions={<><Btn theme={t}>Last 30 days ▾</Btn><Btn theme={t} accent>+ New campaign</Btn></>} theme={t}/>
+      <TBar title={<>Paid <em style={{fontStyle:"italic",color:t.accentDeep}}>Advertising</em></>} sub="No data yet — connect Google Ads or Meta" actions={<><Btn theme={t}>Last 30 days ▾</Btn><Btn theme={t} accent>+ New campaign</Btn></>} theme={t}/>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:15,marginBottom:30}}>
-        <KpiCard label="Ad spend" value="$4,820" trend="— flat" trendDir="flat" sub="within budget" theme={t}/>
-        <KpiCard label="Paid leads" value="61" trend="▲ 9.0%" trendDir="up" sub="conversions" theme={t}/>
-        <KpiCard label="Cost per lead" value="$79" trend="▼ 8.1%" trendDir="down-good" sub="improving" theme={t}/>
-        <KpiCard label="ROAS" value={<>4.2<small style={{fontSize:18,color:t.inkFaint}}>×</small></>} trend="▲ 0.4×" trendDir="up" sub="on closed deals" theme={t}/>
+        <KpiCard label="Ad spend" value="—" sub="No data" theme={t}/>
+        <KpiCard label="Paid leads" value="—" sub="No data" theme={t}/>
+        <KpiCard label="Cost per lead" value="—" sub="No data" theme={t}/>
+        <KpiCard label="ROAS" value="—" sub="No data" theme={t}/>
       </div>
       <Panel theme={t} flush style={{marginBottom:30}}>
         <PHead title="Active campaigns" sub="Google Ads & Meta" theme={t} b/>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-          <thead><tr style={{borderBottom:`1px solid ${t.line}`}}>{["Campaign","Platform","Spend","Clicks","Leads","CPL","Status"].map(h=><th key={h} style={{padding:"11px 14px",textAlign:h==="Campaign"||h==="Platform"?"left":"right",fontSize:10.5,textTransform:"uppercase",letterSpacing:".07em",color:t.inkFaint,fontWeight:600,background:t.bgElevated}}>{h}</th>)}</tr></thead>
-          <tbody>{[
-            ["FL Permit Expediting — Search","Google","$2,140",418,31,"$69","good","Active"],
-            ["Solar Installers — Search","Google","$1,180",204,18,"$66","good","Active"],
-            ["Contractor Retargeting","Meta","$880",612,9,"$98","good","Active"],
-            ["Brand Defense","Google","$420",189,3,"$140","warn","Review"],
-            ["Texas Launch — Awareness","Meta","$200",88,0,"—","neutral","Paused"],
-          ].map((r,i)=>(
-            <tr key={i} className="tbl-row" style={{borderBottom:`1px solid ${t.line}`}}>
-              <td style={{padding:"12px 14px",fontWeight:500,color:t.ink}}>{r[0]}</td>
-              <td style={{padding:"12px 14px",color:t.inkMuted}}>{r[1]}</td>
-              <td style={{padding:"12px 14px",textAlign:"right",fontFamily:"'JetBrains Mono',monospace",color:t.ink}}>{r[2]}</td>
-              <td style={{padding:"12px 14px",textAlign:"right",fontFamily:"'JetBrains Mono',monospace",color:t.inkMuted}}>{r[3]}</td>
-              <td style={{padding:"12px 14px",textAlign:"right",fontFamily:"'JetBrains Mono',monospace",color:t.inkMuted}}>{r[4]}</td>
-              <td style={{padding:"12px 14px",textAlign:"right",fontFamily:"'JetBrains Mono',monospace",color:t.inkMuted}}>{r[5]}</td>
-              <td style={{padding:"12px 14px"}}><Pill v={r[6]} theme={t}>{r[7]}</Pill></td>
-            </tr>
-          ))}</tbody>
-        </table>
+        <EmptyState label="No campaigns" sub="Connect an ad account to see campaigns here." theme={t}/>
       </Panel>
       <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr",gap:15}}>
-        <Panel theme={t}><PHead title="Spend vs. leads" sub="Daily · all paid channels" theme={t}/><Spark color={t.gold} uid="paid1"/></Panel>
-        <Panel theme={t}><PHead title="Top converting keywords" sub="Google Ads · by leads" theme={t}/>
-          <KwList rows={[
-            {kw:"permit expediter florida",vol:"$3.10 CPC · Quality 9",pos:"",change:"14 leads",dir:"up"},
-            {kw:"fast solar permitting",vol:"$2.40 CPC · Quality 8",pos:"",change:"11 leads",dir:"up"},
-            {kw:"commercial permit help",vol:"$4.80 CPC · Quality 7",pos:"",change:"8 leads",dir:"up"},
-            {kw:"building permit service near me",vol:"$5.20 CPC · Quality 6",pos:"",change:"5 leads",dir:"flat"},
-          ]} theme={t}/>
-        </Panel>
+        <Panel theme={t}><PHead title="Spend vs. leads" sub="Daily · all paid channels" theme={t}/><EmptySpark/></Panel>
+        <Panel theme={t}><PHead title="Top converting keywords" sub="By leads" theme={t}/><EmptyState theme={t}/></Panel>
       </div>
     </div>
   );
 }
-
 function EmailView({theme:t}){
   return(
     <div style={{padding:"26px 38px 80px",maxWidth:1480}}>
-      <TBar title={<>Email & <em style={{fontStyle:"italic",color:t.accentDeep}}>Nurture</em></>} sub="Newsletter + lifecycle automations · last 30 days" actions={<><Btn theme={t}>Last 30 days ▾</Btn><Btn theme={t} accent>+ New campaign</Btn></>} theme={t}/>
+      <TBar title={<>Email & <em style={{fontStyle:"italic",color:t.accentDeep}}>Nurture</em></>} sub="No data yet — connect your email platform" actions={<><Btn theme={t}>Last 30 days ▾</Btn><Btn theme={t} accent>+ New campaign</Btn></>} theme={t}/>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:15,marginBottom:30}}>
-        <KpiCard label="List size" value="4,612" trend="▲ 6.2%" trendDir="up" sub="+268 net new" theme={t}/>
-        <KpiCard label="Avg. open rate" value={<>38.4<small style={{fontSize:18,color:t.inkFaint}}>%</small></>} trend="▲ 2.1pt" trendDir="up" sub="above 21% benchmark" theme={t}/>
-        <KpiCard label="Avg. click rate" value={<>4.2<small style={{fontSize:18,color:t.inkFaint}}>%</small></>} trend="▲ 0.6pt" trendDir="up" sub="healthy" theme={t}/>
-        <KpiCard label="Email-sourced leads" value="25" trend="▲ 14%" trendDir="up" sub="8% of total" theme={t}/>
+        <KpiCard label="List size" value="—" sub="No data" theme={t}/>
+        <KpiCard label="Avg. open rate" value="—" sub="No data" theme={t}/>
+        <KpiCard label="Avg. click rate" value="—" sub="No data" theme={t}/>
+        <KpiCard label="Email-sourced leads" value="—" sub="No data" theme={t}/>
       </div>
       <Panel theme={t} flush style={{marginBottom:30}}>
         <PHead title="Recent campaigns" sub="Broadcasts & automations" theme={t} b/>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-          <thead><tr style={{borderBottom:`1px solid ${t.line}`}}>{["Campaign","Sent","Recipients","Open","Click","Type"].map(h=><th key={h} style={{padding:"11px 14px",textAlign:h==="Campaign"||h==="Type"?"left":"right",fontSize:10.5,textTransform:"uppercase",letterSpacing:".07em",color:t.inkFaint,fontWeight:600,background:t.bgElevated}}>{h}</th>)}</tr></thead>
-          <tbody>{[
-            ["May Newsletter — Permit Cycle Times","May 10","4,344","38.4%","4.2%","Broadcast"],
-            ["Solar Tax Credit Deadline Alert","May 4","1,210","44.1%","7.8%","Segment"],
-            ["New Lead → Welcome Series (1/3)","Ongoing","312","61.2%","11.4%","Automation"],
-            ["Quote Follow-up (no response 48h)","Ongoing","98","52.0%","9.1%","Automation"],
-            ["Re-engagement — dormant 90d","Apr 28","640","18.3%","1.2%","Win-back"],
-          ].map((r,i)=>(
-            <tr key={i} className="tbl-row" style={{borderBottom:`1px solid ${t.line}`}}>
-              <td style={{padding:"12px 14px",fontWeight:500,color:t.ink}}>{r[0]}</td>
-              <td style={{padding:"12px 14px",textAlign:"right",fontFamily:"'JetBrains Mono',monospace",color:t.inkMuted,fontSize:12}}>{r[1]}</td>
-              <td style={{padding:"12px 14px",textAlign:"right",fontFamily:"'JetBrains Mono',monospace",color:t.inkMuted}}>{r[2]}</td>
-              <td style={{padding:"12px 14px",textAlign:"right",fontFamily:"'JetBrains Mono',monospace",color:t.ink,fontWeight:600}}>{r[3]}</td>
-              <td style={{padding:"12px 14px",textAlign:"right",fontFamily:"'JetBrains Mono',monospace",color:t.inkMuted}}>{r[4]}</td>
-              <td style={{padding:"12px 14px"}}><CTag label={r[5]==="Automation"||r[5]==="Win-back"||r[5]==="Segment"?"Email":r[5]} theme={t}/></td>
-            </tr>
-          ))}</tbody>
-        </table>
+        <EmptyState label="No campaigns" sub="Connect an email platform to see campaigns here." theme={t}/>
       </Panel>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:15}}>
-        <Panel theme={t}><PHead title="List growth" sub="Subscribers · last 6 months" theme={t}/><Spark color={t.good} uid="em1"/></Panel>
-        <Panel theme={t}><PHead title="Segments" sub="By lifecycle stage" theme={t}/>
-          <div style={{display:"flex",flexDirection:"column",gap:14,marginTop:6}}>{[
-            ["Contractors",1842,80,t.accent],["Solar installers",1108,48,t.gold],["Developers / GCs",962,42,t.teal],["Architects",418,18,t.indigo],["Unsegmented",282,12,t.inkFaint],
-          ].map(([l,v,p,c])=>(
-            <div key={l}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:5,color:t.inkMuted}}><span>{l}</span><strong style={{fontFamily:"'JetBrains Mono',monospace",color:t.ink}}>{v.toLocaleString()}</strong></div><Bar pct={p} color={c} theme={t}/></div>
-          ))}</div>
-        </Panel>
+        <Panel theme={t}><PHead title="List growth" sub="Subscribers" theme={t}/><EmptySpark/></Panel>
+        <Panel theme={t}><PHead title="Segments" sub="By lifecycle stage" theme={t}/><EmptyState theme={t}/></Panel>
       </div>
     </div>
   );
 }
-
 function ContentView({theme:t}){
   const cols=[
     {label:"Briefing",color:t=>t.inkFaint,count:5,cards:[{title:"2026 Florida Permit Cycle Times by County",type:"Blog",kw:"\"florida permit timeline\"",owner:"MC"},{title:"How AI Reduces Permit Rejection Rates",type:"SEO",kw:"\"ai permit software\"",owner:"MC"},{title:"Solar Tax Credit Sunset Guide",type:"Blog",kw:"\"solar permit florida\"",owner:"JD"}]},
@@ -494,118 +339,52 @@ function ContentView({theme:t}){
 function AttributionView({theme:t}){
   return(
     <div style={{padding:"26px 38px 80px",maxWidth:1480}}>
-      <TBar title={<>Lead <em style={{fontStyle:"italic",color:t.accentDeep}}>Attribution</em></>} sub="First-touch + multi-touch · synced from CRM · last 30 days" actions={<><Btn theme={t}>First-touch ▾</Btn><Btn theme={t}>Export</Btn></>} theme={t}/>
+      <TBar title={<>Lead <em style={{fontStyle:"italic",color:t.accentDeep}}>Attribution</em></>} sub="No data yet — connect your CRM" actions={<><Btn theme={t}>First-touch ▾</Btn><Btn theme={t}>Export</Btn></>} theme={t}/>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:15,marginBottom:30}}>
-        <KpiCard label="Total leads" value="312" trend="▲ 11.8%" trendDir="up" theme={t}/>
-        <KpiCard label="Blended CPL" value="$48" trend="▼ 19%" trendDir="down-good" sub="vs vendor $84" theme={t}/>
-        <KpiCard label="Lead → MQL" value={<>34<small style={{fontSize:18,color:t.inkFaint}}>%</small></>} trend="▲ 3pt" trendDir="up" theme={t}/>
-        <KpiCard label="MQL → closed" value={<>22<small style={{fontSize:18,color:t.inkFaint}}>%</small></>} trend="▲ 2pt" trendDir="up" theme={t}/>
+        <KpiCard label="Total leads" value="—" sub="No data" theme={t}/>
+        <KpiCard label="Blended CPL" value="—" sub="No data" theme={t}/>
+        <KpiCard label="Lead → MQL" value="—" sub="No data" theme={t}/>
+        <KpiCard label="MQL → closed" value="—" sub="No data" theme={t}/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr",gap:15,marginBottom:30}}>
-        <Panel theme={t}>
-          <PHead title="CPL by channel" sub="What each lead actually costs — the case for in-house" theme={t}/>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginTop:4}}>
-            <thead><tr style={{borderBottom:`1px solid ${t.line}`}}>{["Channel","Leads","Cost","CPL","vs blended"].map(h=><th key={h} style={{padding:"10px 14px",textAlign:h==="Channel"?"left":"right",fontSize:10.5,textTransform:"uppercase",letterSpacing:".07em",color:t.inkFaint,fontWeight:600}}>{h}</th>)}</tr></thead>
-            <tbody>{[
-              ["Organic search",131,"$0*","~$11","good","Best"],
-              ["LinkedIn organic",56,"$0*","~$14","good","Best"],
-              ["Email",25,"$120","$5","good","Best"],
-              ["Direct / referral",75,"$0","$0","neutral","Brand"],
-              ["Paid (Google)",25,"$1,975","$79","warn","Above"],
-            ].map((r,i)=>(
-              <tr key={i} className="tbl-row" style={{borderBottom:`1px solid ${t.line}`}}>
-                <td style={{padding:"12px 14px",fontWeight:500,color:t.ink}}>{r[0]}</td>
-                <td style={{padding:"12px 14px",textAlign:"right",fontFamily:"'JetBrains Mono',monospace",color:t.inkMuted}}>{r[1]}</td>
-                <td style={{padding:"12px 14px",textAlign:"right",fontFamily:"'JetBrains Mono',monospace",color:t.inkMuted}}>{r[2]}</td>
-                <td style={{padding:"12px 14px",textAlign:"right",fontFamily:"'JetBrains Mono',monospace",fontWeight:600,color:r[3]==="warn"?t.warn:t.good}}>{r[3]}</td>
-                <td style={{padding:"12px 14px",textAlign:"right"}}><Pill v={r[4]} theme={t}>{r[5]}</Pill></td>
-              </tr>
-            ))}</tbody>
-          </table>
-          <div style={{marginTop:12,fontSize:12,color:t.inkFaint}}>*Organic/social carry no per-lead media cost — only the fixed cost of the in-house team.</div>
-        </Panel>
-        <Panel theme={t}>
-          <PHead title="Conversion funnel" sub="This month" theme={t}/>
-          <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:8}}>{[
-            {label:"Visitors",val:"21,840",w:"100%",bg:t.accent,c:t.bg},
-            {label:"Engaged",val:"8,210",w:"88%",bg:t.accentDeep,c:t.bg},
-            {label:"Leads",val:"312",w:"62%",bg:`linear-gradient(135deg,${t.accent},${t.accentHover})`,c:t.bg},
-            {label:"MQL",val:"106",w:"42%",bg:`linear-gradient(135deg,${t.good},${t.teal})`,c:t.bg},
-            {label:"Closed",val:"23",w:"26%",bg:t.ink,c:t.bg},
-          ].map(r=>(
-            <div key={r.label} style={{background:r.bg,color:r.c,borderRadius:8,padding:"14px 16px",width:r.w,boxSizing:"border-box",transition:"width .4s"}}>
-              <div style={{fontSize:11,opacity:.85,textTransform:"uppercase",letterSpacing:".06em"}}>{r.label}</div>
-              <div style={{fontFamily:"'Fraunces',serif",fontSize:22,fontWeight:400}}>{r.val}</div>
-            </div>
-          ))}</div>
-        </Panel>
+        <Panel theme={t}><PHead title="CPL by channel" sub="Cost per lead by source" theme={t}/><EmptyState theme={t}/></Panel>
+        <Panel theme={t}><PHead title="Conversion funnel" sub="This month" theme={t}/><EmptyState theme={t}/></Panel>
       </div>
       <Panel theme={t} flush>
-        <PHead title="Recent attributed leads" sub="Live from CRM sync" theme={t} b right={<Pill v="good" theme={t}>● CRM connected</Pill>}/>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-          <thead><tr style={{borderBottom:`1px solid ${t.line}`}}>{["Lead","First touch","Landing page","Stage","Value"].map(h=><th key={h} style={{padding:"11px 14px",textAlign:"left",fontSize:10.5,textTransform:"uppercase",letterSpacing:".07em",color:t.inkFaint,fontWeight:600,background:t.bgElevated}}>{h}</th>)}</tr></thead>
-          <tbody>{[
-            ["SunPro Solar (FL)","accent","Organic","/solutions/solar","info","MQL","$8,400"],
-            ["Coastal Builders Group","good","LinkedIn","/solutions/developers","good","Closed","$22,000"],
-            ["M. Reyes Contracting","accent","Organic","/areas/orlando","neutral","New","—"],
-            ["Apex Roofing","warn","Paid","/services/florida","info","MQL","$5,200"],
-            ["Hartman Architects","neutral","Referral","/solutions/architects","good","Closed","$14,800"],
-          ].map((r,i)=>(
-            <tr key={i} className="tbl-row" style={{borderBottom:`1px solid ${t.line}`}}>
-              <td style={{padding:"12px 14px",fontWeight:500,color:t.ink}}>{r[0]}</td>
-              <td style={{padding:"12px 14px"}}><Pill v={r[1]} theme={t}>{r[2]}</Pill></td>
-              <td style={{padding:"12px 14px",fontSize:11,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>{r[3]}</td>
-              <td style={{padding:"12px 14px"}}><Pill v={r[4]} theme={t}>{r[5]}</Pill></td>
-              <td style={{padding:"12px 14px",fontFamily:"'JetBrains Mono',monospace",color:t.ink,fontWeight:600}}>{r[6]}</td>
-            </tr>
-          ))}</tbody>
-        </table>
+        <PHead title="Recent attributed leads" sub="From CRM sync" theme={t} b right={<Pill v="neutral" theme={t}>○ Not connected</Pill>}/>
+        <EmptyState label="No leads yet" sub="Connect your CRM to see attributed leads." theme={t}/>
       </Panel>
     </div>
   );
 }
-
 function ReportsView({theme:t}){
   return(
     <div style={{padding:"26px 38px 80px",maxWidth:1480}}>
-      <TBar title={<>Reports & <em style={{fontStyle:"italic",color:t.accentDeep}}>Exports</em></>} sub="Build, schedule, and send branded reports — replace client reporting tools" actions={<Btn theme={t} accent>+ Build report</Btn>} theme={t}/>
+      <TBar title={<>Reports & <em style={{fontStyle:"italic",color:t.accentDeep}}>Exports</em></>} sub="Build, schedule, and send branded reports" actions={<Btn theme={t} accent>+ Build report</Btn>} theme={t}/>
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:15,marginBottom:30}}>
         {[
-          {title:"Monthly Executive Summary",sub:"KPIs, organic, leads, channel ROI",border:t.accent,sched:"Auto-sends 1st of month · 3 recipients"},
-          {title:"SEO Performance Report",sub:"Rankings, clicks, technical health, backlinks",border:t.teal,sched:"Auto-sends weekly · Mondays 8am"},
-          {title:"Social & Content Recap",sub:"Engagement, top posts, content shipped",border:t.gold,sched:"Manual · on demand"},
+          {title:"Monthly Executive Summary",sub:"KPIs, organic, leads, channel ROI",border:t.accent},
+          {title:"SEO Performance Report",sub:"Rankings, clicks, technical health, backlinks",border:t.teal},
+          {title:"Social & Content Recap",sub:"Engagement, top posts, content shipped",border:t.gold},
         ].map(r=>(
           <Panel key={r.title} theme={t} style={{borderTop:`3px solid ${r.border}`}}>
             <div style={{fontFamily:"'Fraunces',serif",fontSize:16.5,fontWeight:500,color:t.ink,marginBottom:4}}>{r.title}</div>
             <div style={{fontSize:12,color:t.inkMuted,marginBottom:14}}>{r.sub}</div>
             <div style={{display:"flex",gap:8}}><Btn theme={t} sm>Preview</Btn><Btn theme={t} sm accent>Export PDF</Btn></div>
-            <div style={{marginTop:12,fontSize:12,color:t.inkFaint}}>{r.sched}</div>
+            <div style={{marginTop:12,fontSize:12,color:t.inkFaint}}>Not scheduled</div>
           </Panel>
         ))}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr",gap:15}}>
         <Panel theme={t} flush>
           <PHead title="Scheduled reports" sub="Automated delivery" theme={t} b right={<Btn theme={t} sm>+ Schedule</Btn>}/>
-          <div style={{padding:"6px 22px 14px"}}>{[
-            {title:"Monthly Executive Summary",desc:"PDF → marshall@, leadership@ · 1st of month",on:true},
-            {title:"Weekly SEO Snapshot",desc:"PDF + CSV → marketing@ · Mon 8:00am",on:true},
-            {title:"Daily lead digest",desc:"Email → sales@ · weekdays 7:00am",on:true},
-            {title:"Quarterly board deck",desc:"PDF → leadership@ · paused until Q3",on:false},
-          ].map((r,i)=>(
-            <div key={i} style={{display:"grid",gridTemplateColumns:"1fr auto",gap:12,alignItems:"center",padding:"12px 0",borderBottom:`1px solid ${t.line}`}}>
-              <div>
-                <div style={{fontSize:13,fontWeight:500,color:t.ink}}>{r.title}</div>
-                <div style={{fontSize:11.5,color:t.inkMuted,marginTop:2}}>{r.desc}</div>
-              </div>
-              <Pill v={r.on?"good":"neutral"} theme={t}>{r.on?"● On":"Off"}</Pill>
-            </div>
-          ))}</div>
+          <EmptyState label="No scheduled reports" sub="Schedule a report to automate delivery." theme={t}/>
         </Panel>
         <Panel theme={t}>
           <PHead title="Report builder" sub="Pick modules to include" theme={t}/>
           <div style={{display:"flex",flexDirection:"column",gap:2}}>{[
-            {label:"KPI snapshot",on:true},{label:"Organic search performance",on:true},{label:"Keyword movements",on:true},
-            {label:"Social performance",on:false},{label:"Lead attribution & CPL",on:true},{label:"Paid advertising summary",on:false},
+            {label:"KPI snapshot",on:false},{label:"Organic search performance",on:false},{label:"Keyword movements",on:false},
+            {label:"Social performance",on:false},{label:"Lead attribution & CPL",on:false},{label:"Paid advertising summary",on:false},
           ].map((r,i)=>(
             <label key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",cursor:"pointer"}}>
               <span style={{width:18,height:18,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,background:r.on?t.good:t.bgElevated,border:`1px solid ${r.on?t.good:t.lineStrong}`}}>
@@ -620,22 +399,21 @@ function ReportsView({theme:t}){
     </div>
   );
 }
-
 function IntegrationsView({theme:t}){
   const integs=[
-    {name:"Search Console",desc:"Clicks, impressions, queries",bg:"#4285F4",abbr:"G",status:"good"},
-    {name:"Analytics 4",desc:"Sessions, conversions",bg:"#E8710A",abbr:"A",status:"good"},
-    {name:"Tag Manager",desc:"Event tracking",bg:"#34A853",abbr:"T",status:"good"},
-    {name:"Google Ads",desc:"Spend, conversions",bg:"#FBBC04",abbr:"Ad",tc:"#3c4043",status:"good"},
-    {name:"Ahrefs / Semrush",desc:"Rankings, backlinks, KD",bg:"#1A1A1A",abbr:"Ah",status:"good"},
-    {name:"LinkedIn Pages",desc:"Followers, engagement",bg:"#0A66C2",abbr:"in",status:"good"},
-    {name:"Meta (IG + FB)",desc:"Insights API",bg:"#C13584",abbr:"IG",status:"warn"},
-    {name:"CRM",desc:"Lead attribution sync",bg:t.accent,abbr:"C",tc:t.bg,status:"good"},
+    {name:"Search Console",desc:"Clicks, impressions, queries",bg:"#4285F4",abbr:"G"},
+    {name:"Analytics 4",desc:"Sessions, conversions",bg:"#E8710A",abbr:"A"},
+    {name:"Tag Manager",desc:"Event tracking",bg:"#34A853",abbr:"T"},
+    {name:"Google Ads",desc:"Spend, conversions",bg:"#FBBC04",abbr:"Ad",tc:"#3c4043"},
+    {name:"Ahrefs / Semrush",desc:"Rankings, backlinks, KD",bg:"#1A1A1A",abbr:"Ah"},
+    {name:"LinkedIn Pages",desc:"Followers, engagement",bg:"#0A66C2",abbr:"in"},
+    {name:"Meta (IG + FB)",desc:"Insights API",bg:"#C13584",abbr:"IG"},
+    {name:"CRM",desc:"Lead attribution sync",bg:t.accent,abbr:"C",tc:t.bg},
   ];
   return(
     <div style={{padding:"26px 38px 80px",maxWidth:1480}}>
-      <TBar title={<>Integrations & <em style={{fontStyle:"italic",color:t.accentDeep}}>Data</em></>} sub="Where this console pulls its numbers · own every account" actions={<Btn theme={t} accent>+ Connect source</Btn>} theme={t}/>
-      <SecH title="Connected data sources" meta="Pull through official APIs — never a third-party aggregator" theme={t}/>
+      <TBar title={<>Integrations & <em style={{fontStyle:"italic",color:t.accentDeep}}>Data</em></>} sub="Connect a source to start pulling numbers" actions={<Btn theme={t} accent>+ Connect source</Btn>} theme={t}/>
+      <SecH title="Data sources" meta="No sources connected yet" theme={t}/>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:15,marginBottom:30}}>
         {integs.map(it=>(
           <Panel key={it.name} theme={t}>
@@ -644,9 +422,9 @@ function IntegrationsView({theme:t}){
               <div><div style={{fontSize:14,fontWeight:600,color:t.ink}}>{it.name}</div><div style={{fontSize:11.5,color:t.inkMuted}}>{it.desc}</div></div>
             </div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <Pill v={it.status==="warn"?"warn":"good"} theme={t}>{it.status==="good"?"● Connected":"Re-auth"}</Pill>
-              <div style={{width:36,height:20,borderRadius:20,background:it.status==="good"?t.good:t.warn,position:"relative",cursor:"pointer"}}>
-                <div style={{width:16,height:16,borderRadius:"50%",background:"#fff",position:"absolute",top:2,right:2}}/>
+              <Pill v="neutral" theme={t}>○ Not connected</Pill>
+              <div style={{width:36,height:20,borderRadius:20,background:t.bgElevated,border:`1px solid ${t.lineStrong}`,position:"relative",cursor:"pointer"}}>
+                <div style={{width:16,height:16,borderRadius:"50%",background:t.inkGhost,position:"absolute",top:1,left:2}}/>
               </div>
             </div>
           </Panel>
@@ -654,35 +432,28 @@ function IntegrationsView({theme:t}){
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr",gap:15}}>
         <Panel theme={t} flush>
-          <PHead title="Account ownership audit" sub="Confirm you — not a vendor — owns every account." theme={t} b right={<Pill v="warn" theme={t}>2 open</Pill>}/>
+          <PHead title="Account ownership audit" sub="Confirm you — not a vendor — own every account." theme={t} b/>
           <div style={{padding:"6px 22px 16px"}}>{[
-            {title:"Search Console — primary owner confirmed",desc:"marshall@ is verified owner",done:true},
-            {title:"GA4 property — admin access reclaimed",desc:"Vendor downgraded to viewer",done:true},
-            {title:"Google Tag Manager — container ownership",desc:"Transferred to Alliance Google account",done:true},
-            {title:"Google Ads — billing & admin transfer",desc:"Still under vendor MCC — request transfer",done:false},
-            {title:"Social profiles — admin role on all 4",desc:"Confirm LinkedIn, IG, FB, X admin is yours",done:false},
-          ].map((r,i)=>(
+            "Search Console — primary owner confirmed",
+            "GA4 property — admin access reclaimed",
+            "Google Tag Manager — container ownership",
+            "Google Ads — billing & admin transfer",
+            "Social profiles — admin role on all 4",
+          ].map((title,i)=>(
             <div key={i} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"11px 0",borderBottom:`1px solid ${t.line}`}}>
-              <span style={{width:18,height:18,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:2,background:r.done?t.good:t.bgElevated,border:`1px solid ${r.done?t.good:t.lineStrong}`}}>
-                {r.done&&<Check size={11} style={{color:t.bg}}/>}
-              </span>
-              <div>
-                <div style={{fontSize:13.5,fontWeight:500,color:r.done?t.inkFaint:t.ink,textDecoration:r.done?"line-through":"none"}}>{r.title}</div>
-                <div style={{fontSize:12,color:t.inkMuted,marginTop:2}}>{r.desc}</div>
-              </div>
+              <span style={{width:18,height:18,borderRadius:5,flexShrink:0,marginTop:2,background:t.bgElevated,border:`1px solid ${t.lineStrong}`}}/>
+              <div><div style={{fontSize:13.5,fontWeight:500,color:t.ink}}>{title}</div></div>
             </div>
           ))}</div>
         </Panel>
         <Panel theme={t}>
           <PHead title="Data freshness" sub="Last successful sync per source" theme={t}/>
           <div>{[
-            {name:"Search Console",time:"4 min ago",ok:true},{name:"Analytics 4",time:"4 min ago",ok:true},
-            {name:"Google Ads",time:"1 hr ago",ok:true},{name:"Ahrefs rankings",time:"Daily · 6am",ok:true},
-            {name:"Meta insights",time:"Needs re-auth",ok:false},{name:"CRM leads",time:"Real-time",ok:true},
-          ].map((r,i)=>(
+            "Search Console","Analytics 4","Google Ads","Ahrefs rankings","Meta insights","CRM leads",
+          ].map((name,i)=>(
             <div key={i} style={{display:"grid",gridTemplateColumns:"1fr auto",gap:12,alignItems:"center",padding:"11px 0",borderBottom:`1px solid ${t.line}`}}>
-              <div style={{fontSize:13,color:t.ink,fontWeight:450}}>{r.name}</div>
-              {r.ok?<span style={{fontSize:11,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>{r.time}</span>:<Pill v="warn" theme={t}>{r.time}</Pill>}
+              <div style={{fontSize:13,color:t.ink,fontWeight:450}}>{name}</div>
+              <span style={{fontSize:11,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>Never synced</span>
             </div>
           ))}</div>
         </Panel>
@@ -690,7 +461,6 @@ function IntegrationsView({theme:t}){
     </div>
   );
 }
-
 // ── LOGINS VIEW ───────────────────────────────────────────────
 function LoginsView({companyId,theme:t}){
   const blank=()=>({media:"",username:"",password:""});
