@@ -20,7 +20,7 @@ insert into public.allowed_users (email, name, role) values
   ('elaina@alliancepermitting.com',      'Elaina',   'owner'),
   ('marshallc@alliancedatasolutions.ai', 'Marshall', 'manager'),
   ('westons@alliancepermitting.com',     'Weston',   'member'),
-  ('deva@alliancedatasolutions.ai',      'Dena',     'member')
+  ('deva@alliancedatasolutions.ai',      'Deva',     'member')
 on conflict (email) do nothing;
 
 -- Helper: is the currently-authenticated user on the allow-list?
