@@ -185,3 +185,32 @@ export async function replaceCompanyLogins(companyId: string, rows: CompanyLogin
   const { error } = await supabase.from("company_logins").insert(payload);
   if (error) throw error;
 }
+
+// ---- Data-source connections (Integrations & Data) ----
+export type ConnectionStatus = "disconnected" | "pending" | "connected" | "error";
+export type Connection = {
+  provider: string;
+  status: ConnectionStatus;
+  account_label?: string | null;
+  last_synced_at?: string | null;
+  error_detail?: string | null;
+};
+
+// Reads only the safe status columns — never tokens (those live in a
+// server-only table the browser key cannot access).
+export async function loadConnections(): Promise<Record<string, Connection>> {
+  const { data, error } = await supabase
+    .from("data_connections")
+    .select("provider, status, account_label, last_synced_at, error_detail");
+  if (error) throw error;
+  const map: Record<string, Connection> = {};
+  for (const row of data || []) map[(row as any).provider] = row as Connection;
+  return map;
+}
+
+// Disconnect is a server action (clears tokens + sets status). The browser
+// cannot write these tables directly, so we route through the API.
+export async function disconnectSource(provider: string): Promise<void> {
+  const res = await fetch(`/api/oauth/${encodeURIComponent(provider)}/disconnect`, { method: "POST" });
+  if (!res.ok) throw new Error("disconnect failed");
+}
