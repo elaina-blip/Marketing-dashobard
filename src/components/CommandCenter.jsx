@@ -399,6 +399,7 @@ function ReportsView({theme:t}){
     </div>
   );
 }
+<<<<<<< HEAD
 function ConnectModal({source,theme:t,onClose}){
   const isOAuth=["google","meta","linkedin"].includes(source.kind);
   const go=()=>{window.location.href=`/api/oauth/${source.kind}/start?key=${encodeURIComponent(source.key)}`;};
@@ -440,6 +441,18 @@ function IntegrationsView({theme:t}){
     {key:"linkedin",name:"LinkedIn Pages",desc:"Followers, engagement",bg:"#0A66C2",abbr:"in",kind:"linkedin"},
     {key:"ahrefs",name:"Ahrefs / Semrush",desc:"Rankings, backlinks, KD",bg:"#1A1A1A",abbr:"Ah",kind:"apikey"},
     {key:"crm",name:"CRM",desc:"Lead attribution sync",bg:t.accent,abbr:"C",tc:t.bg,kind:"custom"},
+=======
+function IntegrationsView({theme:t}){
+  const integs=[
+    {name:"Search Console",desc:"Clicks, impressions, queries",bg:"#4285F4",abbr:"G"},
+    {name:"Analytics 4",desc:"Sessions, conversions",bg:"#E8710A",abbr:"A"},
+    {name:"Tag Manager",desc:"Event tracking",bg:"#34A853",abbr:"T"},
+    {name:"Google Ads",desc:"Spend, conversions",bg:"#FBBC04",abbr:"Ad",tc:"#3c4043"},
+    {name:"Ahrefs / Semrush",desc:"Rankings, backlinks, KD",bg:"#1A1A1A",abbr:"Ah"},
+    {name:"LinkedIn Pages",desc:"Followers, engagement",bg:"#0A66C2",abbr:"in"},
+    {name:"Meta (IG + FB)",desc:"Insights API",bg:"#C13584",abbr:"IG"},
+    {name:"CRM",desc:"Lead attribution sync",bg:t.accent,abbr:"C",tc:t.bg},
+>>>>>>> 97779ac2c542d3295d8b6886cc3cb6b7945b0b4a
   ];
   const [conns,setConns]=useState({});
   const [loading,setLoading]=useState(true);
@@ -462,6 +475,7 @@ function IntegrationsView({theme:t}){
   const fmtSync=v=>{if(!v)return "Never synced";try{const d=new Date(v);return d.toLocaleString();}catch{return "Never synced";}};
   return(
     <div style={{padding:"26px 38px 80px",maxWidth:1480}}>
+<<<<<<< HEAD
       <TBar title={<>Integrations & <em style={{fontStyle:"italic",color:t.accentDeep}}>Data</em></>} sub={loading?"Loading connections…":`${connectedCount} of ${SOURCES.length} sources connected`} actions={<Btn theme={t} accent onClick={()=>setModal({chooser:true})}>+ Connect source</Btn>} theme={t}/>
       {flash&&<div style={{marginBottom:18,padding:"10px 14px",borderRadius:9,fontSize:13,background:t.accentSoft,color:t.accentDeep,border:`1px solid ${t.lineStrong}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span>{flash}</span><span onClick={()=>setFlash("")} style={{cursor:"pointer",color:t.inkFaint}}><X size={14}/></span></div>}
       <SecH title="Data sources" meta="Connect through official APIs — never a third-party aggregator" theme={t}/>
@@ -473,6 +487,21 @@ function IntegrationsView({theme:t}){
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
                 <div style={{width:40,height:40,borderRadius:9,background:s.bg,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:14,color:s.tc||"#fff",flexShrink:0}}>{s.abbr}</div>
                 <div><div style={{fontSize:14,fontWeight:600,color:t.ink}}>{s.name}</div><div style={{fontSize:11.5,color:t.inkMuted}}>{s.desc}</div></div>
+=======
+      <TBar title={<>Integrations & <em style={{fontStyle:"italic",color:t.accentDeep}}>Data</em></>} sub="Connect a source to start pulling numbers" actions={<Btn theme={t} accent>+ Connect source</Btn>} theme={t}/>
+      <SecH title="Data sources" meta="No sources connected yet" theme={t}/>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:15,marginBottom:30}}>
+        {integs.map(it=>(
+          <Panel key={it.name} theme={t}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+              <div style={{width:40,height:40,borderRadius:9,background:it.bg,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:14,color:it.tc||"#fff",flexShrink:0}}>{it.abbr}</div>
+              <div><div style={{fontSize:14,fontWeight:600,color:t.ink}}>{it.name}</div><div style={{fontSize:11.5,color:t.inkMuted}}>{it.desc}</div></div>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <Pill v="neutral" theme={t}>○ Not connected</Pill>
+              <div style={{width:36,height:20,borderRadius:20,background:t.bgElevated,border:`1px solid ${t.lineStrong}`,position:"relative",cursor:"pointer"}}>
+                <div style={{width:16,height:16,borderRadius:"50%",background:t.inkGhost,position:"absolute",top:1,left:2}}/>
+>>>>>>> 97779ac2c542d3295d8b6886cc3cb6b7945b0b4a
               </div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                 <Pill v={on?"good":err?"bad":"neutral"} theme={t}>{on?"● Connected":err?"Error":"○ Not connected"}</Pill>
@@ -503,10 +532,19 @@ function IntegrationsView({theme:t}){
         </Panel>
         <Panel theme={t}>
           <PHead title="Data freshness" sub="Last successful sync per source" theme={t}/>
+<<<<<<< HEAD
           <div>{SOURCES.map((s,i)=>(
             <div key={i} style={{display:"grid",gridTemplateColumns:"1fr auto",gap:12,alignItems:"center",padding:"11px 0",borderBottom:`1px solid ${t.line}`}}>
               <div style={{fontSize:13,color:t.ink,fontWeight:450}}>{s.name}</div>
               <span style={{fontSize:11,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>{statusOf(s.key)==="connected"?fmtSync(syncedOf(s.key)):"Never synced"}</span>
+=======
+          <div>{[
+            "Search Console","Analytics 4","Google Ads","Ahrefs rankings","Meta insights","CRM leads",
+          ].map((name,i)=>(
+            <div key={i} style={{display:"grid",gridTemplateColumns:"1fr auto",gap:12,alignItems:"center",padding:"11px 0",borderBottom:`1px solid ${t.line}`}}>
+              <div style={{fontSize:13,color:t.ink,fontWeight:450}}>{name}</div>
+              <span style={{fontSize:11,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>Never synced</span>
+>>>>>>> 97779ac2c542d3295d8b6886cc3cb6b7945b0b4a
             </div>
           ))}</div>
         </Panel>
