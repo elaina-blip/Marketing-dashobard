@@ -927,10 +927,12 @@ const parseISO=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d
 const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x;};
 const startOfWeek=d=>addDays(d,-d.getDay());
 
-function CalendarView({tasks,companyId,track,theme:t,onOpen,onAddTask,editMode,selected,onToggleSelect,onOpenDay,onStartEdit,onExitEdit,onDeleteSelected}){
+function CalendarView({tasks,companyId,track,theme:t,onOpen,onAddTask,onReschedule,editMode,selected,onToggleSelect,onOpenDay,onStartEdit,onExitEdit,onDeleteSelected}){
   const [mode,setMode]=useState("month");                 // day | week | month
   const [anchor,setAnchor]=useState(()=>{const d=new Date();d.setHours(0,0,0,0);return d;}); // reference date
   const [showUnsched,setShowUnsched]=useState(false);
+  const [drag,setDrag]=useState(null);                    // {id,title,from} while dragging a task
+  const [overDay,setOverDay]=useState(null);              // ISO date currently hovered as a drop target
   const todayStr=ymd(new Date());
 
   const scoped=useMemo(()=>tasks.filter(tk=>companyId==="all"||tk.companyId===companyId),[tasks,companyId]);
@@ -938,6 +940,19 @@ function CalendarView({tasks,companyId,track,theme:t,onOpen,onAddTask,editMode,s
   const unscheduled=useMemo(()=>scoped.filter(tk=>!tk.deadline&&tk.status!=="done"),[scoped]);
   const byDay=useMemo(()=>{const map={};for(const tk of dated)(map[tk.deadline]||=[]).push(tk);return map;},[dated]);
   const selCount=selected?selected.size:0;
+
+  // ---- Drag & drop: reschedule a task by dragging its chip to another day ----
+  const dragHandlers={
+    dragging:drag,
+    overDay,
+    onDragStartTask:(tk)=>setDrag({id:tk.id,title:tk.title,from:tk.deadline}),
+    onDragEndTask:()=>{setDrag(null);setOverDay(null);},
+    onDayDragOver:(ds)=>{if(drag&&ds!==overDay)setOverDay(ds);},
+    onDayDrop:(ds)=>{
+      if(drag&&ds&&ds!==drag.from&&onReschedule)onReschedule(drag.id,ds);
+      setDrag(null);setOverDay(null);
+    },
+  };
 
   // ---- Navigation: step depends on the current mode ----
   const step=dir=>{
@@ -964,7 +979,7 @@ function CalendarView({tasks,companyId,track,theme:t,onOpen,onAddTask,editMode,s
   const rangeCount=dated.filter(inRange).length;
 
   const addBtnBg=t.accent;
-  const gridProps={byDay,todayStr,theme:t,onOpen,onAddTask,editMode,selected,onToggleSelect,onOpenDay};
+  const gridProps={byDay,todayStr,theme:t,onOpen,onAddTask,editMode,selected,onToggleSelect,onOpenDay,dnd:dragHandlers};
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",padding:"20px 38px 24px",overflow:"hidden"}}>
       {/* Toolbar */}
@@ -990,7 +1005,9 @@ function CalendarView({tasks,companyId,track,theme:t,onOpen,onAddTask,editMode,s
             </>
           ):(
             <>
-              <span style={{fontSize:12.5,color:t.inkMuted,fontWeight:600}}>{rangeCount} task{rangeCount!==1?"s":""} this {mode}</span>
+              {drag
+                ?<span style={{display:"flex",alignItems:"center",gap:6,fontSize:12.5,fontWeight:600,color:t.accentDeep,background:t.accentSoft,border:`1px solid ${t.accent}55`,borderRadius:9,padding:"7px 12px"}}><CalendarDays size={14}/>Drop on a day to move “{drag.title.length>28?drag.title.slice(0,28)+"…":drag.title}”</span>
+                :<span style={{fontSize:12.5,color:t.inkMuted,fontWeight:600}}>{rangeCount} task{rangeCount!==1?"s":""} this {mode}</span>}
               {unscheduled.length>0&&<button onClick={()=>setShowUnsched(v=>!v)} style={{display:"flex",alignItems:"center",gap:6,background:showUnsched?t.warnSoft:t.bgElevated,border:`1px solid ${showUnsched?t.warn:t.lineStrong}`,color:showUnsched?t.warn:t.inkMuted,borderRadius:9,padding:"7px 13px",fontSize:12.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><AlertTriangle size={13}/>{unscheduled.length} unscheduled<ChevronDown size={13} style={{transform:showUnsched?"rotate(180deg)":"none",transition:"transform .15s"}}/></button>}
               <button onClick={onStartEdit} style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,color:t.ink,border:`1px solid ${t.lineStrong}`,borderRadius:9,padding:"9px 14px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><CheckSquare size={15}/>Edit</button>
               <button onClick={()=>onAddTask&&onAddTask(mode==="day"?ymd(anchor):"")} style={{display:"flex",alignItems:"center",gap:6,background:addBtnBg,color:t.bg,border:"none",borderRadius:9,padding:"9px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 16px -8px ${t.accent}cc`}}><Plus size={15}/>Add task</button>
@@ -1035,15 +1052,24 @@ function readableOn(hex){
 // Small reusable task chip used across calendar views.
 // Filled with the company's full color so it's easy to read and identify at a glance.
 // In edit mode, clicking toggles selection instead of opening the task.
-function CalTaskChip({tk,theme:t,onOpen,editMode,selected,onToggleSelect}){
+// Outside edit mode the chip is draggable — drop it on another day to reschedule.
+function CalTaskChip({tk,theme:t,onOpen,editMode,selected,onToggleSelect,dnd}){
   const co=COMPANIES.find(c=>c.id===tk.companyId);
   const bg=co?.color||t.accent;
   const fg=readableOn(bg);
   const done=tk.status==="done";
   const isSel=editMode&&selected&&selected.has(tk.id);
+  const isDragging=dnd&&dnd.dragging&&dnd.dragging.id===tk.id;
+  const draggable=!editMode&&!!dnd;
   const click=()=>{if(editMode)onToggleSelect&&onToggleSelect(tk.id);else onOpen&&onOpen(tk.id);};
   return(
-    <button onClick={click} title={`${tk.title}${tk.assignees.length?` · ${tk.assignees.join(", ")}`:""}${done&&tk.completed_by?` · Done by ${tk.completed_by}`:""}`} style={{display:"flex",alignItems:"center",gap:6,background:bg,border:isSel?`2px solid ${fg}`:"2px solid transparent",borderRadius:6,padding:"4px 7px",fontSize:11.5,fontWeight:600,color:fg,overflow:"hidden",cursor:"pointer",fontFamily:"inherit",textAlign:"left",width:"100%",opacity:done&&!isSel?.72:1}}>
+    <button
+      draggable={draggable}
+      onDragStart={draggable?(e)=>{try{e.dataTransfer.setData("text/plain",tk.id);e.dataTransfer.effectAllowed="move";}catch{}dnd.onDragStartTask(tk);}:undefined}
+      onDragEnd={draggable?()=>dnd.onDragEndTask():undefined}
+      onClick={click}
+      title={draggable?`Drag to move · ${tk.title}`:`${tk.title}${tk.assignees.length?` · ${tk.assignees.join(", ")}`:""}${done&&tk.completed_by?` · Done by ${tk.completed_by}`:""}`}
+      style={{display:"flex",alignItems:"center",gap:6,background:bg,border:isSel?`2px solid ${fg}`:"2px solid transparent",borderRadius:6,padding:"4px 7px",fontSize:11.5,fontWeight:600,color:fg,overflow:"hidden",cursor:draggable?"grab":"pointer",fontFamily:"inherit",textAlign:"left",width:"100%",opacity:isDragging?.4:(done&&!isSel?.72:1)}}>
       {editMode
         ?(isSel?<CheckSquare size={13} style={{flexShrink:0}}/>:<Square size={13} style={{flexShrink:0,opacity:.85}}/>)
         :<span style={{width:8,height:8,borderRadius:"50%",background:stC(tk.status,t),flexShrink:0,boxShadow:`0 0 0 1.5px ${fg==="#FFFFFF"?"rgba(255,255,255,.85)":"rgba(0,0,0,.6)"}`}}/>}
@@ -1053,14 +1079,15 @@ function CalTaskChip({tk,theme:t,onOpen,editMode,selected,onToggleSelect}){
   );
 }
 
-// MONTH — 7-column grid (hover a day to reveal a + to add on that date).
-function MonthGrid({anchor,byDay,todayStr,theme:t,onOpen,onAddTask,editMode,selected,onToggleSelect,onOpenDay}){
+// MONTH — 7-column grid (hover a day to reveal a + to add on that date; drag a task onto a day to move it).
+function MonthGrid({anchor,byDay,todayStr,theme:t,onOpen,onAddTask,editMode,selected,onToggleSelect,onOpenDay,dnd}){
   const y=anchor.getFullYear(),m=anchor.getMonth();
   const sDow=new Date(y,m,1).getDay();const dim=new Date(y,m+1,0).getDate();
   const cells=[];for(let i=0;i<sDow;i++)cells.push(null);
   for(let d=1;d<=dim;d++){const ds=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;cells.push({d,ds,tasks:byDay[ds]||[]});}
   while(cells.length%7!==0)cells.push(null);
-  const chipProps={theme:t,onOpen,editMode,selected,onToggleSelect};
+  const chipProps={theme:t,onOpen,editMode,selected,onToggleSelect,dnd};
+  const dragging=dnd&&dnd.dragging;
   return(
     <div style={{flex:1,overflowY:"auto",border:`1px solid ${t.line}`,borderRadius:14,minHeight:0,background:t.bgCard}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:1,background:t.line}}>
@@ -1068,19 +1095,25 @@ function MonthGrid({anchor,byDay,todayStr,theme:t,onOpen,onAddTask,editMode,sele
         {cells.map((cell,i)=>{
           if(!cell)return <div key={i} style={{background:t.bgSunk,minHeight:150}}/>;
           const isT=cell.ds===todayStr;
+          const isOver=dragging&&dnd.overDay===cell.ds;
+          const isFrom=dragging&&dnd.dragging.from===cell.ds;
           return(
-            <div key={i} className="cal-day" style={{position:"relative",background:isT?`${t.accent}11`:t.bgCard,minHeight:150,padding:"7px 8px",display:"flex",flexDirection:"column",border:isT?`1px solid ${t.accent}`:"none"}}>
+            <div key={i} className="cal-day"
+              onDragOver={dragging?(e)=>{e.preventDefault();e.dataTransfer.dropEffect="move";dnd.onDayDragOver(cell.ds);}:undefined}
+              onDrop={dragging?(e)=>{e.preventDefault();dnd.onDayDrop(cell.ds);}:undefined}
+              style={{position:"relative",background:isOver?t.accentSoft:isT?`${t.accent}11`:t.bgCard,minHeight:150,padding:"7px 8px",display:"flex",flexDirection:"column",border:isOver?`2px dashed ${t.accent}`:isT?`1px solid ${t.accent}`:"none",boxShadow:isOver?`inset 0 0 0 1px ${t.accent}`:"none",transition:"background .1s"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${t.line}`}}>
                 <button onClick={()=>!editMode&&onOpenDay&&onOpenDay(cell.ds)} title={editMode?"":"View this day"} style={{border:"none",background:"none",padding:0,cursor:editMode?"default":"pointer",fontSize:14,fontWeight:700,color:isT?t.bg:t.inkMuted,fontFamily:"inherit",...(isT?{background:t.accent,width:22,height:22,borderRadius:"50%",display:"grid",placeItems:"center",fontSize:12}:{})}}>{cell.d}</button>
                 <div style={{display:"flex",alignItems:"center",gap:5}}>
                   {cell.tasks.length>0&&<button onClick={()=>onOpenDay&&onOpenDay(cell.ds)} title="View this day" style={{border:"none",fontSize:10.5,fontWeight:700,color:t.accent,background:t.accentSoft,borderRadius:9,padding:"2px 8px",cursor:"pointer",fontFamily:"inherit"}}>{cell.tasks.length}</button>}
-                  {!editMode&&<button className="cal-add" onClick={()=>onAddTask&&onAddTask(cell.ds)} title={`Add task on ${cell.ds}`} style={{opacity:0,transition:"opacity .12s",background:t.bgElevated,border:`1px solid ${t.lineStrong}`,color:t.accent,borderRadius:6,width:20,height:20,display:"grid",placeItems:"center",cursor:"pointer",padding:0}}><Plus size={13}/></button>}
+                  {!editMode&&!dragging&&<button className="cal-add" onClick={()=>onAddTask&&onAddTask(cell.ds)} title={`Add task on ${cell.ds}`} style={{opacity:0,transition:"opacity .12s",background:t.bgElevated,border:`1px solid ${t.lineStrong}`,color:t.accent,borderRadius:6,width:20,height:20,display:"grid",placeItems:"center",cursor:"pointer",padding:0}}><Plus size={13}/></button>}
                 </div>
               </div>
-              <div style={{display:"flex",flexDirection:"column",gap:4,overflowY:"auto"}}>
+              <div style={{display:"flex",flexDirection:"column",gap:4,overflowY:"auto",pointerEvents:dragging?"none":"auto"}}>
                 {cell.tasks.slice(0,4).map(tk=><CalTaskChip key={tk.id} tk={tk} {...chipProps}/>)}
                 {cell.tasks.length>4&&<button onClick={()=>onOpenDay&&onOpenDay(cell.ds)} style={{border:"none",background:"none",fontSize:11,color:t.accent,fontWeight:700,padding:"2px 0",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>+{cell.tasks.length-4} more</button>}
               </div>
+              {isOver&&!isFrom&&<div style={{position:"absolute",inset:0,pointerEvents:"none",display:"grid",placeItems:"center"}}><span style={{fontSize:11,fontWeight:700,color:t.accentDeep,background:t.bgCard,border:`1px solid ${t.accent}`,borderRadius:8,padding:"3px 9px",boxShadow:t.shadowCard}}>Move here</span></div>}
             </div>
           );
         })}
@@ -1090,26 +1123,32 @@ function MonthGrid({anchor,byDay,todayStr,theme:t,onOpen,onAddTask,editMode,sele
 }
 
 // WEEK — 7 taller day columns for the week containing the anchor date.
-function WeekGrid({anchor,byDay,todayStr,theme:t,onOpen,onAddTask,editMode,selected,onToggleSelect,onOpenDay}){
+function WeekGrid({anchor,byDay,todayStr,theme:t,onOpen,onAddTask,editMode,selected,onToggleSelect,onOpenDay,dnd}){
   const start=startOfWeek(anchor);
   const days=Array.from({length:7},(_,i)=>{const d=addDays(start,i);const ds=ymd(d);return{d,ds,tasks:byDay[ds]||[]};});
-  const chipProps={theme:t,onOpen,editMode,selected,onToggleSelect};
+  const chipProps={theme:t,onOpen,editMode,selected,onToggleSelect,dnd};
+  const dragging=dnd&&dnd.dragging;
   return(
     <div style={{flex:1,overflowY:"auto",border:`1px solid ${t.line}`,borderRadius:14,minHeight:0,background:t.bgCard}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:1,background:t.line,minHeight:"100%"}}>
         {days.map((day,i)=>{
           const isT=day.ds===todayStr;
+          const isOver=dragging&&dnd.overDay===day.ds;
           return(
-            <div key={i} className="cal-day" style={{position:"relative",background:isT?`${t.accent}11`:t.bgCard,display:"flex",flexDirection:"column",minHeight:420}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 10px 8px",borderBottom:`1px solid ${t.line}`,position:"sticky",top:0,background:isT?t.bgCard:t.bgElevated}}>
+            <div key={i} className="cal-day"
+              onDragOver={dragging?(e)=>{e.preventDefault();e.dataTransfer.dropEffect="move";dnd.onDayDragOver(day.ds);}:undefined}
+              onDrop={dragging?(e)=>{e.preventDefault();dnd.onDayDrop(day.ds);}:undefined}
+              style={{position:"relative",background:isOver?t.accentSoft:isT?`${t.accent}11`:t.bgCard,display:"flex",flexDirection:"column",minHeight:420,border:isOver?`2px dashed ${t.accent}`:"none",transition:"background .1s"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 10px 8px",borderBottom:`1px solid ${t.line}`,position:"sticky",top:0,background:isT?t.bgCard:t.bgElevated,zIndex:1}}>
                 <button onClick={()=>!editMode&&onOpenDay&&onOpenDay(day.ds)} title={editMode?"":"View this day"} style={{border:"none",background:"none",padding:0,cursor:editMode?"default":"pointer",textAlign:"left",fontFamily:"inherit"}}>
                   <div style={{fontSize:10.5,fontWeight:700,color:t.inkFaint,letterSpacing:".08em",textTransform:"uppercase"}}>{DOW[day.d.getDay()]}</div>
                   <div style={{fontSize:16,fontWeight:700,color:isT?t.accent:t.ink,fontFamily:"'Fraunces',serif"}}>{day.d.getDate()}{day.tasks.length>0&&<span style={{marginLeft:6,fontSize:10.5,fontFamily:"'IBM Plex Sans',inherit",fontWeight:700,color:t.accent,background:t.accentSoft,borderRadius:8,padding:"1px 7px",verticalAlign:"middle"}}>{day.tasks.length}</span>}</div>
                 </button>
-                {!editMode&&<button className="cal-add" onClick={()=>onAddTask&&onAddTask(day.ds)} title={`Add task on ${day.ds}`} style={{opacity:0,transition:"opacity .12s",background:t.bgElevated,border:`1px solid ${t.lineStrong}`,color:t.accent,borderRadius:6,width:22,height:22,display:"grid",placeItems:"center",cursor:"pointer",padding:0}}><Plus size={14}/></button>}
+                {!editMode&&!dragging&&<button className="cal-add" onClick={()=>onAddTask&&onAddTask(day.ds)} title={`Add task on ${day.ds}`} style={{opacity:0,transition:"opacity .12s",background:t.bgElevated,border:`1px solid ${t.lineStrong}`,color:t.accent,borderRadius:6,width:22,height:22,display:"grid",placeItems:"center",cursor:"pointer",padding:0}}><Plus size={14}/></button>}
               </div>
-              <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px",overflowY:"auto",flex:1}}>
-                {day.tasks.length===0&&!editMode&&<button onClick={()=>onAddTask&&onAddTask(day.ds)} style={{border:`1px dashed ${t.line}`,background:"none",borderRadius:8,padding:"10px 8px",fontSize:11.5,color:t.inkGhost,cursor:"pointer",fontFamily:"inherit"}}>+ Add</button>}
+              <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px",overflowY:"auto",flex:1,pointerEvents:dragging?"none":"auto"}}>
+                {day.tasks.length===0&&!editMode&&!dragging&&<button onClick={()=>onAddTask&&onAddTask(day.ds)} style={{border:`1px dashed ${t.line}`,background:"none",borderRadius:8,padding:"10px 8px",fontSize:11.5,color:t.inkGhost,cursor:"pointer",fontFamily:"inherit"}}>+ Add</button>}
+                {day.tasks.length===0&&dragging&&<div style={{border:`1px dashed ${isOver?t.accent:t.line}`,borderRadius:8,padding:"14px 8px",fontSize:11.5,color:isOver?t.accentDeep:t.inkGhost,textAlign:"center"}}>{isOver?"Move here":""}</div>}
                 {day.tasks.map(tk=><CalTaskChip key={tk.id} tk={tk} {...chipProps}/>)}
               </div>
             </div>
@@ -1597,7 +1636,7 @@ export default function App(){
         {view==="integrations"&&<IntegrationsView theme={t}/>}
         {view==="logins"      &&<LoginsView companyId={cid} theme={t}/>}
         {view==="board"       &&<BoardView tasks={tasks} companyId={cid} track={track} statusFilter={statusF} theme={t} onOpen={setOpenTask} onUpdate={update} todayISO={todayISO} weekISO={weekISO} editMode={editMode} selected={selected} onToggleSelect={toggleSelect}/>}
-        {view==="calendar"    &&<CalendarView tasks={tasks} companyId={cid} track={track} theme={t} onOpen={setOpenTask} onAddTask={openNewTask} editMode={editMode} selected={selected} onToggleSelect={toggleSelect} onOpenDay={setDayModal} onStartEdit={()=>setEditMode(true)} onExitEdit={exitEdit} onDeleteSelected={()=>{if(selected.size&&window.confirm(`Delete ${selected.size} task${selected.size!==1?"s":""}? This can't be undone.`))removeTasks(selected);}}/>}
+        {view==="calendar"    &&<CalendarView tasks={tasks} companyId={cid} track={track} theme={t} onOpen={setOpenTask} onAddTask={openNewTask} onReschedule={(id,date)=>update(id,{deadline:date})} editMode={editMode} selected={selected} onToggleSelect={toggleSelect} onOpenDay={setDayModal} onStartEdit={()=>setEditMode(true)} onExitEdit={exitEdit} onDeleteSelected={()=>{if(selected.size&&window.confirm(`Delete ${selected.size} task${selected.size!==1?"s":""}? This can't be undone.`))removeTasks(selected);}}/>}
         {view==="timeline"    &&<TimelineView tasks={tasks} companyId={cid} setCompanyId={setCid} theme={t}/>}
       </main>
 
