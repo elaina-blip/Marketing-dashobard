@@ -99,6 +99,58 @@ export async function createTask(input: NewTaskInput) {
   return data;
 }
 
+// ============================================================
+//  BULK IMPORT — take a parsed list of tasks and insert them all.
+// ============================================================
+export type ImportRow = {
+  company_id: string;
+  track: "seo" | "paid_social";
+  phase: string;
+  title: string;
+  priority?: Task["priority"];
+  status?: Task["status"];
+  cadence?: Task["cadence"];
+  deadline?: string | null;
+  assignees?: string[];
+};
+
+// Insert many tasks at once (plus their assignees). Returns how many were created.
+export async function importTasks(rows: ImportRow[]): Promise<number> {
+  if (!rows.length) return 0;
+
+  const { data: maxRows } = await supabase.from("tasks").select("sort_order").order("sort_order", { ascending: false }).limit(1);
+  let order = (maxRows?.[0]?.sort_order ?? -1) + 1;
+
+  const payload = rows.map(r => ({
+    company_id: r.company_id,
+    track: r.track,
+    phase: r.phase,
+    title: r.title,
+    priority: r.priority ?? "medium",
+    status: r.status ?? "not_started",
+    cadence: r.cadence ?? "one-time",
+    deadline: r.deadline || null,
+    recurring: false,
+    sort_order: order++,
+  }));
+
+  const { data: inserted, error } = await supabase.from("tasks").insert(payload).select("id");
+  if (error) throw error;
+
+  // Wire up assignees for any rows that had them (matched back by position).
+  const assigneeRows: { task_id: string; name: string }[] = [];
+  (inserted || []).forEach((row: any, i: number) => {
+    for (const name of (rows[i].assignees || []).filter(Boolean)) {
+      assigneeRows.push({ task_id: row.id, name });
+    }
+  });
+  if (assigneeRows.length) {
+    await supabase.from("task_assignees").insert(assigneeRows);
+  }
+
+  return (inserted || []).length;
+}
+
 // ---- Assignees ----
 export async function setAssignee(taskId: string, name: string, on: boolean) {
   if (on) await supabase.from("task_assignees").insert({ task_id: taskId, name });

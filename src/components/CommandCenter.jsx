@@ -1,7 +1,8 @@
 "use client";
 import React,{useState,useMemo,useEffect,useRef}from"react";
-import{Search,Megaphone,LayoutGrid,Plus,X,Check,Clock,AlertTriangle,Circle,Star,Users,Calendar,MessageSquare,ChevronDown,Building2,Filter,CalendarDays,ChevronLeft,ChevronRight,Paperclip,Link2,FileText,Download,Trash2,Eye,EyeOff,Copy,BarChart2,Mail,Globe,TrendingUp,Zap,Settings}from"lucide-react";
-import{loadTasks,updateTask as dbUpdate,deleteTask as dbDeleteTask,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentName,signOut as dbSignOut,createTask as dbCreateTask,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource}from"@/lib/data";
+import{Search,Megaphone,LayoutGrid,Plus,X,Check,Clock,AlertTriangle,Circle,Star,Users,Calendar,MessageSquare,ChevronDown,Building2,Filter,CalendarDays,ChevronLeft,ChevronRight,Paperclip,Link2,FileText,Download,Trash2,Eye,EyeOff,Copy,BarChart2,Mail,Globe,TrendingUp,Zap,Settings,Upload,Sparkles}from"lucide-react";
+import{loadTasks,updateTask as dbUpdate,deleteTask as dbDeleteTask,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentName,signOut as dbSignOut,createTask as dbCreateTask,importTasks as dbImportTasks,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource}from"@/lib/data";
+import{parseImportFile}from"@/lib/import-tasks";
 
 // ── COMPANIES ──────────────────────────────────────────────────
 const COMPANIES=[
@@ -654,6 +655,165 @@ function NewTaskModal({open,onClose,onCreate,defaults,companyId,track,theme:t}){
   );
 }
 
+// ── IMPORT MODAL ───────────────────────────────────────────────
+// CSV template + a ready-to-copy prompt for Claude, so the file you
+// upload lands in exactly the shape the parser expects.
+const IMPORT_TEMPLATE_CSV=`company,track,phase,title,priority,status,cadence,deadline,assignees
+aps,seo,Phase 1 — Foundations & Access,Example: audit domain DNS records,high,not_started,one-time,2026-07-20,Marshall
+ads,paid_social,Phase 6 — Social Foundations,Example: draft July content calendar,medium,not_started,weekly,2026-07-15,"Elaina, Deva"`;
+
+function claudePrompt(companyLabels,phaseListSeo,phaseListPaid){
+  return `I'm importing tasks into our Marketing Command Center. Please output a CSV (and nothing else) with this exact header row:
+
+company,track,phase,title,priority,status,cadence,deadline,assignees
+
+Rules for each column:
+- company: one of ${companyLabels} (use the short code)
+- track: "seo" or "paid_social"
+- phase: for SEO one of [${phaseListSeo}]; for paid_social one of [${phaseListPaid}]
+- title: the task description
+- priority: high, medium, or low
+- status: not_started, in_progress, blocked, or done
+- cadence: one-time, weekly, monthly, or quarterly
+- deadline: YYYY-MM-DD (or leave blank)
+- assignees: names separated by commas, wrapped in quotes if more than one (or leave blank)
+
+Here is what I want tasks for: [describe your campaign, month, or list here]`;
+}
+
+function ImportModal({open,onClose,onImport,companyId,track,theme:t}){
+  const [stage,setStage]=useState("drop"); // drop → preview → done
+  const [parsed,setParsed]=useState(null);
+  const [fileName,setFileName]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [err,setErr]=useState("");
+  const [copied,setCopied]=useState(false);
+  const [importedCount,setImportedCount]=useState(0);
+  const fileRef=useRef(null);
+  useEffect(()=>{if(open){setStage("drop");setParsed(null);setFileName("");setErr("");setBusy(false);setImportedCount(0);}},[open]);
+  if(!open)return null;
+  const IS=iS(t);
+  const fallbackCompany=companyId==="all"?COMPANIES[0].id:companyId;
+  const validPhases=PHASES_FOR(track);
+
+  const handleText=(text,name)=>{
+    setErr("");setFileName(name);
+    try{
+      const res=parseImportFile(text,name,{company_id:fallbackCompany,track,validPhases});
+      if(!res.rows.length&&res.errors.length===0){setErr("No tasks found in that file. Make sure it has a header row and at least one task with a title.");return;}
+      if(!res.rows.length){setErr(`Couldn't read any valid tasks. ${res.errors[0]?.message||""}`);return;}
+      setParsed(res);setStage("preview");
+    }catch(e){setErr(e?.message||"Couldn't parse that file.");}
+  };
+  const onFile=async fl=>{const f=(fl||[])[0];if(!f)return;const text=await f.text();handleText(text,f.name);};
+
+  const downloadTemplate=()=>{
+    const blob=new Blob([IMPORT_TEMPLATE_CSV],{type:"text/csv"});
+    const url=URL.createObjectURL(blob);const a=document.createElement("a");
+    a.href=url;a.download="command-center-import-template.csv";a.click();URL.revokeObjectURL(url);
+  };
+  const copyPrompt=async()=>{
+    const labels=COMPANIES.map(c=>`${c.short} (${c.name})`).join(", ");
+    const prompt=claudePrompt(labels,PHASES_FOR("seo").join(" | "),PHASES_FOR("paid_social").join(" | "));
+    try{await navigator.clipboard.writeText(prompt);setCopied(true);setTimeout(()=>setCopied(false),1800);}catch{}
+  };
+  const doImport=async()=>{
+    if(!parsed?.rows.length)return;
+    setBusy(true);setErr("");
+    try{const n=await onImport(parsed.rows);setImportedCount(n);setStage("done");}
+    catch(e){setErr(e?.message||"Import failed. Please try again.");}
+    finally{setBusy(false);}
+  };
+
+  const co=c=>COMPANIES.find(x=>x.id===c);
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",display:"flex",justifyContent:"flex-end",zIndex:100,backdropFilter:"blur(4px)"}} onClick={onClose}>
+      <div style={{width:620,maxWidth:"94vw",background:t.bgCard,height:"100%",overflowY:"auto",padding:28,borderLeft:`1px solid ${t.lineStrong}`,boxShadow:"-20px 0 60px rgba(0,0,0,.5)"}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <span style={{display:"flex",alignItems:"center",gap:7,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".1em",color:t.accent}}><Upload size={14}/>Import tasks</span>
+          <button onClick={onClose} style={{background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:8,padding:6,cursor:"pointer",color:t.inkFaint,display:"grid",placeItems:"center"}}><X size={16}/></button>
+        </div>
+
+        {stage==="drop"&&<>
+          <h2 style={{fontFamily:"'Fraunces',serif",fontSize:22,fontWeight:400,color:t.ink,margin:"0 0 8px",letterSpacing:"-.02em"}}>Upload a task list or calendar</h2>
+          <p style={{fontSize:13,color:t.inkMuted,lineHeight:1.55,margin:"0 0 20px"}}>Drop in a CSV or JSON file and every task will be added to the board — and any task with a deadline shows up on the calendar automatically.</p>
+
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"14px 16px",border:`1.5px solid ${t.accent}44`,background:t.accentWash,borderRadius:12,marginBottom:16}}>
+            <Sparkles size={18} style={{color:t.accent,flexShrink:0}}/>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:600,color:t.ink,marginBottom:2}}>Building your list with Claude?</div>
+              <div style={{fontSize:12,color:t.inkMuted,lineHeight:1.45}}>Copy a ready-made prompt that tells Claude the exact format to output, then paste the result into a .csv file.</div>
+            </div>
+            <Btn theme={t} sm onClick={copyPrompt}>{copied?"Copied!":"Copy prompt"}</Btn>
+          </div>
+
+          <div onClick={()=>fileRef.current&&fileRef.current.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();onFile(e.dataTransfer.files);}}
+            style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:10,padding:"38px 20px",border:`2px dashed ${t.lineStrong}`,borderRadius:14,cursor:"pointer",background:t.bgSunk,textAlign:"center",marginBottom:16}}>
+            <div style={{width:46,height:46,borderRadius:12,background:t.bgElevated,display:"grid",placeItems:"center",color:t.accent}}><Upload size={22}/></div>
+            <div style={{fontSize:14,fontWeight:600,color:t.ink}}>Drop a file here, or <span style={{color:t.accent}}>browse</span></div>
+            <div style={{fontSize:12,color:t.inkFaint}}>Accepts .csv and .json</div>
+            <input ref={fileRef} type="file" accept=".csv,.json,text/csv,application/json" style={{display:"none"}} onChange={e=>onFile(e.target.files)}/>
+          </div>
+
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,padding:"12px 14px",background:t.bgElevated,borderRadius:10,border:`1px solid ${t.line}`}}>
+            <div style={{fontSize:12.5,color:t.inkMuted}}>Not sure about the format? Start from the template.</div>
+            <Btn theme={t} sm onClick={downloadTemplate}><Download size={13}/>Download CSV template</Btn>
+          </div>
+          {err&&<div style={{marginTop:16,padding:"11px 14px",borderRadius:9,fontSize:13,background:t.badSoft,color:t.bad,border:`1px solid ${t.bad}44`}}>{err}</div>}
+        </>}
+
+        {stage==="preview"&&parsed&&<>
+          <h2 style={{fontFamily:"'Fraunces',serif",fontSize:22,fontWeight:400,color:t.ink,margin:"0 0 6px",letterSpacing:"-.02em"}}>Review before importing</h2>
+          <p style={{fontSize:13,color:t.inkMuted,margin:"0 0 18px"}}>{fileName} · <strong style={{color:t.good}}>{parsed.rows.length} task{parsed.rows.length!==1?"s":""} ready</strong>{parsed.errors.length?` · ${parsed.errors.length} skipped`:""}{parsed.warnings.length?` · ${parsed.warnings.length} auto-fixed`:""}</p>
+
+          {parsed.errors.length>0&&<div style={{marginBottom:14,padding:"11px 14px",borderRadius:9,background:t.badSoft,border:`1px solid ${t.bad}44`}}>
+            <div style={{fontSize:12.5,fontWeight:700,color:t.bad,marginBottom:6}}>Skipped rows</div>
+            {parsed.errors.slice(0,6).map((e,i)=><div key={i} style={{fontSize:12,color:t.inkMuted}}>Line {e.line}: {e.message}</div>)}
+            {parsed.errors.length>6&&<div style={{fontSize:12,color:t.inkFaint,marginTop:3}}>+{parsed.errors.length-6} more</div>}
+          </div>}
+          {parsed.warnings.length>0&&<div style={{marginBottom:14,padding:"11px 14px",borderRadius:9,background:t.warnSoft,border:`1px solid ${t.warn}44`}}>
+            <div style={{fontSize:12.5,fontWeight:700,color:t.warn,marginBottom:6}}>Auto-adjusted</div>
+            {parsed.warnings.slice(0,6).map((w,i)=><div key={i} style={{fontSize:12,color:t.inkMuted}}>Line {w.line}: {w.message}</div>)}
+            {parsed.warnings.length>6&&<div style={{fontSize:12,color:t.inkFaint,marginTop:3}}>+{parsed.warnings.length-6} more</div>}
+          </div>}
+
+          <div style={{border:`1px solid ${t.line}`,borderRadius:12,overflow:"hidden",marginBottom:20,maxHeight:340,overflowY:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead><tr style={{background:t.bgElevated,position:"sticky",top:0}}>
+                {["Company","Track","Phase","Title","Priority","Deadline","Assignees"].map(h=><th key={h} style={{textAlign:"left",padding:"9px 10px",fontSize:10.5,fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",color:t.inkFaint,borderBottom:`1px solid ${t.line}`,whiteSpace:"nowrap"}}>{h}</th>)}
+              </tr></thead>
+              <tbody>{parsed.rows.slice(0,60).map((r,i)=>{const c=co(r.company_id);return(
+                <tr key={i} style={{borderBottom:`1px solid ${t.line}`}}>
+                  <td style={{padding:"8px 10px"}}><span style={{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:5,background:(c?.color||t.accent)+"22",color:c?.color||t.accent}}>{c?.short||r.company_id}</span></td>
+                  <td style={{padding:"8px 10px",color:t.inkMuted,whiteSpace:"nowrap"}}>{r.track==="seo"?"SEO":"Paid+Social"}</td>
+                  <td style={{padding:"8px 10px",color:t.inkFaint,maxWidth:150,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={r.phase}>{r.phase}</td>
+                  <td style={{padding:"8px 10px",color:t.ink,fontWeight:500,maxWidth:180}}>{r.title}</td>
+                  <td style={{padding:"8px 10px"}}><span style={{color:PRIORITIES[r.priority],fontWeight:600,textTransform:"capitalize"}}>{r.priority}</span></td>
+                  <td style={{padding:"8px 10px",color:t.inkMuted,fontFamily:"'JetBrains Mono',monospace",fontSize:11,whiteSpace:"nowrap"}}>{r.deadline||"—"}</td>
+                  <td style={{padding:"8px 10px",color:t.inkMuted,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(r.assignees||[]).join(", ")||"—"}</td>
+                </tr>
+              );})}</tbody>
+            </table>
+            {parsed.rows.length>60&&<div style={{padding:"9px 12px",fontSize:12,color:t.inkFaint,textAlign:"center",borderTop:`1px solid ${t.line}`}}>+{parsed.rows.length-60} more will be imported</div>}
+          </div>
+          {err&&<div style={{marginBottom:14,padding:"11px 14px",borderRadius:9,fontSize:13,background:t.badSoft,color:t.bad,border:`1px solid ${t.bad}44`}}>{err}</div>}
+          <div style={{display:"flex",gap:10,justifyContent:"space-between"}}>
+            <Btn theme={t} onClick={()=>setStage("drop")}>← Choose another file</Btn>
+            <Btn theme={t} accent onClick={doImport}>{busy?"Importing…":`Import ${parsed.rows.length} task${parsed.rows.length!==1?"s":""}`}</Btn>
+          </div>
+        </>}
+
+        {stage==="done"&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",padding:"40px 20px"}}>
+          <div style={{width:58,height:58,borderRadius:16,background:t.goodSoft,display:"grid",placeItems:"center",color:t.good,marginBottom:18}}><Check size={30}/></div>
+          <h2 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:400,color:t.ink,margin:"0 0 8px"}}>{importedCount} task{importedCount!==1?"s":""} imported</h2>
+          <p style={{fontSize:13.5,color:t.inkMuted,lineHeight:1.55,margin:"0 0 24px",maxWidth:380}}>They're on the board now, grouped by phase. Any task with a deadline is already on the calendar.</p>
+          <Btn theme={t} accent onClick={onClose}>Done</Btn>
+        </div>}
+      </div>
+    </div>
+  );
+}
+
 // ── BOARD VIEW ────────────────────────────────────────────────
 const SEO_MASTER=[["Phase 1 — Foundations & Access",[["Secure domain + business email on the domain","high","one-time"],["Create the central Google account that owns all assets","high","one-time"],["Document all logins in a shared password manager","high","one-time"],["Confirm site is on HTTPS with valid SSL","high","one-time"]]],["Phase 2 — Measurement & Verification",[["Set up & verify Google Search Console","high","one-time"],["Install GA4 and confirm tracking","high","one-time"],["Configure GA4 conversion events","high","one-time"],["Submit XML sitemap in Search Console","high","one-time"],["Audit robots.txt for accidental blocks","high","one-time"],["Decide AI-crawler policy","medium","one-time"],["Connect GA4 + GSC; install rank/audit tool","medium","one-time"]]],["Phase 3 — Keyword & Market Research",[["Build seed keyword list","high","one-time"],["Map search intent to each keyword","high","one-time"],["Run competitor gap analysis","medium","one-time"],["Group keywords into topic clusters","high","one-time"],["Refresh keyword research & rankings","medium","quarterly"]]],["Phase 4 — Technical SEO",[["Confirm crawl/render/index of key pages","high","one-time"],["Pass Core Web Vitals (LCP, INP, CLS)","high","monthly"],["Ensure fully responsive mobile experience","high","one-time"],["Set canonicals; fix duplicate content","medium","one-time"],["Add structured data / schema","high","one-time"],["Fix broken links and 4xx/5xx","medium","monthly"],["Run full-site crawl audit","medium","quarterly"]]],["Phase 5 — On-Page SEO",[["Unique title tags + meta descriptions","high","one-time"],["One H1 + logical heading hierarchy","medium","one-time"],["One primary keyword per page","medium","one-time"],["Optimize images","medium","one-time"],["Add concise top-of-page answers","high","one-time"]]],["Phase 6 — Content & E-E-A-T",[["Publish pillar + cluster content","high","monthly"],["Add author bios, credentials, experience","high","one-time"],["Show trust signals","high","one-time"],["Consolidate / improve thin pages","medium","quarterly"],["Refresh existing top content","medium","monthly"]]],["Phase 7 — Local SEO",[["Create / complete Google Business Profile","high","one-time"],["Make NAP identical everywhere","high","one-time"],["Location/service-area page per location","medium","one-time"],["Build citations in directories","medium","one-time"],["Post GBP updates; request & reply to reviews","medium","weekly"]]],["Phase 8 — Off-Page & Authority",[["Set up brand profiles; earn mentions","medium","monthly"],["Run targeted link building","medium","monthly"],["Monitor backlinks; disavow toxic only","low","quarterly"]]],["Phase 9 — AI Search Readiness",[["Confirm AI crawlers can access the site","high","one-time"],["Format content for AI extraction","high","monthly"],["Strengthen entity/topic coverage","medium","quarterly"],["Track brand citations in AI results","low","monthly"]]],["Phase 10 — Measurement & Reporting",[["Build reporting dashboard","high","one-time"],["Review Search Console performance","medium","weekly"],["Monthly performance review vs goals","medium","monthly"],["Quarterly full audit + strategy reset","medium","quarterly"]]]];
 const PAID_MASTER=[["Phase 1 — Paid Foundations",[["Create Google Ads account","high","one-time"],["Define primary objective","high","one-time"],["Link Google Ads to GA4","high","one-time"]]],["Phase 2 — Conversion Tracking",[["Set up Google Tag Manager","high","one-time"],["Create conversion actions","high","one-time"],["Place conversion tag on thank-you pages","high","one-time"],["Confirm GA4 isn't double-counting","high","one-time"]]],["Phase 3 — Campaign Structure",[["Set account hierarchy","high","one-time"],["Separate Brand, Non-Brand, PMax","high","one-time"],["Build tight ad groups","high","one-time"],["Add 20+ negative keywords before launch","high","one-time"],["Write 2–3 Responsive Search Ads per ad group","high","one-time"]]],["Phase 4 — Launch & Budget",[["Set location targeting to Presence only","high","one-time"],["Set daily budget high enough","high","one-time"],["Start with Maximize Clicks","high","one-time"],["Monitor closely for first 48–72 hours","high","one-time"]]],["Phase 5 — Paid Optimization",[["Review Search Terms Report after ~100 clicks","high","weekly"],["Weekly budget review","high","weekly"],["Test new ad variations","medium","monthly"],["Run a full Google Ads audit","medium","quarterly"]]],["Phase 6 — Social Foundations",[["Create/claim business accounts","high","one-time"],["Apply consistent branding","high","one-time"],["Write keyword-clear bios","high","one-time"]]],["Phase 7 — Social Strategy",[["Write a one-sentence positioning statement","high","one-time"],["Create audience personas","high","one-time"],["Define 3–5 content pillars","high","one-time"]]],["Phase 8 — Content Creation",[["Build a content calendar","high","one-time"],["Bank 15–20 posts before launch","high","one-time"],["Shoot 5–10 short-form videos","high","monthly"],["Repurpose each core asset","medium","weekly"]]],["Phase 9 — Engagement",[["Post consistently (3–5×/week)","high","weekly"],["Reply to comments and DMs","high","weekly"]]],["Phase 10 — Paid Social",[["Install Meta Pixel","high","one-time"],["Build first-party custom audiences","high","one-time"],["A/B test creatives","medium","monthly"]]],["Phase 11 — Analytics & Reporting",[["Build combined dashboard","high","one-time"],["Review platform analytics weekly","medium","weekly"],["Monthly performance review","medium","monthly"]]]];
@@ -970,7 +1130,7 @@ const NAV=[
 export default function App(){
   const [tasks,setTasks]=useState([]);const [loading,setLoading]=useState(true);const [me,setMe]=useState("Someone");
   const [cid,setCid]=useState("aps");const [view,setView]=useState("overview");const [track,setTrack]=useState("seo");
-  const [statusF,setStatusF]=useState("all");const [openTask,setOpenTask]=useState(null);const [newTaskOpen,setNewTaskOpen]=useState(false);const [coMenu,setCoMenu]=useState(false);
+  const [statusF,setStatusF]=useState("all");const [openTask,setOpenTask]=useState(null);const [newTaskOpen,setNewTaskOpen]=useState(false);const [importOpen,setImportOpen]=useState(false);const [coMenu,setCoMenu]=useState(false);
   const mapRow=r=>({...r,companyId:r.company_id,deadline:r.deadline||"",notes:(r.notes||[]).map(n=>({id:n.id,who:n.author,text:n.body,when:new Date(n.created_at).toLocaleDateString()})),attachments:(r.attachments||[]).map(a=>({...a,type:a.kind}))});
   const reload=React.useCallback(async()=>{const rows=await loadTasks();setTasks(rows.map(mapRow));},[]);
   useEffect(()=>{(async()=>{try{const[rows,team,name]=await Promise.all([loadTasks(),getTeam(),currentName()]);if(team&&team.length)TEAM=team;setMe(name);setTasks(rows.map(mapRow));}finally{setLoading(false);}})();},[]);
@@ -994,6 +1154,7 @@ export default function App(){
   };
   const removeTask=async id=>{setOpenTask(null);setTasks(ts=>ts.filter(tk=>tk.id!==id));await dbDeleteTask(id);};
   const createTask=async input=>{await dbCreateTask(input);await reload();};
+  const importTasks=async rows=>{const n=await dbImportTasks(rows);await reload();return n;};
   const detail=openTask?tasks.find(tk=>tk.id===openTask):null;
   const defPhase=track==="seo"?SEO_TIMELINE[0].phase:PAID_MASTER[0][0];
   if(loading)return <div style={{minHeight:"100vh",display:"grid",placeItems:"center",background:"#0E0F12",fontFamily:"'IBM Plex Sans',ui-sans-serif,sans-serif",color:"#6F6A63",fontSize:14}}>Loading your command center…</div>;
@@ -1110,6 +1271,7 @@ export default function App(){
                   {STATUS_ORDER.map(s=><option key={s} value={s}>{STATUSES[s].label}</option>)}
                 </select>
               </div>
+              <button onClick={()=>setImportOpen(true)} style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,color:t.ink,border:`1px solid ${t.lineStrong}`,borderRadius:9,padding:"10px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Upload size={15}/>Import</button>
               <button onClick={()=>setNewTaskOpen(true)} style={{display:"flex",alignItems:"center",gap:6,background:t.accent,color:t.bg,border:"none",borderRadius:9,padding:"10px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 16px -8px ${t.accent}cc`}}><Plus size={15}/>Add task</button>
             </div>
           </div>
@@ -1132,6 +1294,7 @@ export default function App(){
 
       {detail&&<TaskDrawer t={detail} onClose={()=>setOpenTask(null)} update={update} onDelete={removeTask} company={COMPANIES.find(c=>c.id===detail.companyId)||COMPANIES[0]} me={me} onChanged={reload} theme={t}/>}
       <NewTaskModal open={newTaskOpen} onClose={()=>setNewTaskOpen(false)} onCreate={createTask} defaults={{phase:defPhase}} companyId={cid==="all"?COMPANIES[0].id:cid} track={track} theme={t}/>
+      <ImportModal open={importOpen} onClose={()=>setImportOpen(false)} onImport={importTasks} companyId={cid} track={track} theme={t}/>
     </div>
   );
 }
