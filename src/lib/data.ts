@@ -8,6 +8,7 @@ export type Task = {
   priority: "high" | "medium" | "low";
   status: "not_started" | "in_progress" | "blocked" | "done";
   deadline?: string | null; platform?: string | null; recurring: boolean;
+  completed_by?: string | null; completed_at?: string | null;
   assignees: string[];
   notes: { id: string; author: string; body: string; created_at: string }[];
   attachments: Attachment[];
@@ -23,6 +24,7 @@ export type NewTaskInput = {
   cadence?: Task["cadence"];
   deadline?: string | null;
   recurring?: boolean;
+  assignees?: string[];
 };
 
 export type Attachment = {
@@ -59,10 +61,15 @@ export async function loadTasks(): Promise<Task[]> {
 
 // ---- Task field updates ----
 export async function updateTask(id: string, patch: Partial<Task>) {
-  const allowed = ["status", "priority", "deadline", "title", "why", "tools", "cadence"];
+  const allowed = ["status", "priority", "deadline", "title", "why", "tools", "cadence", "phase", "completed_by", "completed_at"];
   const clean: any = {};
   for (const k of allowed) if (k in patch) clean[k] = (patch as any)[k];
   if (Object.keys(clean).length) await supabase.from("tasks").update(clean).eq("id", id);
+}
+
+export async function deleteTask(id: string) {
+  const { error } = await supabase.from("tasks").delete().eq("id", id);
+  if (error) throw error;
 }
 
 export async function createTask(input: NewTaskInput) {
@@ -84,6 +91,11 @@ export async function createTask(input: NewTaskInput) {
 
   const { data, error } = await supabase.from("tasks").insert(payload).select().single();
   if (error) throw error;
+
+  const names = (input.assignees || []).filter(Boolean);
+  if (data && names.length) {
+    await supabase.from("task_assignees").insert(names.map(name => ({ task_id: data.id, name })));
+  }
   return data;
 }
 
@@ -141,6 +153,19 @@ export async function getTeam(): Promise<string[]> {
 export async function currentEmail(): Promise<string> {
   const { data } = await supabase.auth.getUser();
   return data.user?.email || "Someone";
+}
+
+// Display name of the signed-in user (from the allow-list), falling back to email.
+export async function currentName(): Promise<string> {
+  const { data: auth } = await supabase.auth.getUser();
+  const email = auth.user?.email || "";
+  if (!email) return "Someone";
+  const { data } = await supabase
+    .from("allowed_users")
+    .select("name")
+    .ilike("email", email)
+    .maybeSingle();
+  return (data as any)?.name || email;
 }
 
 export async function signOut() {

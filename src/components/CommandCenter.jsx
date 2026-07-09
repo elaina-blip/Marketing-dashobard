@@ -1,7 +1,7 @@
 "use client";
 import React,{useState,useMemo,useEffect,useRef}from"react";
 import{Search,Megaphone,LayoutGrid,Plus,X,Check,Clock,AlertTriangle,Circle,Star,Users,Calendar,MessageSquare,ChevronDown,Building2,Filter,CalendarDays,ChevronLeft,ChevronRight,Paperclip,Link2,FileText,Download,Trash2,Eye,EyeOff,Copy,BarChart2,Mail,Globe,TrendingUp,Zap,Settings}from"lucide-react";
-import{loadTasks,updateTask as dbUpdate,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentEmail,signOut as dbSignOut,createTask as dbCreateTask,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource}from"@/lib/data";
+import{loadTasks,updateTask as dbUpdate,deleteTask as dbDeleteTask,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentName,signOut as dbSignOut,createTask as dbCreateTask,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource}from"@/lib/data";
 
 // ── COMPANIES ──────────────────────────────────────────────────
 const COMPANIES=[
@@ -399,7 +399,6 @@ function ReportsView({theme:t}){
     </div>
   );
 }
-<<<<<<< HEAD
 function ConnectModal({source,theme:t,onClose}){
   const isOAuth=["google","meta","linkedin"].includes(source.kind);
   const go=()=>{window.location.href=`/api/oauth/${source.kind}/start?key=${encodeURIComponent(source.key)}`;};
@@ -441,18 +440,6 @@ function IntegrationsView({theme:t}){
     {key:"linkedin",name:"LinkedIn Pages",desc:"Followers, engagement",bg:"#0A66C2",abbr:"in",kind:"linkedin"},
     {key:"ahrefs",name:"Ahrefs / Semrush",desc:"Rankings, backlinks, KD",bg:"#1A1A1A",abbr:"Ah",kind:"apikey"},
     {key:"crm",name:"CRM",desc:"Lead attribution sync",bg:t.accent,abbr:"C",tc:t.bg,kind:"custom"},
-=======
-function IntegrationsView({theme:t}){
-  const integs=[
-    {name:"Search Console",desc:"Clicks, impressions, queries",bg:"#4285F4",abbr:"G"},
-    {name:"Analytics 4",desc:"Sessions, conversions",bg:"#E8710A",abbr:"A"},
-    {name:"Tag Manager",desc:"Event tracking",bg:"#34A853",abbr:"T"},
-    {name:"Google Ads",desc:"Spend, conversions",bg:"#FBBC04",abbr:"Ad",tc:"#3c4043"},
-    {name:"Ahrefs / Semrush",desc:"Rankings, backlinks, KD",bg:"#1A1A1A",abbr:"Ah"},
-    {name:"LinkedIn Pages",desc:"Followers, engagement",bg:"#0A66C2",abbr:"in"},
-    {name:"Meta (IG + FB)",desc:"Insights API",bg:"#C13584",abbr:"IG"},
-    {name:"CRM",desc:"Lead attribution sync",bg:t.accent,abbr:"C",tc:t.bg},
->>>>>>> 97779ac2c542d3295d8b6886cc3cb6b7945b0b4a
   ];
   const [conns,setConns]=useState({});
   const [loading,setLoading]=useState(true);
@@ -475,7 +462,6 @@ function IntegrationsView({theme:t}){
   const fmtSync=v=>{if(!v)return "Never synced";try{const d=new Date(v);return d.toLocaleString();}catch{return "Never synced";}};
   return(
     <div style={{padding:"26px 38px 80px",maxWidth:1480}}>
-<<<<<<< HEAD
       <TBar title={<>Integrations & <em style={{fontStyle:"italic",color:t.accentDeep}}>Data</em></>} sub={loading?"Loading connections…":`${connectedCount} of ${SOURCES.length} sources connected`} actions={<Btn theme={t} accent onClick={()=>setModal({chooser:true})}>+ Connect source</Btn>} theme={t}/>
       {flash&&<div style={{marginBottom:18,padding:"10px 14px",borderRadius:9,fontSize:13,background:t.accentSoft,color:t.accentDeep,border:`1px solid ${t.lineStrong}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span>{flash}</span><span onClick={()=>setFlash("")} style={{cursor:"pointer",color:t.inkFaint}}><X size={14}/></span></div>}
       <SecH title="Data sources" meta="Connect through official APIs — never a third-party aggregator" theme={t}/>
@@ -487,21 +473,6 @@ function IntegrationsView({theme:t}){
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
                 <div style={{width:40,height:40,borderRadius:9,background:s.bg,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:14,color:s.tc||"#fff",flexShrink:0}}>{s.abbr}</div>
                 <div><div style={{fontSize:14,fontWeight:600,color:t.ink}}>{s.name}</div><div style={{fontSize:11.5,color:t.inkMuted}}>{s.desc}</div></div>
-=======
-      <TBar title={<>Integrations & <em style={{fontStyle:"italic",color:t.accentDeep}}>Data</em></>} sub="Connect a source to start pulling numbers" actions={<Btn theme={t} accent>+ Connect source</Btn>} theme={t}/>
-      <SecH title="Data sources" meta="No sources connected yet" theme={t}/>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:15,marginBottom:30}}>
-        {integs.map(it=>(
-          <Panel key={it.name} theme={t}>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-              <div style={{width:40,height:40,borderRadius:9,background:it.bg,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:14,color:it.tc||"#fff",flexShrink:0}}>{it.abbr}</div>
-              <div><div style={{fontSize:14,fontWeight:600,color:t.ink}}>{it.name}</div><div style={{fontSize:11.5,color:t.inkMuted}}>{it.desc}</div></div>
-            </div>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <Pill v="neutral" theme={t}>○ Not connected</Pill>
-              <div style={{width:36,height:20,borderRadius:20,background:t.bgElevated,border:`1px solid ${t.lineStrong}`,position:"relative",cursor:"pointer"}}>
-                <div style={{width:16,height:16,borderRadius:"50%",background:t.inkGhost,position:"absolute",top:1,left:2}}/>
->>>>>>> 97779ac2c542d3295d8b6886cc3cb6b7945b0b4a
               </div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                 <Pill v={on?"good":err?"bad":"neutral"} theme={t}>{on?"● Connected":err?"Error":"○ Not connected"}</Pill>
@@ -532,19 +503,10 @@ function IntegrationsView({theme:t}){
         </Panel>
         <Panel theme={t}>
           <PHead title="Data freshness" sub="Last successful sync per source" theme={t}/>
-<<<<<<< HEAD
           <div>{SOURCES.map((s,i)=>(
             <div key={i} style={{display:"grid",gridTemplateColumns:"1fr auto",gap:12,alignItems:"center",padding:"11px 0",borderBottom:`1px solid ${t.line}`}}>
               <div style={{fontSize:13,color:t.ink,fontWeight:450}}>{s.name}</div>
               <span style={{fontSize:11,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>{statusOf(s.key)==="connected"?fmtSync(syncedOf(s.key)):"Never synced"}</span>
-=======
-          <div>{[
-            "Search Console","Analytics 4","Google Ads","Ahrefs rankings","Meta insights","CRM leads",
-          ].map((name,i)=>(
-            <div key={i} style={{display:"grid",gridTemplateColumns:"1fr auto",gap:12,alignItems:"center",padding:"11px 0",borderBottom:`1px solid ${t.line}`}}>
-              <div style={{fontSize:13,color:t.ink,fontWeight:450}}>{name}</div>
-              <span style={{fontSize:11,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>Never synced</span>
->>>>>>> 97779ac2c542d3295d8b6886cc3cb6b7945b0b4a
             </div>
           ))}</div>
         </Panel>
@@ -653,12 +615,15 @@ function SetupScreen({onDone,me}){
 }
 
 // ── NEW TASK MODAL ─────────────────────────────────────────────
+const PHASES_FOR=track=>(track==="seo"?SEO_MASTER:PAID_MASTER).map(([p])=>p);
 function NewTaskModal({open,onClose,onCreate,defaults,companyId,track,theme:t}){
-  const [title,setTitle]=useState("");const [phase,setPhase]=useState(defaults.phase);const [priority,setPriority]=useState("medium");const [cadence,setCadence]=useState("one-time");const [deadline,setDeadline]=useState("");const [busy,setBusy]=useState(false);
-  useEffect(()=>{if(!open)return;setTitle("");setPhase(defaults.phase);setPriority("medium");setCadence("one-time");setDeadline("");},[open,defaults.phase]);
+  const [title,setTitle]=useState("");const [phase,setPhase]=useState(defaults.phase);const [priority,setPriority]=useState("medium");const [cadence,setCadence]=useState("one-time");const [deadline,setDeadline]=useState("");const [assignees,setAssignees]=useState([]);const [busy,setBusy]=useState(false);
+  useEffect(()=>{if(!open)return;setTitle("");setPhase(defaults.phase);setPriority("medium");setCadence("one-time");setDeadline("");setAssignees([]);},[open,defaults.phase]);
   if(!open)return null;
   const IS=iS(t);
-  const submit=async()=>{if(!title.trim())return;setBusy(true);try{await onCreate({company_id:companyId==="all"?COMPANIES[0].id:companyId,track,phase,title:title.trim(),priority,cadence,deadline:deadline||null});onClose();}finally{setBusy(false);}};
+  const phases=PHASES_FOR(track);
+  const togA=n=>setAssignees(a=>a.includes(n)?a.filter(x=>x!==n):[...a,n]);
+  const submit=async()=>{if(!title.trim())return;setBusy(true);try{await onCreate({company_id:companyId==="all"?COMPANIES[0].id:companyId,track,phase,title:title.trim(),priority,cadence,deadline:deadline||null,assignees});onClose();}finally{setBusy(false);}};
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",display:"flex",justifyContent:"flex-end",zIndex:100,backdropFilter:"blur(4px)"}} onClick={onClose}>
       <div style={{width:500,maxWidth:"92vw",background:t.bgCard,height:"100%",overflowY:"auto",padding:28,borderLeft:`1px solid ${t.lineStrong}`,boxShadow:"-20px 0 60px rgba(0,0,0,.5)"}} onClick={e=>e.stopPropagation()}>
@@ -669,6 +634,8 @@ function NewTaskModal({open,onClose,onCreate,defaults,companyId,track,theme:t}){
         <h2 style={{fontFamily:"'Fraunces',serif",fontSize:22,fontWeight:400,color:t.ink,margin:"0 0 24px",letterSpacing:"-.02em"}}>Add a task</h2>
         {[
           {label:"Task title",content:<input autoFocus value={title} onChange={e=>setTitle(e.target.value)} placeholder="Enter a task title" style={IS}/>},
+          {label:"Phase",content:<select value={phase} onChange={e=>setPhase(e.target.value)} style={IS}>{phases.map(p=><option key={p} value={p}>{p}</option>)}</select>},
+          {label:"Assign to",content:<div style={{display:"flex",flexWrap:"wrap",gap:8}}>{TEAM.map(n=><button key={n} onClick={()=>togA(n)} style={{display:"flex",alignItems:"center",gap:4,padding:"6px 12px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:500,fontFamily:"inherit",border:`1px solid ${assignees.includes(n)?t.accent:t.lineStrong}`,background:assignees.includes(n)?t.accentSoft:t.bgElevated,color:assignees.includes(n)?t.accentDeep:t.inkMuted}}>{assignees.includes(n)&&<Check size={12}/>}{n}</button>)}</div>},
           {label:"Priority",content:<div style={{display:"flex",gap:8}}>{["high","medium","low"].map(p=><button key={p} onClick={()=>setPriority(p)} style={{padding:"6px 14px",borderRadius:8,border:"1px solid",cursor:"pointer",fontSize:12.5,fontWeight:500,textTransform:"capitalize",fontFamily:"inherit",borderColor:priority===p?t.accent:t.lineStrong,background:priority===p?t.accentSoft:t.bgElevated,color:priority===p?t.accentDeep:t.inkMuted}}>{p}</button>)}</div>},
           {label:"Cadence",content:<select value={cadence} onChange={e=>setCadence(e.target.value)} style={IS}>{["one-time","weekly","monthly","quarterly"].map(c=><option key={c} value={c}>{c}</option>)}</select>},
           {label:"Deadline",content:<input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} style={IS}/>},
@@ -719,6 +686,7 @@ function BoardView({tasks,companyId,track,statusFilter,theme:t,onOpen,onUpdate,t
                       <span style={{fontSize:11,color:t.inkFaint,background:t.bgElevated,padding:"2px 7px",borderRadius:5,fontWeight:600}}>{tk.cadence}</span>
                       {tk.deadline&&<span style={{display:"flex",alignItems:"center",gap:3,fontSize:11.5,color:t.inkMuted}}><Calendar size={11}/>{tk.deadline}</span>}
                       {tk.assignees.length>0&&<span style={{display:"flex",alignItems:"center",gap:3,fontSize:11.5,color:t.inkMuted}}><Users size={11}/>{tk.assignees.join(", ")}</span>}
+                      {tk.status==="done"&&tk.completed_by&&<span style={{display:"flex",alignItems:"center",gap:3,fontSize:11,fontWeight:600,color:t.good,background:t.goodSoft,padding:"2px 8px",borderRadius:5}}><Check size={11}/>Done by {tk.completed_by}</span>}
                       {tk.notes.length>0&&<span style={{display:"flex",alignItems:"center",gap:3,fontSize:11.5,color:t.inkMuted}}><MessageSquare size={11}/>{tk.notes.length}</span>}
                     </div>
                   </div>
@@ -736,10 +704,13 @@ function BoardView({tasks,companyId,track,statusFilter,theme:t,onOpen,onUpdate,t
 }
 
 // ── CALENDAR VIEW ─────────────────────────────────────────────
-function CalendarView({tasks,companyId,theme:t}){
+function CalendarView({tasks,companyId,theme:t,onOpen}){
   const [cal,setCal]=useState(()=>{const d=new Date();return{y:d.getFullYear(),m:d.getMonth()};});
+  const [showUnsched,setShowUnsched]=useState(false);
   const {y,m}=cal;
-  const dated=useMemo(()=>tasks.filter(tk=>tk.deadline&&(companyId==="all"||tk.companyId===companyId)),[tasks,companyId]);
+  const scoped=useMemo(()=>tasks.filter(tk=>companyId==="all"||tk.companyId===companyId),[tasks,companyId]);
+  const dated=useMemo(()=>scoped.filter(tk=>tk.deadline),[scoped]);
+  const unscheduled=useMemo(()=>scoped.filter(tk=>!tk.deadline&&tk.status!=="done"),[scoped]);
   const byDay=useMemo(()=>{const map={};for(const tk of dated)(map[tk.deadline]||=[]).push(tk);return map;},[dated]);
   const first=new Date(y,m,1);const sDow=first.getDay();const dim=new Date(y,m+1,0).getDate();
   const todayStr=new Date().toISOString().slice(0,10);
@@ -758,8 +729,24 @@ function CalendarView({tasks,companyId,theme:t}){
           <button onClick={()=>setCal(m===11?{y:y+1,m:0}:{y,m:m+1})} style={{background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:9,padding:7,cursor:"pointer",color:t.inkMuted,display:"grid",placeItems:"center"}}><ChevronRight size={18}/></button>
           <button onClick={()=>{const d=new Date();setCal({y:d.getFullYear(),m:d.getMonth()});}} style={{background:t.accent,color:t.bg,border:"none",borderRadius:9,padding:"8px 14px",fontSize:13,fontWeight:600,cursor:"pointer",marginLeft:4,fontFamily:"inherit"}}>Today</button>
         </div>
-        <span style={{fontSize:12.5,color:t.inkMuted,fontWeight:600}}>{monthCount} task{monthCount!==1?"s":""} due this month</span>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <span style={{fontSize:12.5,color:t.inkMuted,fontWeight:600}}>{monthCount} task{monthCount!==1?"s":""} due this month</span>
+          {unscheduled.length>0&&<button onClick={()=>setShowUnsched(v=>!v)} style={{display:"flex",alignItems:"center",gap:6,background:showUnsched?t.warnSoft:t.bgElevated,border:`1px solid ${showUnsched?t.warn:t.lineStrong}`,color:showUnsched?t.warn:t.inkMuted,borderRadius:9,padding:"7px 13px",fontSize:12.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><AlertTriangle size={13}/>{unscheduled.length} unscheduled<ChevronDown size={13} style={{transform:showUnsched?"rotate(180deg)":"none",transition:"transform .15s"}}/></button>}
+        </div>
       </div>
+      {showUnsched&&unscheduled.length>0&&(
+        <div style={{marginBottom:16,background:t.bgCard,border:`1px solid ${t.line}`,borderRadius:14,padding:"14px 16px"}}>
+          <div style={{fontSize:12,color:t.inkMuted,marginBottom:10}}>These board tasks have no deadline yet — click one to open it and set a deadline, and it will appear on the calendar automatically.</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8,maxHeight:150,overflowY:"auto"}}>
+            {unscheduled.map(tk=>{const co=COMPANIES.find(c=>c.id===tk.companyId);return(
+              <button key={tk.id} onClick={()=>onOpen&&onOpen(tk.id)} title={`${tk.phase} · ${tk.title}`} style={{display:"flex",alignItems:"center",gap:7,background:t.bgElevated,border:`1px solid ${t.line}`,borderLeft:`3px solid ${co?.color||t.accent}`,borderRadius:8,padding:"6px 11px",fontSize:12,color:t.inkMuted,cursor:"pointer",fontFamily:"inherit",maxWidth:280}}>
+                <span style={{width:6,height:6,borderRadius:"50%",background:stC(tk.status,t),flexShrink:0}}/>
+                <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tk.title}</span>
+              </button>
+            );})}
+          </div>
+        </div>
+      )}
       <div style={{flex:1,overflowY:"auto",border:`1px solid ${t.line}`,borderRadius:14,minHeight:0,background:t.bgCard}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:1,background:t.line}}>
           {DOW.map(d=><div key={d} style={{background:t.bgElevated,padding:"11px 0",textAlign:"center",fontSize:11.5,fontWeight:700,color:t.inkMuted,letterSpacing:".08em",textTransform:"uppercase"}}>{d}</div>)}
@@ -774,10 +761,11 @@ function CalendarView({tasks,companyId,theme:t}){
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:4,overflowY:"auto"}}>
                   {cell.tasks.slice(0,5).map(tk=>{const co=COMPANIES.find(c=>c.id===tk.companyId);return(
-                    <div key={tk.id} style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,borderLeft:`3px solid ${co?.color||t.accent}`,borderRadius:6,padding:"5px 7px",fontSize:11.5,color:t.inkMuted,overflow:"hidden"}}>
+                    <button key={tk.id} onClick={()=>onOpen&&onOpen(tk.id)} title={`${tk.title}${tk.assignees.length?` · ${tk.assignees.join(", ")}`:""}${tk.status==="done"&&tk.completed_by?` · Done by ${tk.completed_by}`:""}`} style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,border:"none",borderLeft:`3px solid ${co?.color||t.accent}`,borderRadius:6,padding:"5px 7px",fontSize:11.5,color:t.inkMuted,overflow:"hidden",cursor:"pointer",fontFamily:"inherit",textAlign:"left",width:"100%"}}>
                       <span style={{width:6,height:6,borderRadius:"50%",background:stC(tk.status,t),flexShrink:0}}/>
-                      <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tk.title}</span>
-                    </div>
+                      <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:tk.status==="done"?"line-through":"none"}}>{tk.title}</span>
+                      {tk.assignees.length>0&&<span style={{flexShrink:0,fontSize:9.5,fontWeight:700,color:t.accentDeep,background:t.accentSoft,borderRadius:8,padding:"1px 6px"}}>{tk.assignees.map(a=>a.charAt(0)).join("")}</span>}
+                    </button>
                   );})}
                   {cell.tasks.length>5&&<span style={{fontSize:11,color:t.accent,fontWeight:700,padding:"2px 0"}}>+{cell.tasks.length-5} more</span>}
                 </div>
@@ -873,8 +861,12 @@ function TimelineView({tasks,companyId,setCompanyId,theme:t}){
 }
 
 // ── TASK DRAWER ───────────────────────────────────────────────
-function TaskDrawer({t:tk,onClose,update,company,me,onChanged,theme:th}){
+function TaskDrawer({t:tk,onClose,update,onDelete,company,me,onChanged,theme:th}){
   const [note,setNote]=useState("");const [linkUrl,setUrl]=useState("");const [linkLabel,setLbl]=useState("");const [busy,setBusy]=useState(false);
+  const [titleDraft,setTitleDraft]=useState(tk.title);
+  useEffect(()=>{setTitleDraft(tk.title);},[tk.id]);
+  const saveTitle=()=>{const v=titleDraft.trim();if(v&&v!==tk.title)update(tk.id,{title:v});else setTitleDraft(tk.title);};
+  const phases=useMemo(()=>{const p=PHASES_FOR(tk.track);return p.includes(tk.phase)?p:[tk.phase,...p];},[tk.track,tk.phase]);
   const fileRef=useRef(null);const who=me||"Someone";const IS=iS(th);
   const togA=async name=>{const has=tk.assignees.includes(name);update(tk.id,{assignees:has?tk.assignees.filter(a=>a!==name):[...tk.assignees,name]});await dbSetAssignee(tk.id,name,!has);};
   const postNote=async()=>{if(!note.trim())return;const b=note.trim();setNote("");update(tk.id,{notes:[...tk.notes,{who,text:b,when:"just now"}]});await dbAddNote(tk.id,who,b);if(onChanged)onChanged();};
@@ -891,10 +883,25 @@ function TaskDrawer({t:tk,onClose,update,company,me,onChanged,theme:th}){
           <span style={{fontSize:10.5,fontWeight:700,padding:"3px 9px",borderRadius:6,background:company.color+"22",color:company.color,letterSpacing:".04em"}}>{company.short}</span>
           <button onClick={onClose} style={{background:th.bgElevated,border:`1px solid ${th.line}`,borderRadius:8,padding:6,cursor:"pointer",color:th.inkFaint,display:"grid",placeItems:"center"}}><X size={18}/></button>
         </div>
-        <div style={{fontSize:11.5,color:th.inkFaint,fontWeight:600,marginBottom:4}}>{tk.phase}</div>
-        <h2 style={{fontFamily:"'Fraunces',serif",fontSize:20,fontWeight:400,letterSpacing:"-.02em",color:th.ink,margin:"0 0 22px",lineHeight:1.3}}>{tk.title}</h2>
+        <Field label="Title" theme={th}>
+          <textarea value={titleDraft} onChange={e=>setTitleDraft(e.target.value)} onBlur={saveTitle} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();e.target.blur();}}} rows={2} style={{...IS,fontFamily:"'Fraunces',serif",fontSize:18,lineHeight:1.35,resize:"vertical"}}/>
+        </Field>
+        <Field label="Phase" theme={th}>
+          <select value={tk.phase} onChange={e=>update(tk.id,{phase:e.target.value})} style={IS}>{phases.map(p=><option key={p} value={p}>{p}</option>)}</select>
+        </Field>
         <Field label="Status" theme={th}>
           <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{STATUS_ORDER.map(s=><button key={s} onClick={()=>update(tk.id,{status:s})} style={{display:"flex",alignItems:"center",gap:4,padding:"6px 11px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:500,fontFamily:"inherit",border:`1px solid ${tk.status===s?sC2[s]:th.lineStrong}`,background:tk.status===s?sC2[s]+"22":th.bgElevated,color:tk.status===s?sC2[s]:th.inkMuted}}>{STATUSES[s].label}</button>)}</div>
+          {tk.status==="done"&&tk.completed_by&&(
+            <div style={{marginTop:10,display:"flex",alignItems:"center",gap:8,background:th.goodSoft,border:`1px solid ${th.good}44`,borderRadius:9,padding:"8px 12px",fontSize:12.5,color:th.good,fontWeight:600}}>
+              <Check size={14}/>Completed by {tk.completed_by}{tk.completed_at?` · ${new Date(tk.completed_at).toLocaleDateString()}`:""}
+            </div>
+          )}
+        </Field>
+        <Field label="Priority" theme={th}>
+          <div style={{display:"flex",gap:7}}>{["high","medium","low"].map(p=><button key={p} onClick={()=>update(tk.id,{priority:p})} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 13px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:500,textTransform:"capitalize",fontFamily:"inherit",border:`1px solid ${tk.priority===p?PRIORITIES[p]:th.lineStrong}`,background:tk.priority===p?PRIORITIES[p]+"22":th.bgElevated,color:tk.priority===p?PRIORITIES[p]:th.inkMuted}}><Star size={12} style={{fill:tk.priority===p?PRIORITIES[p]:"none"}}/>{p}</button>)}</div>
+        </Field>
+        <Field label="Cadence" theme={th}>
+          <select value={tk.cadence||"one-time"} onChange={e=>update(tk.id,{cadence:e.target.value})} style={IS}>{["one-time","weekly","monthly","quarterly"].map(c=><option key={c} value={c}>{c}</option>)}</select>
         </Field>
         <Field label="Assignees" theme={th}>
           <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{TEAM.map(n=><button key={n} onClick={()=>togA(n)} style={{display:"flex",alignItems:"center",gap:4,padding:"6px 11px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:500,fontFamily:"inherit",border:`1px solid ${tk.assignees.includes(n)?th.accent:th.lineStrong}`,background:tk.assignees.includes(n)?th.accentSoft:th.bgElevated,color:tk.assignees.includes(n)?th.accentDeep:th.inkMuted}}>{tk.assignees.includes(n)&&<Check size={12}/>}{n}</button>)}</div>
@@ -944,6 +951,9 @@ function TaskDrawer({t:tk,onClose,update,company,me,onChanged,theme:th}){
             <Btn theme={th} accent onClick={postNote}>Post</Btn>
           </div>
         </Field>
+        <div style={{marginTop:8,paddingTop:18,borderTop:`1px solid ${th.line}`}}>
+          <button onClick={()=>{if(window.confirm("Delete this task? This can't be undone."))onDelete(tk.id);}} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 14px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:600,fontFamily:"inherit",border:`1px solid ${th.bad}55`,background:th.badSoft,color:th.bad}}><Trash2 size={14}/>Delete task</button>
+        </div>
       </div>
     </div>
   );
@@ -963,7 +973,7 @@ export default function App(){
   const [statusF,setStatusF]=useState("all");const [openTask,setOpenTask]=useState(null);const [newTaskOpen,setNewTaskOpen]=useState(false);const [coMenu,setCoMenu]=useState(false);
   const mapRow=r=>({...r,companyId:r.company_id,deadline:r.deadline||"",notes:(r.notes||[]).map(n=>({id:n.id,who:n.author,text:n.body,when:new Date(n.created_at).toLocaleDateString()})),attachments:(r.attachments||[]).map(a=>({...a,type:a.kind}))});
   const reload=React.useCallback(async()=>{const rows=await loadTasks();setTasks(rows.map(mapRow));},[]);
-  useEffect(()=>{(async()=>{try{const[rows,team,email]=await Promise.all([loadTasks(),getTeam(),currentEmail()]);if(team&&team.length)TEAM=team;setMe(email);setTasks(rows.map(mapRow));}finally{setLoading(false);}})();},[]);
+  useEffect(()=>{(async()=>{try{const[rows,team,name]=await Promise.all([loadTasks(),getTeam(),currentName()]);if(team&&team.length)TEAM=team;setMe(name);setTasks(rows.map(mapRow));}finally{setLoading(false);}})();},[]);
   const t=useTheme(cid);
   const activeCo=cid==="all"?{id:"all",name:"All Companies",short:"ALL",color:"rgba(255,255,255,.3)",site:""}:COMPANIES.find(c=>c.id===cid)||COMPANIES[0];
   const todayISO=useMemo(()=>{const d=new Date();d.setHours(0,0,0,0);return fmtDate(d);},[]);
@@ -971,7 +981,18 @@ export default function App(){
   const scope=tasks.filter(tk=>(cid==="all"||tk.companyId===cid)&&tk.track===track&&(!tk.recurring||(tk.deadline>=todayISO&&tk.deadline<=weekISO)));
   const counts=STATUS_ORDER.reduce((a,s)=>(a[s]=scope.filter(tk=>tk.status===s).length,a),{});
   const pct=scope.length?Math.round((counts.done/scope.length)*100):0;
-  const update=(id,patch)=>{setTasks(ts=>ts.map(tk=>tk.id===id?{...tk,...patch}:tk));const dp={};for(const k of["status","priority","deadline","title"])if(k in patch)dp[k]=patch[k];if(Object.keys(dp).length)dbUpdate(id,dp);};
+  const update=(id,patch)=>{
+    const p={...patch};
+    // Stamp who completed the task (and when) whenever status flips to done; clear it if it's re-opened.
+    if("status"in p){
+      if(p.status==="done"){p.completed_by=me;p.completed_at=new Date().toISOString();}
+      else{p.completed_by=null;p.completed_at=null;}
+    }
+    setTasks(ts=>ts.map(tk=>tk.id===id?{...tk,...p}:tk));
+    const dp={};for(const k of["status","priority","deadline","title","phase","cadence","why","completed_by","completed_at"])if(k in p)dp[k]=p[k];
+    if(Object.keys(dp).length)dbUpdate(id,dp);
+  };
+  const removeTask=async id=>{setOpenTask(null);setTasks(ts=>ts.filter(tk=>tk.id!==id));await dbDeleteTask(id);};
   const createTask=async input=>{await dbCreateTask(input);await reload();};
   const detail=openTask?tasks.find(tk=>tk.id===openTask):null;
   const defPhase=track==="seo"?SEO_TIMELINE[0].phase:PAID_MASTER[0][0];
@@ -1105,11 +1126,11 @@ export default function App(){
         {view==="integrations"&&<IntegrationsView theme={t}/>}
         {view==="logins"      &&<LoginsView companyId={cid} theme={t}/>}
         {view==="board"       &&<BoardView tasks={tasks} companyId={cid} track={track} statusFilter={statusF} theme={t} onOpen={setOpenTask} onUpdate={update} todayISO={todayISO} weekISO={weekISO}/>}
-        {view==="calendar"    &&<CalendarView tasks={tasks} companyId={cid} theme={t}/>}
+        {view==="calendar"    &&<CalendarView tasks={tasks} companyId={cid} theme={t} onOpen={setOpenTask}/>}
         {view==="timeline"    &&<TimelineView tasks={tasks} companyId={cid} setCompanyId={setCid} theme={t}/>}
       </main>
 
-      {detail&&<TaskDrawer t={detail} onClose={()=>setOpenTask(null)} update={update} company={COMPANIES.find(c=>c.id===detail.companyId)||COMPANIES[0]} me={me} onChanged={reload} theme={t}/>}
+      {detail&&<TaskDrawer t={detail} onClose={()=>setOpenTask(null)} update={update} onDelete={removeTask} company={COMPANIES.find(c=>c.id===detail.companyId)||COMPANIES[0]} me={me} onChanged={reload} theme={t}/>}
       <NewTaskModal open={newTaskOpen} onClose={()=>setNewTaskOpen(false)} onCreate={createTask} defaults={{phase:defPhase}} companyId={cid==="all"?COMPANIES[0].id:cid} track={track} theme={t}/>
     </div>
   );
