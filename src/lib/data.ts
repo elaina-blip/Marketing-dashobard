@@ -72,6 +72,13 @@ export async function deleteTask(id: string) {
   if (error) throw error;
 }
 
+// Delete many tasks at once (cascades to assignees/notes/attachments via FK).
+export async function deleteTasks(ids: string[]) {
+  if (!ids.length) return;
+  const { error } = await supabase.from("tasks").delete().in("id", ids);
+  if (error) throw error;
+}
+
 export async function createTask(input: NewTaskInput) {
   const { data: maxRows } = await supabase.from("tasks").select("sort_order").order("sort_order", { ascending: false }).limit(1);
   const sort_order = (maxRows?.[0]?.sort_order ?? -1) + 1;

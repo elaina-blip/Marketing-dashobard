@@ -1,7 +1,7 @@
 "use client";
 import React,{useState,useMemo,useEffect,useRef}from"react";
-import{Search,Megaphone,LayoutGrid,Plus,X,Check,Clock,AlertTriangle,Circle,Star,Users,Calendar,MessageSquare,ChevronDown,Building2,Filter,CalendarDays,ChevronLeft,ChevronRight,Paperclip,Link2,FileText,Download,Trash2,Eye,EyeOff,Copy,BarChart2,Mail,Globe,TrendingUp,Zap,Settings,Upload,Sparkles}from"lucide-react";
-import{loadTasks,updateTask as dbUpdate,deleteTask as dbDeleteTask,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentName,signOut as dbSignOut,createTask as dbCreateTask,importTasks as dbImportTasks,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource}from"@/lib/data";
+import{Search,Megaphone,LayoutGrid,Plus,X,Check,Clock,AlertTriangle,Circle,Star,Users,Calendar,MessageSquare,ChevronDown,Building2,Filter,CalendarDays,ChevronLeft,ChevronRight,Paperclip,Link2,FileText,Download,Trash2,Eye,EyeOff,Copy,BarChart2,Mail,Globe,TrendingUp,Zap,Settings,Upload,Sparkles,CheckSquare,Square}from"lucide-react";
+import{loadTasks,updateTask as dbUpdate,deleteTask as dbDeleteTask,deleteTasks as dbDeleteTasks,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentName,signOut as dbSignOut,createTask as dbCreateTask,importTasks as dbImportTasks,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource}from"@/lib/data";
 import{parseImportFile}from"@/lib/import-tasks";
 
 // ── COMPANIES ──────────────────────────────────────────────────
@@ -828,27 +828,35 @@ const SEO_MASTER=[["Phase 1 — Foundations & Access",[["Secure domain + busines
 const PAID_MASTER=[["Phase 1 — Paid Foundations",[["Create Google Ads account","high","one-time"],["Define primary objective","high","one-time"],["Link Google Ads to GA4","high","one-time"]]],["Phase 2 — Conversion Tracking",[["Set up Google Tag Manager","high","one-time"],["Create conversion actions","high","one-time"],["Place conversion tag on thank-you pages","high","one-time"],["Confirm GA4 isn't double-counting","high","one-time"]]],["Phase 3 — Campaign Structure",[["Set account hierarchy","high","one-time"],["Separate Brand, Non-Brand, PMax","high","one-time"],["Build tight ad groups","high","one-time"],["Add 20+ negative keywords before launch","high","one-time"],["Write 2–3 Responsive Search Ads per ad group","high","one-time"]]],["Phase 4 — Launch & Budget",[["Set location targeting to Presence only","high","one-time"],["Set daily budget high enough","high","one-time"],["Start with Maximize Clicks","high","one-time"],["Monitor closely for first 48–72 hours","high","one-time"]]],["Phase 5 — Paid Optimization",[["Review Search Terms Report after ~100 clicks","high","weekly"],["Weekly budget review","high","weekly"],["Test new ad variations","medium","monthly"],["Run a full Google Ads audit","medium","quarterly"]]],["Phase 6 — Social Foundations",[["Create/claim business accounts","high","one-time"],["Apply consistent branding","high","one-time"],["Write keyword-clear bios","high","one-time"]]],["Phase 7 — Social Strategy",[["Write a one-sentence positioning statement","high","one-time"],["Create audience personas","high","one-time"],["Define 3–5 content pillars","high","one-time"]]],["Phase 8 — Content Creation",[["Build a content calendar","high","one-time"],["Bank 15–20 posts before launch","high","one-time"],["Shoot 5–10 short-form videos","high","monthly"],["Repurpose each core asset","medium","weekly"]]],["Phase 9 — Engagement",[["Post consistently (3–5×/week)","high","weekly"],["Reply to comments and DMs","high","weekly"]]],["Phase 10 — Paid Social",[["Install Meta Pixel","high","one-time"],["Build first-party custom audiences","high","one-time"],["A/B test creatives","medium","monthly"]]],["Phase 11 — Analytics & Reporting",[["Build combined dashboard","high","one-time"],["Review platform analytics weekly","medium","weekly"],["Monthly performance review","medium","monthly"]]]];
 const SEO_TIMELINE=[{phase:"Phase 1 — Foundations & Access",start:1,len:2,kind:"one-time"},{phase:"Phase 2 — Measurement & Verification",start:1,len:2,kind:"one-time"},{phase:"Phase 3 — Keyword & Market Research",start:2,len:2,kind:"one-time"},{phase:"Phase 4 — Technical SEO",start:3,len:3,kind:"one-time"},{phase:"Phase 5 — On-Page SEO",start:4,len:2,kind:"one-time"},{phase:"Phase 6 — Content & E-E-A-T",start:5,len:3,kind:"recurring"},{phase:"Phase 7 — Local SEO",start:6,len:2,kind:"recurring"},{phase:"Phase 8 — Off-Page & Authority",start:7,len:6,kind:"recurring"},{phase:"Phase 9 — AI Search Readiness",start:8,len:5,kind:"recurring"},{phase:"Phase 10 — Measurement & Reporting",start:9,len:4,kind:"recurring"}];
 
-function BoardView({tasks,companyId,track,statusFilter,theme:t,onOpen,onUpdate,todayISO,weekISO}){
+function BoardView({tasks,companyId,track,statusFilter,theme:t,onOpen,onUpdate,todayISO,weekISO,editMode,selected,onToggleSelect}){
   const visible=useMemo(()=>tasks.filter(tk=>(companyId==="all"||tk.companyId===companyId)&&tk.track===track&&(statusFilter==="all"||tk.status===statusFilter)&&(!tk.recurring||(tk.deadline>=todayISO&&tk.deadline<=weekISO))),[tasks,companyId,track,statusFilter,todayISO,weekISO]);
   const grouped=useMemo(()=>{const m=new Map();for(const tk of visible){if(!m.has(tk.phase))m.set(tk.phase,[]);m.get(tk.phase).push(tk);}return[...m.entries()];},[visible]);
   if(!grouped.length)return <div style={{flex:1,overflowY:"auto",padding:"22px 38px 60px"}}><div style={{textAlign:"center",color:t.inkFaint,padding:50,fontSize:14}}>No tasks match this filter.</div></div>;
+  const togglePhase=(items,allSel)=>{items.forEach(tk=>{const has=selected&&selected.has(tk.id);if(allSel&&has)onToggleSelect(tk.id);else if(!allSel&&!has)onToggleSelect(tk.id);});};
   return(
     <div style={{flex:1,overflowY:"auto",padding:"22px 38px 60px"}}>
       {grouped.map(([phase,items])=>{
         const done=items.filter(tk=>tk.status==="done").length;
+        const allSel=editMode&&selected&&items.length>0&&items.every(tk=>selected.has(tk.id));
         return(
           <div key={phase} style={{marginBottom:24,background:t.bgCard,borderRadius:14,border:`1px solid ${t.line}`,overflow:"hidden",boxShadow:t.shadowCard}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 18px",background:t.bgElevated,borderBottom:`1px solid ${t.line}`}}>
-              <span style={{fontWeight:700,fontSize:13.5,color:t.ink,letterSpacing:"-.01em"}}>{phase}</span>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                {editMode&&<button onClick={()=>togglePhase(items,allSel)} title={allSel?"Deselect all in phase":"Select all in phase"} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"grid",placeItems:"center",color:allSel?t.accent:t.inkFaint}}>{allSel?<CheckSquare size={17}/>:<Square size={17}/>}</button>}
+                <span style={{fontWeight:700,fontSize:13.5,color:t.ink,letterSpacing:"-.01em"}}>{phase}</span>
+              </div>
               <span style={{fontSize:12,color:t.inkFaint,fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{done}/{items.length}</span>
             </div>
             {items.map(tk=>{
               const St=STATUSES[tk.status];const Ico=St.icon;const sC=stC(tk.status,t);
               const co=COMPANIES.find(c=>c.id===tk.companyId);
+              const isSel=editMode&&selected&&selected.has(tk.id);
               return(
-                <div key={tk.id} className="task-row" style={{display:"flex",alignItems:"center",gap:12,padding:"11px 18px",borderBottom:`1px solid ${t.line}`,transition:"background .12s",cursor:"default"}}>
-                  <button onClick={()=>{const i=STATUS_ORDER.indexOf(tk.status);onUpdate(tk.id,{status:STATUS_ORDER[(i+1)%4]});}} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"grid",placeItems:"center",color:sC}}><Ico size={17}/></button>
-                  <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>onOpen(tk.id)}>
+                <div key={tk.id} className="task-row" onClick={()=>editMode&&onToggleSelect(tk.id)} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 18px",borderBottom:`1px solid ${t.line}`,transition:"background .12s",cursor:editMode?"pointer":"default",background:isSel?t.accentSoft:"transparent"}}>
+                  {editMode
+                    ?<span style={{display:"grid",placeItems:"center",color:isSel?t.accent:t.inkFaint}}>{isSel?<CheckSquare size={17}/>:<Square size={17}/>}</span>
+                    :<button onClick={()=>{const i=STATUS_ORDER.indexOf(tk.status);onUpdate(tk.id,{status:STATUS_ORDER[(i+1)%4]});}} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"grid",placeItems:"center",color:sC}}><Ico size={17}/></button>}
+                  <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={e=>{if(editMode)return;e.stopPropagation();onOpen(tk.id);}}>
                     <div style={{fontSize:14,fontWeight:500,color:tk.status==="done"?t.inkFaint:t.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:tk.status==="done"?"line-through":"none"}}>{tk.title}</div>
                     <div style={{display:"flex",alignItems:"center",gap:9,marginTop:4,flexWrap:"wrap"}}>
                       {companyId==="all"&&co&&<span style={{fontSize:10.5,fontWeight:700,padding:"2px 7px",borderRadius:5,background:co.color+"22",color:co.color}}>{co.short}</span>}
@@ -859,9 +867,9 @@ function BoardView({tasks,companyId,track,statusFilter,theme:t,onOpen,onUpdate,t
                       {tk.notes.length>0&&<span style={{display:"flex",alignItems:"center",gap:3,fontSize:11.5,color:t.inkMuted}}><MessageSquare size={11}/>{tk.notes.length}</span>}
                     </div>
                   </div>
-                  <button onClick={()=>{const o=["high","medium","low"];const i=o.indexOf(tk.priority);onUpdate(tk.id,{priority:o[(i+1)%3]});}} style={{background:"none",border:"none",cursor:"pointer",padding:4}}>
+                  {!editMode&&<button onClick={()=>{const o=["high","medium","low"];const i=o.indexOf(tk.priority);onUpdate(tk.id,{priority:o[(i+1)%3]});}} style={{background:"none",border:"none",cursor:"pointer",padding:4}}>
                     <Star size={15} style={{color:PRIORITIES[tk.priority],fill:tk.priority==="high"?PRIORITIES.high:"none"}}/>
-                  </button>
+                  </button>}
                 </div>
               );
             })}
@@ -880,7 +888,7 @@ const parseISO=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d
 const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x;};
 const startOfWeek=d=>addDays(d,-d.getDay());
 
-function CalendarView({tasks,companyId,track,theme:t,onOpen,onAddTask}){
+function CalendarView({tasks,companyId,track,theme:t,onOpen,onAddTask,editMode,selected,onToggleSelect,onOpenDay,onStartEdit,onExitEdit,onDeleteSelected}){
   const [mode,setMode]=useState("month");                 // day | week | month
   const [anchor,setAnchor]=useState(()=>{const d=new Date();d.setHours(0,0,0,0);return d;}); // reference date
   const [showUnsched,setShowUnsched]=useState(false);
@@ -890,6 +898,7 @@ function CalendarView({tasks,companyId,track,theme:t,onOpen,onAddTask}){
   const dated=useMemo(()=>scoped.filter(tk=>tk.deadline),[scoped]);
   const unscheduled=useMemo(()=>scoped.filter(tk=>!tk.deadline&&tk.status!=="done"),[scoped]);
   const byDay=useMemo(()=>{const map={};for(const tk of dated)(map[tk.deadline]||=[]).push(tk);return map;},[dated]);
+  const selCount=selected?selected.size:0;
 
   // ---- Navigation: step depends on the current mode ----
   const step=dir=>{
@@ -916,6 +925,7 @@ function CalendarView({tasks,companyId,track,theme:t,onOpen,onAddTask}){
   const rangeCount=dated.filter(inRange).length;
 
   const addBtnBg=t.accent;
+  const gridProps={byDay,todayStr,theme:t,onOpen,onAddTask,editMode,selected,onToggleSelect,onOpenDay};
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",padding:"20px 38px 24px",overflow:"hidden"}}>
       {/* Toolbar */}
@@ -933,9 +943,20 @@ function CalendarView({tasks,companyId,track,theme:t,onOpen,onAddTask}){
               <button key={mv} onClick={()=>setMode(mv)} style={{padding:"6px 14px",borderRadius:6,fontSize:12.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",textTransform:"capitalize",background:mode===mv?t.bgCard:"transparent",color:mode===mv?t.accentDeep:t.inkMuted,boxShadow:mode===mv?t.shadowCard:"none"}}>{mv}</button>
             ))}
           </div>
-          <span style={{fontSize:12.5,color:t.inkMuted,fontWeight:600}}>{rangeCount} task{rangeCount!==1?"s":""} this {mode}</span>
-          {unscheduled.length>0&&<button onClick={()=>setShowUnsched(v=>!v)} style={{display:"flex",alignItems:"center",gap:6,background:showUnsched?t.warnSoft:t.bgElevated,border:`1px solid ${showUnsched?t.warn:t.lineStrong}`,color:showUnsched?t.warn:t.inkMuted,borderRadius:9,padding:"7px 13px",fontSize:12.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><AlertTriangle size={13}/>{unscheduled.length} unscheduled<ChevronDown size={13} style={{transform:showUnsched?"rotate(180deg)":"none",transition:"transform .15s"}}/></button>}
-          <button onClick={()=>onAddTask&&onAddTask(mode==="day"?ymd(anchor):"")} style={{display:"flex",alignItems:"center",gap:6,background:addBtnBg,color:t.bg,border:"none",borderRadius:9,padding:"9px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 16px -8px ${t.accent}cc`}}><Plus size={15}/>Add task</button>
+          {editMode?(
+            <>
+              <span style={{fontSize:12.5,fontWeight:600,color:t.inkMuted}}>{selCount} selected</span>
+              <button onClick={onDeleteSelected} disabled={!selCount} style={{display:"flex",alignItems:"center",gap:6,background:selCount?t.bad:t.bgElevated,color:selCount?"#fff":t.inkFaint,border:`1px solid ${selCount?t.bad:t.lineStrong}`,borderRadius:9,padding:"9px 14px",fontSize:13,fontWeight:600,cursor:selCount?"pointer":"default",fontFamily:"inherit"}}><Trash2 size={15}/>Delete</button>
+              <button onClick={onExitEdit} style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,color:t.ink,border:`1px solid ${t.lineStrong}`,borderRadius:9,padding:"9px 14px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+            </>
+          ):(
+            <>
+              <span style={{fontSize:12.5,color:t.inkMuted,fontWeight:600}}>{rangeCount} task{rangeCount!==1?"s":""} this {mode}</span>
+              {unscheduled.length>0&&<button onClick={()=>setShowUnsched(v=>!v)} style={{display:"flex",alignItems:"center",gap:6,background:showUnsched?t.warnSoft:t.bgElevated,border:`1px solid ${showUnsched?t.warn:t.lineStrong}`,color:showUnsched?t.warn:t.inkMuted,borderRadius:9,padding:"7px 13px",fontSize:12.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><AlertTriangle size={13}/>{unscheduled.length} unscheduled<ChevronDown size={13} style={{transform:showUnsched?"rotate(180deg)":"none",transition:"transform .15s"}}/></button>}
+              <button onClick={onStartEdit} style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,color:t.ink,border:`1px solid ${t.lineStrong}`,borderRadius:9,padding:"9px 14px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><CheckSquare size={15}/>Edit</button>
+              <button onClick={()=>onAddTask&&onAddTask(mode==="day"?ymd(anchor):"")} style={{display:"flex",alignItems:"center",gap:6,background:addBtnBg,color:t.bg,border:"none",borderRadius:9,padding:"9px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 16px -8px ${t.accent}cc`}}><Plus size={15}/>Add task</button>
+            </>
+          )}
         </div>
       </div>
 
@@ -955,9 +976,9 @@ function CalendarView({tasks,companyId,track,theme:t,onOpen,onAddTask}){
       )}
 
       {/* Active view */}
-      {mode==="month"&&<MonthGrid anchor={anchor} byDay={byDay} todayStr={todayStr} theme={t} onOpen={onOpen} onAddTask={onAddTask}/>}
-      {mode==="week" &&<WeekGrid  anchor={anchor} byDay={byDay} todayStr={todayStr} theme={t} onOpen={onOpen} onAddTask={onAddTask}/>}
-      {mode==="day"  &&<DayList   anchor={anchor} byDay={byDay} todayStr={todayStr} theme={t} onOpen={onOpen} onAddTask={onAddTask}/>}
+      {mode==="month"&&<MonthGrid anchor={anchor} {...gridProps}/>}
+      {mode==="week" &&<WeekGrid  anchor={anchor} {...gridProps}/>}
+      {mode==="day"  &&<DayList   anchor={anchor} {...gridProps}/>}
     </div>
   );
 }
@@ -974,14 +995,19 @@ function readableOn(hex){
 
 // Small reusable task chip used across calendar views.
 // Filled with the company's full color so it's easy to read and identify at a glance.
-function CalTaskChip({tk,theme:t,onOpen}){
+// In edit mode, clicking toggles selection instead of opening the task.
+function CalTaskChip({tk,theme:t,onOpen,editMode,selected,onToggleSelect}){
   const co=COMPANIES.find(c=>c.id===tk.companyId);
   const bg=co?.color||t.accent;
   const fg=readableOn(bg);
   const done=tk.status==="done";
+  const isSel=editMode&&selected&&selected.has(tk.id);
+  const click=()=>{if(editMode)onToggleSelect&&onToggleSelect(tk.id);else onOpen&&onOpen(tk.id);};
   return(
-    <button onClick={()=>onOpen&&onOpen(tk.id)} title={`${tk.title}${tk.assignees.length?` · ${tk.assignees.join(", ")}`:""}${done&&tk.completed_by?` · Done by ${tk.completed_by}`:""}`} style={{display:"flex",alignItems:"center",gap:6,background:bg,border:"none",borderRadius:6,padding:"5px 8px",fontSize:11.5,fontWeight:600,color:fg,overflow:"hidden",cursor:"pointer",fontFamily:"inherit",textAlign:"left",width:"100%",opacity:done?.72:1}}>
-      <span style={{width:8,height:8,borderRadius:"50%",background:stC(tk.status,t),flexShrink:0,boxShadow:`0 0 0 1.5px ${fg==="#FFFFFF"?"rgba(255,255,255,.85)":"rgba(0,0,0,.6)"}`}}/>
+    <button onClick={click} title={`${tk.title}${tk.assignees.length?` · ${tk.assignees.join(", ")}`:""}${done&&tk.completed_by?` · Done by ${tk.completed_by}`:""}`} style={{display:"flex",alignItems:"center",gap:6,background:bg,border:isSel?`2px solid ${fg}`:"2px solid transparent",borderRadius:6,padding:"4px 7px",fontSize:11.5,fontWeight:600,color:fg,overflow:"hidden",cursor:"pointer",fontFamily:"inherit",textAlign:"left",width:"100%",opacity:done&&!isSel?.72:1}}>
+      {editMode
+        ?(isSel?<CheckSquare size={13} style={{flexShrink:0}}/>:<Square size={13} style={{flexShrink:0,opacity:.85}}/>)
+        :<span style={{width:8,height:8,borderRadius:"50%",background:stC(tk.status,t),flexShrink:0,boxShadow:`0 0 0 1.5px ${fg==="#FFFFFF"?"rgba(255,255,255,.85)":"rgba(0,0,0,.6)"}`}}/>}
       <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:done?"line-through":"none"}}>{tk.title}</span>
       {tk.assignees.length>0&&<span style={{flexShrink:0,fontSize:9.5,fontWeight:700,color:fg,background:fg==="#FFFFFF"?"rgba(0,0,0,.22)":"rgba(255,255,255,.32)",borderRadius:8,padding:"1px 6px"}}>{tk.assignees.map(a=>a.charAt(0)).join("")}</span>}
     </button>
@@ -989,12 +1015,13 @@ function CalTaskChip({tk,theme:t,onOpen}){
 }
 
 // MONTH — 7-column grid (hover a day to reveal a + to add on that date).
-function MonthGrid({anchor,byDay,todayStr,theme:t,onOpen,onAddTask}){
+function MonthGrid({anchor,byDay,todayStr,theme:t,onOpen,onAddTask,editMode,selected,onToggleSelect,onOpenDay}){
   const y=anchor.getFullYear(),m=anchor.getMonth();
   const sDow=new Date(y,m,1).getDay();const dim=new Date(y,m+1,0).getDate();
   const cells=[];for(let i=0;i<sDow;i++)cells.push(null);
   for(let d=1;d<=dim;d++){const ds=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;cells.push({d,ds,tasks:byDay[ds]||[]});}
   while(cells.length%7!==0)cells.push(null);
+  const chipProps={theme:t,onOpen,editMode,selected,onToggleSelect};
   return(
     <div style={{flex:1,overflowY:"auto",border:`1px solid ${t.line}`,borderRadius:14,minHeight:0,background:t.bgCard}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:1,background:t.line}}>
@@ -1005,15 +1032,15 @@ function MonthGrid({anchor,byDay,todayStr,theme:t,onOpen,onAddTask}){
           return(
             <div key={i} className="cal-day" style={{position:"relative",background:isT?`${t.accent}11`:t.bgCard,minHeight:150,padding:"7px 8px",display:"flex",flexDirection:"column",border:isT?`1px solid ${t.accent}`:"none"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${t.line}`}}>
-                <div style={{fontSize:14,fontWeight:700,color:isT?t.bg:t.inkMuted,...(isT?{background:t.accent,width:22,height:22,borderRadius:"50%",display:"grid",placeItems:"center",fontSize:12}:{})}}>{cell.d}</div>
+                <button onClick={()=>!editMode&&onOpenDay&&onOpenDay(cell.ds)} title={editMode?"":"View this day"} style={{border:"none",background:"none",padding:0,cursor:editMode?"default":"pointer",fontSize:14,fontWeight:700,color:isT?t.bg:t.inkMuted,fontFamily:"inherit",...(isT?{background:t.accent,width:22,height:22,borderRadius:"50%",display:"grid",placeItems:"center",fontSize:12}:{})}}>{cell.d}</button>
                 <div style={{display:"flex",alignItems:"center",gap:5}}>
-                  {cell.tasks.length>0&&<span style={{fontSize:10.5,fontWeight:700,color:t.accent,background:t.accentSoft,borderRadius:9,padding:"2px 8px"}}>{cell.tasks.length}</span>}
-                  <button className="cal-add" onClick={()=>onAddTask&&onAddTask(cell.ds)} title={`Add task on ${cell.ds}`} style={{opacity:0,transition:"opacity .12s",background:t.bgElevated,border:`1px solid ${t.lineStrong}`,color:t.accent,borderRadius:6,width:20,height:20,display:"grid",placeItems:"center",cursor:"pointer",padding:0}}><Plus size={13}/></button>
+                  {cell.tasks.length>0&&<button onClick={()=>onOpenDay&&onOpenDay(cell.ds)} title="View this day" style={{border:"none",fontSize:10.5,fontWeight:700,color:t.accent,background:t.accentSoft,borderRadius:9,padding:"2px 8px",cursor:"pointer",fontFamily:"inherit"}}>{cell.tasks.length}</button>}
+                  {!editMode&&<button className="cal-add" onClick={()=>onAddTask&&onAddTask(cell.ds)} title={`Add task on ${cell.ds}`} style={{opacity:0,transition:"opacity .12s",background:t.bgElevated,border:`1px solid ${t.lineStrong}`,color:t.accent,borderRadius:6,width:20,height:20,display:"grid",placeItems:"center",cursor:"pointer",padding:0}}><Plus size={13}/></button>}
                 </div>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:4,overflowY:"auto"}}>
-                {cell.tasks.slice(0,5).map(tk=><CalTaskChip key={tk.id} tk={tk} theme={t} onOpen={onOpen}/>)}
-                {cell.tasks.length>5&&<span style={{fontSize:11,color:t.accent,fontWeight:700,padding:"2px 0"}}>+{cell.tasks.length-5} more</span>}
+                {cell.tasks.slice(0,4).map(tk=><CalTaskChip key={tk.id} tk={tk} {...chipProps}/>)}
+                {cell.tasks.length>4&&<button onClick={()=>onOpenDay&&onOpenDay(cell.ds)} style={{border:"none",background:"none",fontSize:11,color:t.accent,fontWeight:700,padding:"2px 0",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>+{cell.tasks.length-4} more</button>}
               </div>
             </div>
           );
@@ -1024,9 +1051,10 @@ function MonthGrid({anchor,byDay,todayStr,theme:t,onOpen,onAddTask}){
 }
 
 // WEEK — 7 taller day columns for the week containing the anchor date.
-function WeekGrid({anchor,byDay,todayStr,theme:t,onOpen,onAddTask}){
+function WeekGrid({anchor,byDay,todayStr,theme:t,onOpen,onAddTask,editMode,selected,onToggleSelect,onOpenDay}){
   const start=startOfWeek(anchor);
   const days=Array.from({length:7},(_,i)=>{const d=addDays(start,i);const ds=ymd(d);return{d,ds,tasks:byDay[ds]||[]};});
+  const chipProps={theme:t,onOpen,editMode,selected,onToggleSelect};
   return(
     <div style={{flex:1,overflowY:"auto",border:`1px solid ${t.line}`,borderRadius:14,minHeight:0,background:t.bgCard}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:1,background:t.line,minHeight:"100%"}}>
@@ -1035,15 +1063,15 @@ function WeekGrid({anchor,byDay,todayStr,theme:t,onOpen,onAddTask}){
           return(
             <div key={i} className="cal-day" style={{position:"relative",background:isT?`${t.accent}11`:t.bgCard,display:"flex",flexDirection:"column",minHeight:420}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 10px 8px",borderBottom:`1px solid ${t.line}`,position:"sticky",top:0,background:isT?t.bgCard:t.bgElevated}}>
-                <div>
+                <button onClick={()=>!editMode&&onOpenDay&&onOpenDay(day.ds)} title={editMode?"":"View this day"} style={{border:"none",background:"none",padding:0,cursor:editMode?"default":"pointer",textAlign:"left",fontFamily:"inherit"}}>
                   <div style={{fontSize:10.5,fontWeight:700,color:t.inkFaint,letterSpacing:".08em",textTransform:"uppercase"}}>{DOW[day.d.getDay()]}</div>
-                  <div style={{fontSize:16,fontWeight:700,color:isT?t.accent:t.ink,fontFamily:"'Fraunces',serif"}}>{day.d.getDate()}</div>
-                </div>
-                <button className="cal-add" onClick={()=>onAddTask&&onAddTask(day.ds)} title={`Add task on ${day.ds}`} style={{opacity:0,transition:"opacity .12s",background:t.bgElevated,border:`1px solid ${t.lineStrong}`,color:t.accent,borderRadius:6,width:22,height:22,display:"grid",placeItems:"center",cursor:"pointer",padding:0}}><Plus size={14}/></button>
+                  <div style={{fontSize:16,fontWeight:700,color:isT?t.accent:t.ink,fontFamily:"'Fraunces',serif"}}>{day.d.getDate()}{day.tasks.length>0&&<span style={{marginLeft:6,fontSize:10.5,fontFamily:"'IBM Plex Sans',inherit",fontWeight:700,color:t.accent,background:t.accentSoft,borderRadius:8,padding:"1px 7px",verticalAlign:"middle"}}>{day.tasks.length}</span>}</div>
+                </button>
+                {!editMode&&<button className="cal-add" onClick={()=>onAddTask&&onAddTask(day.ds)} title={`Add task on ${day.ds}`} style={{opacity:0,transition:"opacity .12s",background:t.bgElevated,border:`1px solid ${t.lineStrong}`,color:t.accent,borderRadius:6,width:22,height:22,display:"grid",placeItems:"center",cursor:"pointer",padding:0}}><Plus size={14}/></button>}
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px",overflowY:"auto",flex:1}}>
-                {day.tasks.length===0&&<button onClick={()=>onAddTask&&onAddTask(day.ds)} style={{border:`1px dashed ${t.line}`,background:"none",borderRadius:8,padding:"10px 8px",fontSize:11.5,color:t.inkGhost,cursor:"pointer",fontFamily:"inherit"}}>+ Add</button>}
-                {day.tasks.map(tk=><CalTaskChip key={tk.id} tk={tk} theme={t} onOpen={onOpen}/>)}
+                {day.tasks.length===0&&!editMode&&<button onClick={()=>onAddTask&&onAddTask(day.ds)} style={{border:`1px dashed ${t.line}`,background:"none",borderRadius:8,padding:"10px 8px",fontSize:11.5,color:t.inkGhost,cursor:"pointer",fontFamily:"inherit"}}>+ Add</button>}
+                {day.tasks.map(tk=><CalTaskChip key={tk.id} tk={tk} {...chipProps}/>)}
               </div>
             </div>
           );
@@ -1054,7 +1082,7 @@ function WeekGrid({anchor,byDay,todayStr,theme:t,onOpen,onAddTask}){
 }
 
 // DAY — a single agenda list for the anchor date.
-function DayList({anchor,byDay,todayStr,theme:t,onOpen,onAddTask}){
+function DayList({anchor,byDay,todayStr,theme:t,onOpen,onAddTask,editMode,selected,onToggleSelect}){
   const ds=ymd(anchor);const items=byDay[ds]||[];const isT=ds===todayStr;
   return(
     <div style={{flex:1,overflowY:"auto",border:`1px solid ${t.line}`,borderRadius:14,minHeight:0,background:t.bgCard,padding:"20px 22px"}}>
@@ -1066,14 +1094,16 @@ function DayList({anchor,byDay,todayStr,theme:t,onOpen,onAddTask}){
             <div style={{fontSize:12.5,color:t.inkMuted}}>{items.length} task{items.length!==1?"s":""} due{isT?" · today":""}</div>
           </div>
         </div>
-        <button onClick={()=>onAddTask&&onAddTask(ds)} style={{display:"flex",alignItems:"center",gap:6,background:t.accent,color:t.bg,border:"none",borderRadius:9,padding:"9px 14px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Plus size={15}/>Add task on this day</button>
+        {!editMode&&<button onClick={()=>onAddTask&&onAddTask(ds)} style={{display:"flex",alignItems:"center",gap:6,background:t.accent,color:t.bg,border:"none",borderRadius:9,padding:"9px 14px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Plus size={15}/>Add task on this day</button>}
       </div>
       {items.length===0
         ?<div style={{textAlign:"center",color:t.inkFaint,padding:"48px 20px",fontSize:14}}>Nothing scheduled for this day.</div>
         :<div style={{display:"flex",flexDirection:"column",gap:8,maxWidth:640}}>
-          {items.map(tk=>{const co=COMPANIES.find(c=>c.id===tk.companyId);const St=STATUSES[tk.status];const Ico=St.icon;return(
-            <button key={tk.id} onClick={()=>onOpen&&onOpen(tk.id)} style={{display:"flex",alignItems:"center",gap:12,background:t.bgElevated,border:`1px solid ${t.line}`,borderLeft:`3px solid ${co?.color||t.accent}`,borderRadius:10,padding:"12px 14px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",width:"100%"}}>
-              <Ico size={17} style={{color:stC(tk.status,t),flexShrink:0}}/>
+          {items.map(tk=>{const co=COMPANIES.find(c=>c.id===tk.companyId);const St=STATUSES[tk.status];const Ico=St.icon;const isSel=editMode&&selected&&selected.has(tk.id);const click=()=>{if(editMode)onToggleSelect&&onToggleSelect(tk.id);else onOpen&&onOpen(tk.id);};return(
+            <button key={tk.id} onClick={click} style={{display:"flex",alignItems:"center",gap:12,background:isSel?t.accentSoft:t.bgElevated,border:`1px solid ${isSel?t.accent:t.line}`,borderLeft:`3px solid ${co?.color||t.accent}`,borderRadius:10,padding:"12px 14px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",width:"100%"}}>
+              {editMode
+                ?(isSel?<CheckSquare size={17} style={{color:t.accent,flexShrink:0}}/>:<Square size={17} style={{color:t.inkFaint,flexShrink:0}}/>)
+                :<Ico size={17} style={{color:stC(tk.status,t),flexShrink:0}}/>}
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:14,fontWeight:500,color:tk.status==="done"?t.inkFaint:t.ink,textDecoration:tk.status==="done"?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tk.title}</div>
                 <div style={{display:"flex",alignItems:"center",gap:9,marginTop:3,flexWrap:"wrap"}}>
@@ -1087,6 +1117,56 @@ function DayList({anchor,byDay,todayStr,theme:t,onOpen,onAddTask}){
             </button>
           );})}
         </div>}
+    </div>
+  );
+}
+
+// ── DAY TASKS POPUP ───────────────────────────────────────────
+// Opens when a day is clicked (or "+N more" is tapped) and lists every task due that day.
+function DayTasksModal({date,tasks,theme:t,onClose,onOpen,onAddTask,editMode,selected,onToggleSelect}){
+  const d=parseISO(date);
+  const heading=`${DOW[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  const sorted=[...tasks].sort((a,b)=>{const o={high:0,medium:1,low:2};return (o[a.priority]??1)-(o[b.priority]??1);});
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",display:"grid",placeItems:"center",zIndex:110,backdropFilter:"blur(4px)",padding:24}} onClick={onClose}>
+      <div style={{width:640,maxWidth:"94vw",maxHeight:"86vh",background:t.bgCard,display:"flex",flexDirection:"column",borderRadius:18,border:`1px solid ${t.lineStrong}`,boxShadow:"0 30px 90px rgba(0,0,0,.62)",overflow:"hidden"}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"20px 24px",borderBottom:`1px solid ${t.line}`}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:44,height:44,borderRadius:12,background:t.accent,color:t.bg,display:"grid",placeItems:"center",fontFamily:"'Fraunces',serif",fontSize:20,fontWeight:600}}>{d.getDate()}</div>
+            <div>
+              <div style={{fontSize:16,fontWeight:600,color:t.ink,fontFamily:"'Fraunces',serif"}}>{heading}</div>
+              <div style={{fontSize:12.5,color:t.inkMuted}}>{tasks.length} task{tasks.length!==1?"s":""} due</div>
+            </div>
+          </div>
+          <button onClick={onClose} style={{background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:8,padding:7,cursor:"pointer",color:t.inkFaint,display:"grid",placeItems:"center"}}><X size={18}/></button>
+        </div>
+        <div style={{padding:"16px 24px",overflowY:"auto",flex:1}}>
+          {sorted.length===0
+            ?<div style={{textAlign:"center",color:t.inkFaint,padding:"40px 20px",fontSize:14}}>Nothing scheduled for this day.</div>
+            :<div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {sorted.map(tk=>{const co=COMPANIES.find(c=>c.id===tk.companyId);const St=STATUSES[tk.status];const Ico=St.icon;const isSel=editMode&&selected&&selected.has(tk.id);const click=()=>{if(editMode)onToggleSelect&&onToggleSelect(tk.id);else onOpen&&onOpen(tk.id);};return(
+                <button key={tk.id} onClick={click} style={{display:"flex",alignItems:"center",gap:12,background:isSel?t.accentSoft:t.bgElevated,border:`1px solid ${isSel?t.accent:t.line}`,borderLeft:`3px solid ${co?.color||t.accent}`,borderRadius:10,padding:"12px 14px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",width:"100%"}}>
+                  {editMode
+                    ?(isSel?<CheckSquare size={17} style={{color:t.accent,flexShrink:0}}/>:<Square size={17} style={{color:t.inkFaint,flexShrink:0}}/>)
+                    :<Ico size={17} style={{color:stC(tk.status,t),flexShrink:0}}/>}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:500,color:tk.status==="done"?t.inkFaint:t.ink,textDecoration:tk.status==="done"?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tk.title}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:9,marginTop:3,flexWrap:"wrap"}}>
+                      {co&&<span style={{fontSize:10.5,fontWeight:700,padding:"2px 7px",borderRadius:5,background:co.color+"22",color:co.color}}>{co.short}</span>}
+                      <span style={{fontSize:11,color:t.inkFaint}}>{tk.phase}</span>
+                      {tk.assignees.length>0&&<span style={{display:"flex",alignItems:"center",gap:3,fontSize:11.5,color:t.inkMuted}}><Users size={11}/>{tk.assignees.join(", ")}</span>}
+                      {tk.status==="done"&&tk.completed_by&&<span style={{display:"flex",alignItems:"center",gap:3,fontSize:11,fontWeight:600,color:t.good,background:t.goodSoft,padding:"2px 8px",borderRadius:5}}><Check size={11}/>Done by {tk.completed_by}</span>}
+                    </div>
+                  </div>
+                  <Star size={14} style={{color:PRIORITIES[tk.priority],fill:tk.priority==="high"?PRIORITIES.high:"none",flexShrink:0}}/>
+                </button>
+              );})}
+            </div>}
+        </div>
+        {!editMode&&<div style={{padding:"14px 24px",borderTop:`1px solid ${t.line}`}}>
+          <button onClick={onAddTask} style={{display:"flex",alignItems:"center",gap:6,background:t.accent,color:t.bg,border:"none",borderRadius:9,padding:"10px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Plus size={15}/>Add task on this day</button>
+        </div>}
+      </div>
     </div>
   );
 }
@@ -1302,6 +1382,7 @@ export default function App(){
   const [tasks,setTasks]=useState([]);const [loading,setLoading]=useState(true);const [me,setMe]=useState("Someone");
   const [cid,setCid]=useState("aps");const [view,setView]=useState("overview");const [track,setTrack]=useState("seo");
   const [statusF,setStatusF]=useState("all");const [openTask,setOpenTask]=useState(null);const [newTaskOpen,setNewTaskOpen]=useState(false);const [newTaskDeadline,setNewTaskDeadline]=useState("");const [importOpen,setImportOpen]=useState(false);const [coMenu,setCoMenu]=useState(false);
+  const [editMode,setEditMode]=useState(false);const [selected,setSelected]=useState(()=>new Set());const [dayModal,setDayModal]=useState(null);
   const mapRow=r=>({...r,companyId:r.company_id,deadline:r.deadline||"",notes:(r.notes||[]).map(n=>({id:n.id,who:n.author,text:n.body,when:new Date(n.created_at).toLocaleDateString()})),attachments:(r.attachments||[]).map(a=>({...a,type:a.kind}))});
   const reload=React.useCallback(async()=>{const rows=await loadTasks();setTasks(rows.map(mapRow));},[]);
   useEffect(()=>{(async()=>{try{const[rows,team,name]=await Promise.all([loadTasks(),getTeam(),currentName()]);if(team&&team.length)TEAM=team;setMe(name);setTasks(rows.map(mapRow));}finally{setLoading(false);}})();},[]);
@@ -1324,6 +1405,11 @@ export default function App(){
     if(Object.keys(dp).length)dbUpdate(id,dp);
   };
   const removeTask=async id=>{setOpenTask(null);setTasks(ts=>ts.filter(tk=>tk.id!==id));await dbDeleteTask(id);};
+  const removeTasks=async ids=>{const arr=[...ids];if(!arr.length)return;setTasks(ts=>ts.filter(tk=>!ids.has(tk.id)));setSelected(new Set());await dbDeleteTasks(arr);};
+  const toggleSelect=id=>setSelected(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
+  const exitEdit=()=>{setEditMode(false);setSelected(new Set());};
+  // Leaving edit mode whenever the view or company/track scope changes avoids stale selections.
+  useEffect(()=>{setEditMode(false);setSelected(new Set());},[view,cid,track]);
   const createTask=async input=>{await dbCreateTask(input);await reload();};
   const importTasks=async rows=>{const n=await dbImportTasks(rows);await reload();return n;};
   // Opens the New Task drawer, optionally pre-filling a deadline (used by the calendar).
@@ -1444,8 +1530,19 @@ export default function App(){
                   {STATUS_ORDER.map(s=><option key={s} value={s}>{STATUSES[s].label}</option>)}
                 </select>
               </div>
-              <button onClick={()=>setImportOpen(true)} style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,color:t.ink,border:`1px solid ${t.lineStrong}`,borderRadius:9,padding:"10px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Upload size={15}/>Import</button>
-              <button onClick={()=>openNewTask()} style={{display:"flex",alignItems:"center",gap:6,background:t.accent,color:t.bg,border:"none",borderRadius:9,padding:"10px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 16px -8px ${t.accent}cc`}}><Plus size={15}/>Add task</button>
+              {editMode?(
+                <>
+                  <span style={{fontSize:13,fontWeight:600,color:t.inkMuted}}>{selected.size} selected</span>
+                  <button onClick={()=>{if(selected.size&&window.confirm(`Delete ${selected.size} task${selected.size!==1?"s":""}? This can't be undone.`))removeTasks(selected);}} disabled={!selected.size} style={{display:"flex",alignItems:"center",gap:6,background:selected.size?t.bad:t.bgElevated,color:selected.size?"#fff":t.inkFaint,border:`1px solid ${selected.size?t.bad:t.lineStrong}`,borderRadius:9,padding:"10px 15px",fontSize:13.5,fontWeight:600,cursor:selected.size?"pointer":"default",fontFamily:"inherit"}}><Trash2 size={15}/>Delete</button>
+                  <button onClick={exitEdit} style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,color:t.ink,border:`1px solid ${t.lineStrong}`,borderRadius:9,padding:"10px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+                </>
+              ):(
+                <>
+                  <button onClick={()=>setEditMode(true)} style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,color:t.ink,border:`1px solid ${t.lineStrong}`,borderRadius:9,padding:"10px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><CheckSquare size={15}/>Edit</button>
+                  <button onClick={()=>setImportOpen(true)} style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,color:t.ink,border:`1px solid ${t.lineStrong}`,borderRadius:9,padding:"10px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Upload size={15}/>Import</button>
+                  <button onClick={()=>openNewTask()} style={{display:"flex",alignItems:"center",gap:6,background:t.accent,color:t.bg,border:"none",borderRadius:9,padding:"10px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 16px -8px ${t.accent}cc`}}><Plus size={15}/>Add task</button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -1460,14 +1557,15 @@ export default function App(){
         {view==="reports"     &&<ReportsView theme={t}/>}
         {view==="integrations"&&<IntegrationsView theme={t}/>}
         {view==="logins"      &&<LoginsView companyId={cid} theme={t}/>}
-        {view==="board"       &&<BoardView tasks={tasks} companyId={cid} track={track} statusFilter={statusF} theme={t} onOpen={setOpenTask} onUpdate={update} todayISO={todayISO} weekISO={weekISO}/>}
-        {view==="calendar"    &&<CalendarView tasks={tasks} companyId={cid} track={track} theme={t} onOpen={setOpenTask} onAddTask={openNewTask}/>}
+        {view==="board"       &&<BoardView tasks={tasks} companyId={cid} track={track} statusFilter={statusF} theme={t} onOpen={setOpenTask} onUpdate={update} todayISO={todayISO} weekISO={weekISO} editMode={editMode} selected={selected} onToggleSelect={toggleSelect}/>}
+        {view==="calendar"    &&<CalendarView tasks={tasks} companyId={cid} track={track} theme={t} onOpen={setOpenTask} onAddTask={openNewTask} editMode={editMode} selected={selected} onToggleSelect={toggleSelect} onOpenDay={setDayModal} onStartEdit={()=>setEditMode(true)} onExitEdit={exitEdit} onDeleteSelected={()=>{if(selected.size&&window.confirm(`Delete ${selected.size} task${selected.size!==1?"s":""}? This can't be undone.`))removeTasks(selected);}}/>}
         {view==="timeline"    &&<TimelineView tasks={tasks} companyId={cid} setCompanyId={setCid} theme={t}/>}
       </main>
 
       {detail&&<TaskDrawer t={detail} onClose={()=>setOpenTask(null)} update={update} onDelete={removeTask} company={COMPANIES.find(c=>c.id===detail.companyId)||COMPANIES[0]} me={me} onChanged={reload} theme={t}/>}
       <NewTaskModal open={newTaskOpen} onClose={()=>setNewTaskOpen(false)} onCreate={createTask} defaults={{phase:defPhase,deadline:newTaskDeadline}} companyId={cid==="all"?COMPANIES[0].id:cid} track={track} theme={t}/>
       <ImportModal open={importOpen} onClose={()=>setImportOpen(false)} onImport={importTasks} companyId={cid} track={track} theme={t}/>
+      {dayModal&&<DayTasksModal date={dayModal} tasks={tasks.filter(tk=>tk.deadline===dayModal&&(cid==="all"||tk.companyId===cid))} theme={t} onClose={()=>setDayModal(null)} onOpen={id=>{setDayModal(null);setOpenTask(id);}} onAddTask={()=>{setDayModal(null);openNewTask(dayModal);}} editMode={editMode} selected={selected} onToggleSelect={toggleSelect}/>}
     </div>
   );
 }
