@@ -867,8 +867,9 @@ const SEO_MASTER=[["Phase 1 — Foundations & Access",[["Secure domain + busines
 const PAID_MASTER=[["Phase 1 — Paid Foundations",[["Create Google Ads account","high","one-time"],["Define primary objective","high","one-time"],["Link Google Ads to GA4","high","one-time"]]],["Phase 2 — Conversion Tracking",[["Set up Google Tag Manager","high","one-time"],["Create conversion actions","high","one-time"],["Place conversion tag on thank-you pages","high","one-time"],["Confirm GA4 isn't double-counting","high","one-time"]]],["Phase 3 — Campaign Structure",[["Set account hierarchy","high","one-time"],["Separate Brand, Non-Brand, PMax","high","one-time"],["Build tight ad groups","high","one-time"],["Add 20+ negative keywords before launch","high","one-time"],["Write 2–3 Responsive Search Ads per ad group","high","one-time"]]],["Phase 4 — Launch & Budget",[["Set location targeting to Presence only","high","one-time"],["Set daily budget high enough","high","one-time"],["Start with Maximize Clicks","high","one-time"],["Monitor closely for first 48–72 hours","high","one-time"]]],["Phase 5 — Paid Optimization",[["Review Search Terms Report after ~100 clicks","high","weekly"],["Weekly budget review","high","weekly"],["Test new ad variations","medium","monthly"],["Run a full Google Ads audit","medium","quarterly"]]],["Phase 6 — Social Foundations",[["Create/claim business accounts","high","one-time"],["Apply consistent branding","high","one-time"],["Write keyword-clear bios","high","one-time"]]],["Phase 7 — Social Strategy",[["Write a one-sentence positioning statement","high","one-time"],["Create audience personas","high","one-time"],["Define 3–5 content pillars","high","one-time"]]],["Phase 8 — Content Creation",[["Build a content calendar","high","one-time"],["Bank 15–20 posts before launch","high","one-time"],["Shoot 5–10 short-form videos","high","monthly"],["Repurpose each core asset","medium","weekly"]]],["Phase 9 — Engagement",[["Post consistently (3–5×/week)","high","weekly"],["Reply to comments and DMs","high","weekly"]]],["Phase 10 — Paid Social",[["Install Meta Pixel","high","one-time"],["Build first-party custom audiences","high","one-time"],["A/B test creatives","medium","monthly"]]],["Phase 11 — Analytics & Reporting",[["Build combined dashboard","high","one-time"],["Review platform analytics weekly","medium","weekly"],["Monthly performance review","medium","monthly"]]]];
 const SEO_TIMELINE=[{phase:"Phase 1 — Foundations & Access",start:1,len:2,kind:"one-time"},{phase:"Phase 2 — Measurement & Verification",start:1,len:2,kind:"one-time"},{phase:"Phase 3 — Keyword & Market Research",start:2,len:2,kind:"one-time"},{phase:"Phase 4 — Technical SEO",start:3,len:3,kind:"one-time"},{phase:"Phase 5 — On-Page SEO",start:4,len:2,kind:"one-time"},{phase:"Phase 6 — Content & E-E-A-T",start:5,len:3,kind:"recurring"},{phase:"Phase 7 — Local SEO",start:6,len:2,kind:"recurring"},{phase:"Phase 8 — Off-Page & Authority",start:7,len:6,kind:"recurring"},{phase:"Phase 9 — AI Search Readiness",start:8,len:5,kind:"recurring"},{phase:"Phase 10 — Measurement & Reporting",start:9,len:4,kind:"recurring"}];
 
-function BoardView({tasks,companyId,track,statusFilter,theme:t,onOpen,onUpdate,todayISO,weekISO,editMode,selected,onToggleSelect}){
-  const visible=useMemo(()=>tasks.filter(tk=>(companyId==="all"||tk.companyId===companyId)&&tk.track===track&&(statusFilter==="all"||tk.status===statusFilter)&&(!tk.recurring||(tk.deadline>=todayISO&&tk.deadline<=weekISO))),[tasks,companyId,track,statusFilter,todayISO,weekISO]);
+function BoardView({tasks,companyId,track,statusFilter,assigneeFilter,theme:t,onOpen,onUpdate,todayISO,weekISO,editMode,selected,onToggleSelect}){
+  const matchAssignee=tk=>assigneeFilter==="all"||(assigneeFilter==="__unassigned"?tk.assignees.length===0:tk.assignees.includes(assigneeFilter));
+  const visible=useMemo(()=>tasks.filter(tk=>(companyId==="all"||tk.companyId===companyId)&&tk.track===track&&(statusFilter==="all"||tk.status===statusFilter)&&matchAssignee(tk)&&(!tk.recurring||(tk.deadline>=todayISO&&tk.deadline<=weekISO))),[tasks,companyId,track,statusFilter,assigneeFilter,todayISO,weekISO]);
   const grouped=useMemo(()=>{const m=new Map();for(const tk of visible){if(!m.has(tk.phase))m.set(tk.phase,[]);m.get(tk.phase).push(tk);}return[...m.entries()];},[visible]);
   if(!grouped.length)return <div style={{flex:1,overflowY:"auto",padding:"22px 38px 60px"}}><div style={{textAlign:"center",color:t.inkFaint,padding:50,fontSize:14}}>No tasks match this filter.</div></div>;
   const togglePhase=(items,allSel)=>{items.forEach(tk=>{const has=selected&&selected.has(tk.id);if(allSel&&has)onToggleSelect(tk.id);else if(!allSel&&!has)onToggleSelect(tk.id);});};
@@ -927,7 +928,7 @@ const parseISO=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d
 const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x;};
 const startOfWeek=d=>addDays(d,-d.getDay());
 
-function CalendarView({tasks,companyId,track,theme:t,onOpen,onAddTask,onReschedule,editMode,selected,onToggleSelect,onOpenDay,onStartEdit,onExitEdit,onDeleteSelected}){
+function CalendarView({tasks,companyId,track,assigneeFilter,setAssigneeFilter,theme:t,onOpen,onAddTask,onReschedule,editMode,selected,onToggleSelect,onOpenDay,onStartEdit,onExitEdit,onDeleteSelected}){
   const [mode,setMode]=useState("month");                 // day | week | month
   const [anchor,setAnchor]=useState(()=>{const d=new Date();d.setHours(0,0,0,0);return d;}); // reference date
   const [showUnsched,setShowUnsched]=useState(false);
@@ -935,7 +936,9 @@ function CalendarView({tasks,companyId,track,theme:t,onOpen,onAddTask,onReschedu
   const [overDay,setOverDay]=useState(null);              // ISO date currently hovered as a drop target
   const todayStr=ymd(new Date());
 
-  const scoped=useMemo(()=>tasks.filter(tk=>companyId==="all"||tk.companyId===companyId),[tasks,companyId]);
+  const af=assigneeFilter||"all";
+  const matchAssignee=tk=>af==="all"||(af==="__unassigned"?tk.assignees.length===0:tk.assignees.includes(af));
+  const scoped=useMemo(()=>tasks.filter(tk=>(companyId==="all"||tk.companyId===companyId)&&matchAssignee(tk)),[tasks,companyId,af]);
   const dated=useMemo(()=>scoped.filter(tk=>tk.deadline),[scoped]);
   const unscheduled=useMemo(()=>scoped.filter(tk=>!tk.deadline&&tk.status!=="done"),[scoped]);
   const byDay=useMemo(()=>{const map={};for(const tk of dated)(map[tk.deadline]||=[]).push(tk);return map;},[dated]);
@@ -1009,6 +1012,14 @@ function CalendarView({tasks,companyId,track,theme:t,onOpen,onAddTask,onReschedu
                 ?<span style={{display:"flex",alignItems:"center",gap:6,fontSize:12.5,fontWeight:600,color:t.accentDeep,background:t.accentSoft,border:`1px solid ${t.accent}55`,borderRadius:9,padding:"7px 12px"}}><CalendarDays size={14}/>Drop on a day to move “{drag.title.length>28?drag.title.slice(0,28)+"…":drag.title}”</span>
                 :<span style={{fontSize:12.5,color:t.inkMuted,fontWeight:600}}>{rangeCount} task{rangeCount!==1?"s":""} this {mode}</span>}
               {unscheduled.length>0&&<button onClick={()=>setShowUnsched(v=>!v)} style={{display:"flex",alignItems:"center",gap:6,background:showUnsched?t.warnSoft:t.bgElevated,border:`1px solid ${showUnsched?t.warn:t.lineStrong}`,color:showUnsched?t.warn:t.inkMuted,borderRadius:9,padding:"7px 13px",fontSize:12.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><AlertTriangle size={13}/>{unscheduled.length} unscheduled<ChevronDown size={13} style={{transform:showUnsched?"rotate(180deg)":"none",transition:"transform .15s"}}/></button>}
+              <div style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,border:`1px solid ${af!=="all"?t.accent:t.line}`,borderRadius:9,padding:"0 10px"}}>
+                <Users size={14} style={{opacity:.6,color:af!=="all"?t.accent:t.inkFaint}}/>
+                <select style={{border:"none",background:"none",padding:"8px 4px",fontSize:13,color:t.ink,cursor:"pointer",outline:"none",fontFamily:"inherit"}} value={af} onChange={e=>setAssigneeFilter&&setAssigneeFilter(e.target.value)}>
+                  <option value="all">Everyone</option>
+                  <option value="__unassigned">Unassigned</option>
+                  {TEAM.map(n=><option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
               <button onClick={onStartEdit} style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,color:t.ink,border:`1px solid ${t.lineStrong}`,borderRadius:9,padding:"9px 14px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><CheckSquare size={15}/>Edit</button>
               <button onClick={()=>onAddTask&&onAddTask(mode==="day"?ymd(anchor):"")} style={{display:"flex",alignItems:"center",gap:6,background:addBtnBg,color:t.bg,border:"none",borderRadius:9,padding:"9px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 16px -8px ${t.accent}cc`}}><Plus size={15}/>Add task</button>
             </>
@@ -1056,7 +1067,7 @@ function readableOn(hex){
 function CalTaskChip({tk,theme:t,onOpen,editMode,selected,onToggleSelect,dnd}){
   const co=COMPANIES.find(c=>c.id===tk.companyId);
   const bg=co?.color||t.accent;
-  const fg=readableOn(bg);
+  const fg="#0B0B0B"; // caption/label text always black on the colored chip
   const done=tk.status==="done";
   const isSel=editMode&&selected&&selected.has(tk.id);
   const isDragging=dnd&&dnd.dragging&&dnd.dragging.id===tk.id;
@@ -1470,7 +1481,7 @@ const NAV=[
 export default function App(){
   const [tasks,setTasks]=useState([]);const [loading,setLoading]=useState(true);const [me,setMe]=useState("Someone");
   const [cid,setCid]=useState("aps");const [view,setView]=useState("overview");const [track,setTrack]=useState("seo");
-  const [statusF,setStatusF]=useState("all");const [openTask,setOpenTask]=useState(null);const [newTaskOpen,setNewTaskOpen]=useState(false);const [newTaskDeadline,setNewTaskDeadline]=useState("");const [importOpen,setImportOpen]=useState(false);const [coMenu,setCoMenu]=useState(false);
+  const [statusF,setStatusF]=useState("all");const [assigneeF,setAssigneeF]=useState("all");const [openTask,setOpenTask]=useState(null);const [newTaskOpen,setNewTaskOpen]=useState(false);const [newTaskDeadline,setNewTaskDeadline]=useState("");const [importOpen,setImportOpen]=useState(false);const [coMenu,setCoMenu]=useState(false);
   const [editMode,setEditMode]=useState(false);const [selected,setSelected]=useState(()=>new Set());const [dayModal,setDayModal]=useState(null);
   const mapRow=r=>({...r,companyId:r.company_id,deadline:r.deadline||"",notes:(r.notes||[]).map(n=>({id:n.id,who:n.author,text:n.body,when:new Date(n.created_at).toLocaleDateString()})),attachments:(r.attachments||[]).map(a=>({...a,type:a.kind}))});
   const reload=React.useCallback(async()=>{const rows=await loadTasks();setTasks(rows.map(mapRow));},[]);
@@ -1619,6 +1630,14 @@ export default function App(){
                   {STATUS_ORDER.map(s=><option key={s} value={s}>{STATUSES[s].label}</option>)}
                 </select>
               </div>
+              <div style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,border:`1px solid ${assigneeF!=="all"?t.accent:t.line}`,borderRadius:9,padding:"0 10px"}}>
+                <Users size={14} style={{opacity:.6,color:assigneeF!=="all"?t.accent:t.inkFaint}}/>
+                <select style={{border:"none",background:"none",padding:"9px 4px",fontSize:13,color:t.ink,cursor:"pointer",outline:"none",fontFamily:"inherit"}} value={assigneeF} onChange={e=>setAssigneeF(e.target.value)}>
+                  <option value="all">Everyone</option>
+                  <option value="__unassigned">Unassigned</option>
+                  {TEAM.map(n=><option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
               {editMode?(
                 <>
                   <span style={{fontSize:13,fontWeight:600,color:t.inkMuted}}>{selected.size} selected</span>
@@ -1646,15 +1665,15 @@ export default function App(){
         {view==="reports"     &&<ReportsView theme={t}/>}
         {view==="integrations"&&<IntegrationsView theme={t}/>}
         {view==="logins"      &&<LoginsView companyId={cid} theme={t}/>}
-        {view==="board"       &&<BoardView tasks={tasks} companyId={cid} track={track} statusFilter={statusF} theme={t} onOpen={setOpenTask} onUpdate={update} todayISO={todayISO} weekISO={weekISO} editMode={editMode} selected={selected} onToggleSelect={toggleSelect}/>}
-        {view==="calendar"    &&<CalendarView tasks={tasks} companyId={cid} track={track} theme={t} onOpen={setOpenTask} onAddTask={openNewTask} onReschedule={(id,date)=>update(id,{deadline:date})} editMode={editMode} selected={selected} onToggleSelect={toggleSelect} onOpenDay={setDayModal} onStartEdit={()=>setEditMode(true)} onExitEdit={exitEdit} onDeleteSelected={()=>{if(selected.size&&window.confirm(`Delete ${selected.size} task${selected.size!==1?"s":""}? This can't be undone.`))removeTasks(selected);}}/>}
+        {view==="board"       &&<BoardView tasks={tasks} companyId={cid} track={track} statusFilter={statusF} assigneeFilter={assigneeF} theme={t} onOpen={setOpenTask} onUpdate={update} todayISO={todayISO} weekISO={weekISO} editMode={editMode} selected={selected} onToggleSelect={toggleSelect}/>}
+        {view==="calendar"    &&<CalendarView tasks={tasks} companyId={cid} track={track} assigneeFilter={assigneeF} setAssigneeFilter={setAssigneeF} theme={t} onOpen={setOpenTask} onAddTask={openNewTask} onReschedule={(id,date)=>update(id,{deadline:date})} editMode={editMode} selected={selected} onToggleSelect={toggleSelect} onOpenDay={setDayModal} onStartEdit={()=>setEditMode(true)} onExitEdit={exitEdit} onDeleteSelected={()=>{if(selected.size&&window.confirm(`Delete ${selected.size} task${selected.size!==1?"s":""}? This can't be undone.`))removeTasks(selected);}}/>}
         {view==="timeline"    &&<TimelineView tasks={tasks} companyId={cid} setCompanyId={setCid} theme={t}/>}
       </main>
 
       {detail&&<TaskDrawer t={detail} onClose={()=>setOpenTask(null)} update={update} onDelete={removeTask} company={COMPANIES.find(c=>c.id===detail.companyId)||COMPANIES[0]} me={me} onChanged={reload} theme={t}/>}
       <NewTaskModal open={newTaskOpen} onClose={()=>setNewTaskOpen(false)} onCreate={createTask} defaults={{phase:defPhase,deadline:newTaskDeadline}} companyId={cid==="all"?COMPANIES[0].id:cid} track={track} theme={t}/>
       <ImportModal open={importOpen} onClose={()=>setImportOpen(false)} onImport={importTasks} companyId={cid} track={track} theme={t}/>
-      {dayModal&&<DayTasksModal date={dayModal} tasks={tasks.filter(tk=>tk.deadline===dayModal&&(cid==="all"||tk.companyId===cid))} theme={t} onClose={()=>setDayModal(null)} onOpen={id=>{setDayModal(null);setOpenTask(id);}} onAddTask={()=>{setDayModal(null);openNewTask(dayModal);}} editMode={editMode} selected={selected} onToggleSelect={toggleSelect}/>}
+      {dayModal&&<DayTasksModal date={dayModal} tasks={tasks.filter(tk=>tk.deadline===dayModal&&(cid==="all"||tk.companyId===cid)&&(assigneeF==="all"||(assigneeF==="__unassigned"?tk.assignees.length===0:tk.assignees.includes(assigneeF))))} theme={t} onClose={()=>setDayModal(null)} onOpen={id=>{setDayModal(null);setOpenTask(id);}} onAddTask={()=>{setDayModal(null);openNewTask(dayModal);}} editMode={editMode} selected={selected} onToggleSelect={toggleSelect}/>}
     </div>
   );
 }
