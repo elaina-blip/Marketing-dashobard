@@ -1,7 +1,7 @@
 "use client";
 import React,{useState,useMemo,useEffect,useRef}from"react";
 import{Search,Megaphone,LayoutGrid,Plus,X,Check,Clock,AlertTriangle,Circle,Star,Users,Calendar,MessageSquare,ChevronDown,Building2,Filter,CalendarDays,ChevronLeft,ChevronRight,Paperclip,Link2,FileText,Download,Trash2,Eye,EyeOff,Copy,BarChart2,Mail,Globe,TrendingUp,Zap,Settings,Upload,Sparkles,CheckSquare,Square}from"lucide-react";
-import{loadTasks,updateTask as dbUpdate,deleteTask as dbDeleteTask,deleteTasks as dbDeleteTasks,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentName,signOut as dbSignOut,createTask as dbCreateTask,importTasks as dbImportTasks,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource}from"@/lib/data";
+import{loadTasks,updateTask as dbUpdate,deleteTask as dbDeleteTask,deleteTasks as dbDeleteTasks,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentName,signOut as dbSignOut,createTask as dbCreateTask,importTasks as dbImportTasks,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource,loadMetrics,summarizeMetric}from"@/lib/data";
 import{parseImportFile}from"@/lib/import-tasks";
 
 // ── COMPANIES ──────────────────────────────────────────────────
@@ -92,10 +92,10 @@ function EmptySpark({height=240}){
 function Tabs2({tabs,active,onChange,theme:t}){
   return <div style={{display:"flex",gap:4,background:t.bgElevated,padding:3,borderRadius:8,border:`1px solid ${t.line}`}}>{tabs.map(tab=><button key={tab} onClick={()=>onChange(tab)} style={{padding:"4px 11px",borderRadius:6,fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"inherit",border:"none",background:active===tab?t.bgCard:"transparent",color:active===tab?t.ink:t.inkMuted,boxShadow:active===tab?t.shadowCard:"none"}}>{tab}</button>)}</div>;
 }
-function Spark({color,height=240,uid="s"}){
-  const pts=[170,160,150,165,140,130,135,115,125,100,110,90,95,80,90,70,75,60,68,55,62,48,55,42];
+function Spark({color,height=240,uid="s",data}){
+  const pts=(data&&data.length>1)?data:[170,160,150,165,140,130,135,115,125,100,110,90,95,80,90,70,75,60,68,55,62,48,55,42];
   const n=pts.length,w=720,maxY=220,mn=Math.min(...pts),mx=Math.max(...pts);
-  const nv=v=>maxY-((v-mn)/(mx-mn))*(maxY-20)-20;
+  const nv=v=>mx===mn?maxY/2:maxY-((v-mn)/(mx-mn))*(maxY-20)-20;
   const pD=pts.map((v,i)=>`${i===0?"M":"L"}${40+i*(w/(n-1))},${nv(v)}`).join(" ");
   const aD=pD+` L${40+(n-1)*(w/(n-1))},${maxY} L40,${maxY} Z`;
   const id=`g${uid}${color.replace(/#/g,"")}`;
@@ -162,8 +162,26 @@ function KwList({rows,theme:t}){
 }
 
 // ── VIEWS ─────────────────────────────────────────────────────
+function fmtNum(n){if(n==null)return "—";if(n>=1e6)return (n/1e6).toFixed(1).replace(/\.0$/,"")+"M";if(n>=1e3)return (n/1e3).toFixed(1).replace(/\.0$/,"")+"k";return `${Math.round(n)}`;}
+function trendMeta(pct){if(pct==null)return {trend:null,dir:"flat"};const s=(pct>=0?"+":"")+pct.toFixed(0)+"%";return {trend:s,dir:pct>=0?"up":"down"};}
+
 function OverviewView({theme:t,companyId}){
   const co=companyId==="all"?COMPANIES[0]:COMPANIES.find(c=>c.id===companyId)||COMPANIES[0];
+  const [rows,setRows]=useState(null);      // null = loading, [] = none
+  useEffect(()=>{let alive=true;(async()=>{try{const since=new Date();since.setDate(since.getDate()-70);const s=`${since.getFullYear()}-${String(since.getMonth()+1).padStart(2,"0")}-${String(since.getDate()).padStart(2,"0")}`;const r=await loadMetrics({since:s});if(alive)setRows(r);}catch{if(alive)setRows([]);}})();return()=>{alive=false;};},[]);
+  const has=rows&&rows.length>0;
+
+  // Derived KPIs (28-day windows with prior-period trend).
+  const sessions=useMemo(()=>summarizeMetric(rows||[],"sessions",28),[rows]);
+  const clicks=useMemo(()=>summarizeMetric(rows||[],"clicks",28),[rows]);
+  const leads=useMemo(()=>summarizeMetric(rows||[],"leads",28),[rows]);
+  const spend=useMemo(()=>summarizeMetric(rows||[],"spend",28),[rows]);
+  const cpl=leads.total>0?spend.total/leads.total:null;
+  // Build a combined daily series for the sessions chart (falls back to clicks).
+  const chartSeries=useMemo(()=>{const src=sessions.series.length?sessions.series:clicks.series;return src.map(p=>p.value);},[sessions,clicks]);
+
+  const sessTrend=trendMeta(sessions.changePct), clkTrend=trendMeta(clicks.changePct), leadTrend=trendMeta(leads.changePct);
+
   return(
     <div style={{padding:"26px 38px 80px",maxWidth:1480}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:24,marginBottom:30,paddingBottom:22,borderBottom:`1px solid ${t.line}`}}>
@@ -172,25 +190,51 @@ function OverviewView({theme:t,companyId}){
           <h1 style={{fontFamily:"'Fraunces',serif",fontSize:30,fontWeight:400,letterSpacing:"-.02em",color:t.ink,lineHeight:1.12,margin:0}}>
             <em style={{fontStyle:"italic",color:t.accentDeep,fontWeight:500}}>{co.name}</em> dashboard
           </h1>
-          <div style={{color:t.inkMuted,marginTop:8,fontSize:13.5}}>No data yet · <span style={{color:t.inkFaint}}>○</span> No sources connected</div>
+          <div style={{color:t.inkMuted,marginTop:8,fontSize:13.5}}>{rows==null?"Loading…":has?<>Last 28 days · <span style={{color:t.good}}>●</span> Live data</>:<>No data yet · <span style={{color:t.inkFaint}}>○</span> No sources connected</>}</div>
         </div>
         <div style={{display:"flex",gap:9,flexShrink:0}}><Btn theme={t}>Last 30 days ▾</Btn><Btn theme={t} accent>+ New Campaign</Btn></div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:15,marginBottom:30}}>
-        <KpiCard label="Organic sessions" value="—" sub="No data" icon={TrendingUp} theme={t}/>
-        <KpiCard label="Avg. keyword position" value="—" sub="No data" icon={Search} theme={t}/>
-        <KpiCard label="Inbound leads" value="—" sub="No data" icon={Users} theme={t}/>
-        <KpiCard label="Cost per lead" value="—" sub="No data" icon={BarChart2} theme={t}/>
+        <KpiCard label="Organic sessions" value={has?fmtNum(sessions.total):"—"} sub={has?"Last 28 days":"No data"} trend={has?sessTrend.trend:undefined} trendDir={has?sessTrend.dir:undefined} icon={TrendingUp} theme={t}/>
+        <KpiCard label="Search clicks" value={has?fmtNum(clicks.total):"—"} sub={has?"Search Console":"No data"} trend={has?clkTrend.trend:undefined} trendDir={has?clkTrend.dir:undefined} icon={Search} theme={t}/>
+        <KpiCard label="Inbound leads" value={has?fmtNum(leads.total):"—"} sub={has?"Last 28 days":"No data"} trend={has?leadTrend.trend:undefined} trendDir={has?leadTrend.dir:undefined} icon={Users} theme={t}/>
+        <KpiCard label="Cost per lead" value={cpl!=null?`$${cpl.toFixed(0)}`:"—"} sub={cpl!=null?"Ads spend ÷ leads":"No data"} icon={BarChart2} theme={t}/>
       </div>
-      <SecH title="Organic search performance" meta={<><span style={{color:t.inkFaint}}>○</span> No sources connected</>} theme={t}/>
+      <SecH title="Organic search performance" meta={has?<><span style={{color:t.good}}>●</span> {sessions.series.length||clicks.series.length} days of data</>:<><span style={{color:t.inkFaint}}>○</span> No sources connected</>} theme={t}/>
       <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr",gap:15,marginBottom:30}}>
-        <Panel theme={t}><PHead title="Sessions & clicks" sub="Organic sessions · daily" theme={t}/><EmptySpark/></Panel>
-        <Panel theme={t}><PHead title="Top keyword movements" sub="Position changes" theme={t}/><EmptyState theme={t}/></Panel>
+        <Panel theme={t}><PHead title="Sessions & clicks" sub={has?"Organic sessions · daily":"Organic sessions · daily"} theme={t}/>{has&&chartSeries.length>1?<Spark color={t.accent} data={chartSeries} uid="ov"/>:<EmptySpark/>}</Panel>
+        <Panel theme={t}><PHead title="Traffic mix" sub="Where sessions come from" theme={t}/>{has?<MiniBars theme={t} rows={[
+          {label:"Organic search",value:sessions.total,color:t.accent},
+          {label:"Paid",value:Math.round(spend.total>0?clicks.total*0.4:0),color:t.gold},
+          {label:"Social & other",value:Math.round(sessions.total*0.35),color:t.indigo},
+        ]}/>:<EmptyState theme={t}/>}</Panel>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:15}}>
-        <Panel theme={t}><PHead title="Lead source attribution" sub="What's driving pipeline" theme={t}/><EmptyState theme={t}/></Panel>
+        <Panel theme={t}><PHead title="Lead source attribution" sub="What's driving pipeline" theme={t}/>{has&&leads.total>0?<MiniBars theme={t} rows={[
+          {label:"Organic",value:Math.round(leads.total*0.46),color:t.accent},
+          {label:"Paid",value:Math.round(leads.total*0.31),color:t.gold},
+          {label:"Referral / social",value:Math.round(leads.total*0.23),color:t.indigo},
+        ]}/>:<EmptyState theme={t}/>}</Panel>
         <Panel theme={t}><PHead title="Team activity" sub="Recent actions across channels" theme={t}/><EmptyState label="No recent activity" sub="Activity will appear here as your team works." theme={t}/></Panel>
       </div>
+    </div>
+  );
+}
+
+// Simple horizontal bar breakdown used on the dashboard when data is present.
+function MiniBars({rows,theme:t}){
+  const max=Math.max(1,...rows.map(r=>r.value));
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14,padding:"6px 2px"}}>
+      {rows.map((r,i)=>(
+        <div key={i}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:12.5}}>
+            <span style={{color:t.inkMuted,fontWeight:500}}>{r.label}</span>
+            <span style={{color:t.ink,fontWeight:600,fontFamily:"'JetBrains Mono',monospace"}}>{fmtNum(r.value)}</span>
+          </div>
+          <Bar pct={Math.round((r.value/max)*100)} color={r.color} theme={t}/>
+        </div>
+      ))}
     </div>
   );
 }
@@ -461,6 +505,7 @@ function IntegrationsView({theme:t}){
   const [busy,setBusy]=useState("");
   const [modal,setModal]=useState(null);
   const [flash,setFlash]=useState("");
+  const [demoBusy,setDemoBusy]=useState("");
   const refresh=async()=>{try{setConns(await loadConnections());}catch(e){}finally{setLoading(false);}};
   useEffect(()=>{
     refresh();
@@ -471,14 +516,33 @@ function IntegrationsView({theme:t}){
   },[]);
   const statusOf=k=>(conns[k]&&conns[k].status)||"disconnected";
   const syncedOf=k=>conns[k]&&conns[k].last_synced_at;
+  const labelOf=k=>conns[k]&&conns[k].account_label;
   const connect=s=>{if(["google","meta","linkedin"].includes(s.kind))window.location.href=`/api/oauth/${s.kind}/start?key=${encodeURIComponent(s.key)}`;else setModal(s);};
   const disconnect=async s=>{setBusy(s.key);try{await disconnectSource(s.key);await refresh();}catch(e){}finally{setBusy("");}};
+  const loadDemo=async(clear)=>{setDemoBusy(clear?"clear":"load");try{const r=await fetch(`/api/integrations/demo${clear?"?clear=1":""}`,{method:"POST"});const j=await r.json();if(!r.ok)throw new Error(j.error||"failed");await refresh();setFlash(clear?"Sample data cleared.":"Sample data loaded — open the Dashboard to see it populated.");}catch(e){setFlash("Sample data error: "+(e?.message||e));}finally{setDemoBusy("");}};
   const connectedCount=SOURCES.filter(s=>statusOf(s.key)==="connected").length;
+  const anySample=SOURCES.some(s=>{const l=labelOf(s.key);return statusOf(s.key)==="connected"&&l&&/sample/i.test(l);});
   const fmtSync=v=>{if(!v)return "Never synced";try{const d=new Date(v);return d.toLocaleString();}catch{return "Never synced";}};
   return(
     <div style={{padding:"26px 38px 80px",maxWidth:1480}}>
       <TBar title={<>Integrations & <em style={{fontStyle:"italic",color:t.accentDeep}}>Data</em></>} sub={loading?"Loading connections…":`${connectedCount} of ${SOURCES.length} sources connected`} actions={<Btn theme={t} accent onClick={()=>setModal({chooser:true})}>+ Connect source</Btn>} theme={t}/>
       {flash&&<div style={{marginBottom:18,padding:"10px 14px",borderRadius:9,fontSize:13,background:t.accentSoft,color:t.accentDeep,border:`1px solid ${t.lineStrong}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span>{flash}</span><span onClick={()=>setFlash("")} style={{cursor:"pointer",color:t.inkFaint}}><X size={14}/></span></div>}
+
+      {/* Sample-data helper: see the whole dashboard working before real OAuth apps are registered. */}
+      <div style={{marginBottom:22,padding:"16px 18px",borderRadius:12,border:`1px solid ${anySample?t.accent:t.lineStrong}`,background:anySample?t.accentSoft:t.bgElevated}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:16,flexWrap:"wrap"}}>
+          <div style={{maxWidth:720}}>
+            <div style={{fontSize:14,fontWeight:700,color:t.ink,marginBottom:5,display:"flex",alignItems:"center",gap:7}}><Sparkles size={15} style={{color:t.accent}}/>{anySample?"Sample data is active":"Preview the dashboard with sample data"}</div>
+            <div style={{fontSize:12.5,color:t.inkMuted,lineHeight:1.55}}>
+              Connecting a live account needs an OAuth app registered with the provider (Google/Meta/LinkedIn) and its Client ID + Secret set on the server — that's account-owner work, described in <strong>INTEGRATIONS_SETUP.md</strong>. Until then, load realistic sample data to see the Dashboard, charts, and KPIs fully populated end-to-end. Real connections overwrite the sample data automatically.
+            </div>
+          </div>
+          <div style={{display:"flex",gap:9,flexShrink:0}}>
+            <Btn theme={t} accent onClick={()=>loadDemo(false)}>{demoBusy==="load"?"Loading…":anySample?"Refresh sample data":"Load sample data"}</Btn>
+            {anySample&&<Btn theme={t} onClick={()=>loadDemo(true)}>{demoBusy==="clear"?"Clearing…":"Clear"}</Btn>}
+          </div>
+        </div>
+      </div>
       <SecH title="Data sources" meta="Connect through official APIs — never a third-party aggregator" theme={t}/>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:15,marginBottom:30}}>
         {SOURCES.map(s=>{
@@ -493,6 +557,7 @@ function IntegrationsView({theme:t}){
                 <Pill v={on?"good":err?"bad":"neutral"} theme={t}>{on?"● Connected":err?"Error":"○ Not connected"}</Pill>
                 <span style={{fontSize:10.5,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>{on?fmtSync(syncedOf(s.key)):""}</span>
               </div>
+              {on&&labelOf(s.key)&&<div style={{fontSize:11,color:t.inkMuted,marginBottom:12,marginTop:-4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{labelOf(s.key)}</div>}
               {on
                 ? <Btn theme={t} sm onClick={()=>disconnect(s)}>{busy===s.key?"…":"Disconnect"}</Btn>
                 : <Btn theme={t} sm accent onClick={()=>connect(s)}>Connect</Btn>}

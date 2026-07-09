@@ -73,6 +73,28 @@ Verify: Table Editor now shows `data_connections`, `connection_secrets`, and
 
 ---
 
+## 3B. Fastest path: preview the dashboard with SAMPLE data (no OAuth app needed)
+
+Registering the real Google/Meta/LinkedIn apps takes time (and, for some scopes,
+provider review). To see the whole product working **right now** — Dashboard KPIs,
+charts, connected-source cards — use the built-in sample data:
+
+1. Make sure `02_integrations.sql` has been run (step 3 above) so `provider_metrics` exists.
+2. Open the app → **Integrations & Data** → click **Load sample data**.
+3. Open **Dashboard**: KPIs (organic sessions, search clicks, leads, cost-per-lead),
+   the sessions chart, and the breakdowns are now populated with ~90 days of
+   realistic numbers.
+
+This calls `POST /api/integrations/demo` (gated to a signed-in allow-listed user;
+writes with the service-role key). It marks the affected sources `connected` with
+an account label of "… Sample" and fills `provider_metrics`. Click **Clear** on the
+same banner to remove it. When you later connect a real account, its sync overwrites
+the sample rows for that provider, so there's no cleanup needed.
+
+Requirement: `SUPABASE_SERVICE_ROLE_KEY` must be set (it's already needed by seed/cron).
+
+---
+
 ## 4. Environment variables
 
 Add these in **Vercel → Settings → Environment Variables**, then redeploy. Never

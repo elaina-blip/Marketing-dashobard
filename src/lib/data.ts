@@ -368,3 +368,39 @@ export async function disconnectSource(provider: string): Promise<void> {
   const res = await fetch(`/api/oauth/${encodeURIComponent(provider)}/disconnect`, { method: "POST" });
   if (!res.ok) throw new Error("disconnect failed");
 }
+
+// ---- Provider metrics (what the dashboard/reports read) ----
+export type MetricRow = { provider: string; metric: string; metric_date: string; value: number };
+
+// Load metric rows, optionally filtered to a set of providers and/or a start date
+// (ISO yyyy-mm-dd). Returns rows sorted by date ascending, chart-ready.
+export async function loadMetrics(opts?: { providers?: string[]; since?: string }): Promise<MetricRow[]> {
+  let q = supabase.from("provider_metrics").select("provider, metric, metric_date, value");
+  if (opts?.providers && opts.providers.length) q = q.in("provider", opts.providers);
+  if (opts?.since) q = q.gte("metric_date", opts.since);
+  const { data, error } = await q.order("metric_date", { ascending: true });
+  if (error) throw error;
+  return (data || []) as MetricRow[];
+}
+
+// Sum a single metric across a provider list within the last N days.
+// Returns { total, prevTotal, series } so a card can show a value, a trend %,
+// and a sparkline without every view re-implementing the math.
+export type MetricSummary = { total: number; prevTotal: number; changePct: number | null; series: { date: string; value: number }[] };
+export function summarizeMetric(rows: MetricRow[], metric: string, days = 28): MetricSummary {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const start = new Date(today); start.setDate(start.getDate() - (days - 1));
+  const prevStart = new Date(start); prevStart.setDate(prevStart.getDate() - days);
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const s = iso(start), ps = iso(prevStart);
+  const byDate: Record<string, number> = {};
+  let total = 0, prevTotal = 0;
+  for (const r of rows) {
+    if (r.metric !== metric) continue;
+    if (r.metric_date >= s) { total += Number(r.value) || 0; byDate[r.metric_date] = (byDate[r.metric_date] || 0) + (Number(r.value) || 0); }
+    else if (r.metric_date >= ps) { prevTotal += Number(r.value) || 0; }
+  }
+  const series = Object.keys(byDate).sort().map(date => ({ date, value: byDate[date] }));
+  const changePct = prevTotal > 0 ? ((total - prevTotal) / prevTotal) * 100 : null;
+  return { total, prevTotal, changePct, series };
+}
