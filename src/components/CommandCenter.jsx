@@ -1568,33 +1568,63 @@ function HubFiles({companyId,me,t}){
   const[busy,setBusy]=useState(false);
   const[typeF,setTypeF]=useState("all");
   const[upCompany,setUpCompany]=useState(companyId==="all"?"aps":companyId);
+  const[dragOver,setDragOver]=useState(false);
+  const[progress,setProgress]=useState(null);   // {done,total} while uploading a batch
   const inputRef=useRef(null);
+  const dragDepth=useRef(0);                     // track nested dragenter/leave so the overlay doesn't flicker
   const reload=async()=>{try{setFiles(await loadHubFiles());}finally{setLoading(false);}};
   useEffect(()=>{reload();},[]);
   useEffect(()=>{setUpCompany(companyId==="all"?"aps":companyId);},[companyId]);
-  const onPick=async e=>{
-    const fl=Array.from(e.target.files||[]);if(!fl.length)return;
-    setBusy(true);
-    try{for(const f of fl)await uploadHubFile(upCompany,f,me);await reload();}
-    catch(err){alert("Upload failed: "+(err?.message||err));}
-    finally{setBusy(false);if(inputRef.current)inputRef.current.value="";}
+
+  const ACCEPT=[".pdf",".xlsx",".xls",".csv",".tsv",".doc",".docx",".ppt",".pptx",".png",".jpg",".jpeg"];
+  const accepted=name=>ACCEPT.some(ext=>name.toLowerCase().endsWith(ext));
+
+  // Shared upload path used by both the picker and drag-and-drop.
+  const uploadFiles=async fl=>{
+    const list=Array.from(fl||[]).filter(Boolean);
+    if(!list.length)return;
+    const ok=list.filter(f=>accepted(f.name));
+    const skipped=list.length-ok.length;
+    if(!ok.length){alert("Those file types aren't supported. Allowed: PDF, spreadsheets, docs, slides, and images.");return;}
+    setBusy(true);setProgress({done:0,total:ok.length});
+    try{
+      let done=0;
+      for(const f of ok){await uploadHubFile(upCompany,f,me);setProgress({done:++done,total:ok.length});}
+      await reload();
+      if(skipped>0)alert(`${skipped} file${skipped!==1?"s were":" was"} skipped (unsupported type).`);
+    }catch(err){alert("Upload failed: "+(err?.message||err));}
+    finally{setBusy(false);setProgress(null);if(inputRef.current)inputRef.current.value="";}
   };
+  const onPick=e=>uploadFiles(e.target.files);
+
+  // ---- Drag & drop handlers (whole panel is a drop target) ----
+  const onDragEnter=e=>{if(e.dataTransfer&&Array.from(e.dataTransfer.types||[]).includes("Files")){e.preventDefault();dragDepth.current++;setDragOver(true);}};
+  const onDragOver =e=>{if(e.dataTransfer&&Array.from(e.dataTransfer.types||[]).includes("Files")){e.preventDefault();e.dataTransfer.dropEffect="copy";}};
+  const onDragLeave=e=>{if(dragDepth.current>0)dragDepth.current--;if(dragDepth.current===0)setDragOver(false);};
+  const onDrop=e=>{e.preventDefault();dragDepth.current=0;setDragOver(false);if(busy)return;uploadFiles(e.dataTransfer?.files);};
+
   const open=async f=>{const url=await hubFileUrl(f.storage_path);if(url)window.open(url,"_blank");};
   const del=async f=>{if(!window.confirm(`Delete "${f.name}"?`))return;await deleteHubFile(f);await reload();};
   const shown=files.filter(f=>(companyId==="all"||f.company_id===companyId||f.company_id==="all")&&(typeF==="all"||f.kind===typeF));
+  const coName=upCompany==="all"?"All companies":(COMPANIES.find(c=>c.id===upCompany)?.name||upCompany);
   return(
-    <Panel theme={t} flush>
-      <PHead title="Files" sub="Spreadsheets and PDFs for marketing" theme={t} b right={
+    <div onDragEnter={onDragEnter} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} style={{position:"relative"}}>
+    <Panel theme={t} flush style={dragOver?{borderColor:t.accent,boxShadow:`0 0 0 2px ${t.accent}55`}:undefined}>
+      <PHead title="Files" sub="Drag & drop files here, or use Upload" theme={t} b right={
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <Tabs2 tabs={["all","sheet","pdf"]} active={typeF} onChange={setTypeF} theme={t}/>
           <div style={{width:150}}><CompanyPicker value={upCompany} onChange={setUpCompany} t={t}/></div>
-          <input ref={inputRef} type="file" multiple onChange={onPick} style={{display:"none"}} accept=".pdf,.xlsx,.xls,.csv,.tsv,.doc,.docx,.ppt,.pptx,.png,.jpg,.jpeg"/>
-          <Btn theme={t} sm accent onClick={()=>inputRef.current&&inputRef.current.click()}><Upload size={13}/>{busy?"Uploading…":"Upload"}</Btn>
+          <input ref={inputRef} type="file" multiple onChange={onPick} style={{display:"none"}} accept={ACCEPT.join(",")}/>
+          <Btn theme={t} sm accent onClick={()=>inputRef.current&&inputRef.current.click()}><Upload size={13}/>{busy?(progress?`Uploading ${progress.done}/${progress.total}…`:"Uploading…"):"Upload"}</Btn>
         </div>
       }/>
       {loading?<EmptyState label="Loading…" sub="Fetching your files." theme={t}/>
         :shown.length===0
-        ? <EmptyState label="No files yet" sub="Upload a spreadsheet or PDF to get started." theme={t}/>
+        ? <div onClick={()=>inputRef.current&&inputRef.current.click()} style={{margin:"20px 22px 26px",border:`2px dashed ${dragOver?t.accent:t.lineStrong}`,borderRadius:14,padding:"46px 20px",textAlign:"center",cursor:"pointer",background:dragOver?`${t.accent}0d`:t.bgElevated,transition:"all .15s"}}>
+            <div style={{width:52,height:52,margin:"0 auto 14px",borderRadius:14,background:t.bgCard,border:`1px solid ${t.line}`,display:"grid",placeItems:"center"}}><Upload size={22} style={{color:t.accent}}/></div>
+            <div style={{fontSize:15,fontWeight:600,color:t.ink,marginBottom:5}}>Drag & drop files here</div>
+            <div style={{fontSize:12.5,color:t.inkMuted,lineHeight:1.5}}>or click to browse · PDFs, spreadsheets, docs, slides, images<br/>New files upload to <strong style={{color:t.inkMuted}}>{coName}</strong></div>
+          </div>
         : <div>
             <div style={{display:"grid",gridTemplateColumns:"1.9fr .8fr .8fr .9fr 60px",padding:"10px 22px",borderBottom:`1px solid ${t.line}`,fontSize:10,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em"}}>
               <div>Name</div><div>Company</div><div>Type</div><div>Added</div><div/>
@@ -1616,6 +1646,15 @@ function HubFiles({companyId,me,t}){
             ))}
           </div>}
     </Panel>
+    {/* Full-panel drop overlay shown while dragging files anywhere over the Files area */}
+    {dragOver&&<div style={{position:"absolute",inset:0,borderRadius:12,background:`${t.accent}14`,border:`2px dashed ${t.accent}`,display:"grid",placeItems:"center",pointerEvents:"none",zIndex:5,backdropFilter:"blur(1px)"}}>
+      <div style={{textAlign:"center"}}>
+        <div style={{width:60,height:60,margin:"0 auto 12px",borderRadius:16,background:t.bgCard,border:`1px solid ${t.accent}`,display:"grid",placeItems:"center",boxShadow:t.shadowCard}}><Upload size={26} style={{color:t.accent}}/></div>
+        <div style={{fontSize:16,fontWeight:700,color:t.ink}}>Drop to upload</div>
+        <div style={{fontSize:12.5,color:t.inkMuted,marginTop:3}}>Files will be added to {coName}</div>
+      </div>
+    </div>}
+    </div>
   );
 }
 
