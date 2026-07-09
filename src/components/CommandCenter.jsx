@@ -624,22 +624,25 @@ function SetupScreen({onDone,me}){
 // ── NEW TASK MODAL ─────────────────────────────────────────────
 const PHASES_FOR=track=>(track==="seo"?SEO_MASTER:PAID_MASTER).map(([p])=>p);
 function NewTaskModal({open,onClose,onCreate,defaults,companyId,track,theme:t}){
+  const initialCompany=companyId==="all"?COMPANIES[0].id:companyId;
+  const [company,setCompany]=useState(initialCompany);
   const [title,setTitle]=useState("");const [phase,setPhase]=useState(defaults.phase);const [priority,setPriority]=useState("medium");const [cadence,setCadence]=useState("one-time");const [deadline,setDeadline]=useState(defaults.deadline||"");const [assignees,setAssignees]=useState([]);const [busy,setBusy]=useState(false);
-  useEffect(()=>{if(!open)return;setTitle("");setPhase(defaults.phase);setPriority("medium");setCadence("one-time");setDeadline(defaults.deadline||"");setAssignees([]);},[open,defaults.phase,defaults.deadline]);
+  useEffect(()=>{if(!open)return;setCompany(companyId==="all"?COMPANIES[0].id:companyId);setTitle("");setPhase(defaults.phase);setPriority("medium");setCadence("one-time");setDeadline(defaults.deadline||"");setAssignees([]);},[open,defaults.phase,defaults.deadline,companyId]);
   if(!open)return null;
   const IS=iS(t);
   const phases=PHASES_FOR(track);
   const togA=n=>setAssignees(a=>a.includes(n)?a.filter(x=>x!==n):[...a,n]);
-  const submit=async()=>{if(!title.trim())return;setBusy(true);try{await onCreate({company_id:companyId==="all"?COMPANIES[0].id:companyId,track,phase,title:title.trim(),priority,cadence,deadline:deadline||null,assignees});onClose();}finally{setBusy(false);}};
+  const submit=async()=>{if(!title.trim())return;setBusy(true);try{await onCreate({company_id:company,track,phase,title:title.trim(),priority,cadence,deadline:deadline||null,assignees});onClose();}finally{setBusy(false);}};
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",display:"flex",justifyContent:"flex-end",zIndex:100,backdropFilter:"blur(4px)"}} onClick={onClose}>
-      <div style={{width:500,maxWidth:"92vw",background:t.bgCard,height:"100%",overflowY:"auto",padding:28,borderLeft:`1px solid ${t.lineStrong}`,boxShadow:"-20px 0 60px rgba(0,0,0,.5)"}} onClick={e=>e.stopPropagation()}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",display:"grid",placeItems:"center",zIndex:100,backdropFilter:"blur(4px)",padding:20}} onClick={onClose}>
+      <div style={{width:560,maxWidth:"94vw",maxHeight:"90vh",background:t.bgCard,overflowY:"auto",padding:30,borderRadius:16,border:`1px solid ${t.lineStrong}`,boxShadow:"0 30px 80px rgba(0,0,0,.6)"}} onClick={e=>e.stopPropagation()}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
           <span style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".1em",color:t.accent}}>New Task</span>
           <button onClick={onClose} style={{background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:8,padding:6,cursor:"pointer",color:t.inkFaint,display:"grid",placeItems:"center"}}><X size={16}/></button>
         </div>
         <h2 style={{fontFamily:"'Fraunces',serif",fontSize:22,fontWeight:400,color:t.ink,margin:"0 0 24px",letterSpacing:"-.02em"}}>Add a task</h2>
         {[
+          {label:"Company",content:<div style={{display:"flex",flexWrap:"wrap",gap:8}}>{COMPANIES.map(c=><button key={c.id} onClick={()=>setCompany(c.id)} style={{display:"flex",alignItems:"center",gap:7,padding:"7px 13px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:600,fontFamily:"inherit",border:`1px solid ${company===c.id?c.color:t.lineStrong}`,background:company===c.id?c.color+"22":t.bgElevated,color:company===c.id?t.ink:t.inkMuted}}><span style={{width:9,height:9,borderRadius:"50%",background:c.color,flexShrink:0}}/>{c.short} · {c.name}</button>)}</div>},
           {label:"Task title",content:<input autoFocus value={title} onChange={e=>setTitle(e.target.value)} placeholder="Enter a task title" style={IS}/>},
           {label:"Phase",content:<select value={phase} onChange={e=>setPhase(e.target.value)} style={IS}>{phases.map(p=><option key={p} value={p}>{p}</option>)}</select>},
           {label:"Assign to",content:<div style={{display:"flex",flexWrap:"wrap",gap:8}}>{TEAM.map(n=><button key={n} onClick={()=>togA(n)} style={{display:"flex",alignItems:"center",gap:4,padding:"6px 12px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:500,fontFamily:"inherit",border:`1px solid ${assignees.includes(n)?t.accent:t.lineStrong}`,background:assignees.includes(n)?t.accentSoft:t.bgElevated,color:assignees.includes(n)?t.accentDeep:t.inkMuted}}>{assignees.includes(n)&&<Check size={12}/>}{n}</button>)}</div>},
@@ -959,14 +962,28 @@ function CalendarView({tasks,companyId,track,theme:t,onOpen,onAddTask}){
   );
 }
 
+// Pick black or white text for readability against a given hex background.
+function readableOn(hex){
+  const h=(hex||"").replace("#","");
+  if(h.length!==6)return "#0B0B0B";
+  const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
+  // relative luminance
+  const L=(0.299*r+0.587*g+0.114*b)/255;
+  return L>0.6?"#0B0B0B":"#FFFFFF";
+}
+
 // Small reusable task chip used across calendar views.
+// Filled with the company's full color so it's easy to read and identify at a glance.
 function CalTaskChip({tk,theme:t,onOpen}){
   const co=COMPANIES.find(c=>c.id===tk.companyId);
+  const bg=co?.color||t.accent;
+  const fg=readableOn(bg);
+  const done=tk.status==="done";
   return(
-    <button onClick={()=>onOpen&&onOpen(tk.id)} title={`${tk.title}${tk.assignees.length?` · ${tk.assignees.join(", ")}`:""}${tk.status==="done"&&tk.completed_by?` · Done by ${tk.completed_by}`:""}`} style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,border:"none",borderLeft:`3px solid ${co?.color||t.accent}`,borderRadius:6,padding:"5px 7px",fontSize:11.5,color:t.inkMuted,overflow:"hidden",cursor:"pointer",fontFamily:"inherit",textAlign:"left",width:"100%"}}>
-      <span style={{width:6,height:6,borderRadius:"50%",background:stC(tk.status,t),flexShrink:0}}/>
-      <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:tk.status==="done"?"line-through":"none"}}>{tk.title}</span>
-      {tk.assignees.length>0&&<span style={{flexShrink:0,fontSize:9.5,fontWeight:700,color:t.accentDeep,background:t.accentSoft,borderRadius:8,padding:"1px 6px"}}>{tk.assignees.map(a=>a.charAt(0)).join("")}</span>}
+    <button onClick={()=>onOpen&&onOpen(tk.id)} title={`${tk.title}${tk.assignees.length?` · ${tk.assignees.join(", ")}`:""}${done&&tk.completed_by?` · Done by ${tk.completed_by}`:""}`} style={{display:"flex",alignItems:"center",gap:6,background:bg,border:"none",borderRadius:6,padding:"5px 8px",fontSize:11.5,fontWeight:600,color:fg,overflow:"hidden",cursor:"pointer",fontFamily:"inherit",textAlign:"left",width:"100%",opacity:done?.72:1}}>
+      <span style={{width:8,height:8,borderRadius:"50%",background:stC(tk.status,t),flexShrink:0,boxShadow:`0 0 0 1.5px ${fg==="#FFFFFF"?"rgba(255,255,255,.85)":"rgba(0,0,0,.6)"}`}}/>
+      <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:done?"line-through":"none"}}>{tk.title}</span>
+      {tk.assignees.length>0&&<span style={{flexShrink:0,fontSize:9.5,fontWeight:700,color:fg,background:fg==="#FFFFFF"?"rgba(0,0,0,.22)":"rgba(255,255,255,.32)",borderRadius:8,padding:"1px 6px"}}>{tk.assignees.map(a=>a.charAt(0)).join("")}</span>}
     </button>
   );
 }
@@ -1173,80 +1190,98 @@ function TaskDrawer({t:tk,onClose,update,onDelete,company,me,onChanged,theme:th}
   const openAtt=async a=>{if(a.kind==="link"||a.type==="link"){window.open(a.url,"_blank");return;}if(a.storage_path){const u=await dbFileUrl(a.storage_path);if(u)window.open(u,"_blank");}};
   const sC2={not_started:th.inkFaint,in_progress:th.accent,blocked:th.bad,done:th.good};
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",display:"flex",justifyContent:"flex-end",zIndex:100,backdropFilter:"blur(4px)"}} onClick={onClose}>
-      <div style={{width:460,maxWidth:"92vw",background:th.bgCard,height:"100%",overflowY:"auto",padding:26,borderLeft:`1px solid ${th.lineStrong}`,boxShadow:"-20px 0 60px rgba(0,0,0,.5)"}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-          <span style={{fontSize:10.5,fontWeight:700,padding:"3px 9px",borderRadius:6,background:company.color+"22",color:company.color,letterSpacing:".04em"}}>{company.short}</span>
-          <button onClick={onClose} style={{background:th.bgElevated,border:`1px solid ${th.line}`,borderRadius:8,padding:6,cursor:"pointer",color:th.inkFaint,display:"grid",placeItems:"center"}}><X size={18}/></button>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",display:"grid",placeItems:"center",zIndex:100,backdropFilter:"blur(4px)",padding:24}} onClick={onClose}>
+      <div style={{width:900,maxWidth:"96vw",maxHeight:"90vh",background:th.bgCard,overflowY:"auto",padding:"28px 34px 32px",borderRadius:18,border:`1px solid ${th.lineStrong}`,boxShadow:"0 30px 90px rgba(0,0,0,.62)"}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:10.5,fontWeight:700,padding:"4px 11px",borderRadius:6,background:company.color+"22",color:company.color,letterSpacing:".04em"}}>{company.short}</span>
+            <span style={{fontSize:12.5,color:th.inkFaint}}>{company.name}</span>
+          </div>
+          <button onClick={onClose} style={{background:th.bgElevated,border:`1px solid ${th.line}`,borderRadius:8,padding:7,cursor:"pointer",color:th.inkFaint,display:"grid",placeItems:"center"}}><X size={18}/></button>
         </div>
+
+        {/* Title spans full width */}
         <Field label="Title" theme={th}>
-          <textarea value={titleDraft} onChange={e=>setTitleDraft(e.target.value)} onBlur={saveTitle} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();e.target.blur();}}} rows={2} style={{...IS,fontFamily:"'Fraunces',serif",fontSize:18,lineHeight:1.35,resize:"vertical"}}/>
+          <textarea value={titleDraft} onChange={e=>setTitleDraft(e.target.value)} onBlur={saveTitle} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();e.target.blur();}}} rows={2} style={{...IS,fontFamily:"'Fraunces',serif",fontSize:20,lineHeight:1.35,resize:"vertical"}}/>
         </Field>
-        <Field label="Phase" theme={th}>
-          <select value={tk.phase} onChange={e=>update(tk.id,{phase:e.target.value})} style={IS}>{phases.map(p=><option key={p} value={p}>{p}</option>)}</select>
-        </Field>
-        <Field label="Status" theme={th}>
-          <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{STATUS_ORDER.map(s=><button key={s} onClick={()=>update(tk.id,{status:s})} style={{display:"flex",alignItems:"center",gap:4,padding:"6px 11px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:500,fontFamily:"inherit",border:`1px solid ${tk.status===s?sC2[s]:th.lineStrong}`,background:tk.status===s?sC2[s]+"22":th.bgElevated,color:tk.status===s?sC2[s]:th.inkMuted}}>{STATUSES[s].label}</button>)}</div>
-          {tk.status==="done"&&tk.completed_by&&(
-            <div style={{marginTop:10,display:"flex",alignItems:"center",gap:8,background:th.goodSoft,border:`1px solid ${th.good}44`,borderRadius:9,padding:"8px 12px",fontSize:12.5,color:th.good,fontWeight:600}}>
-              <Check size={14}/>Completed by {tk.completed_by}{tk.completed_at?` · ${new Date(tk.completed_at).toLocaleDateString()}`:""}
-            </div>
-          )}
-        </Field>
-        <Field label="Priority" theme={th}>
-          <div style={{display:"flex",gap:7}}>{["high","medium","low"].map(p=><button key={p} onClick={()=>update(tk.id,{priority:p})} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 13px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:500,textTransform:"capitalize",fontFamily:"inherit",border:`1px solid ${tk.priority===p?PRIORITIES[p]:th.lineStrong}`,background:tk.priority===p?PRIORITIES[p]+"22":th.bgElevated,color:tk.priority===p?PRIORITIES[p]:th.inkMuted}}><Star size={12} style={{fill:tk.priority===p?PRIORITIES[p]:"none"}}/>{p}</button>)}</div>
-        </Field>
-        <Field label="Cadence" theme={th}>
-          <select value={tk.cadence||"one-time"} onChange={e=>update(tk.id,{cadence:e.target.value})} style={IS}>{["one-time","weekly","monthly","quarterly"].map(c=><option key={c} value={c}>{c}</option>)}</select>
-        </Field>
-        <Field label="Assignees" theme={th}>
-          <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{TEAM.map(n=><button key={n} onClick={()=>togA(n)} style={{display:"flex",alignItems:"center",gap:4,padding:"6px 11px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:500,fontFamily:"inherit",border:`1px solid ${tk.assignees.includes(n)?th.accent:th.lineStrong}`,background:tk.assignees.includes(n)?th.accentSoft:th.bgElevated,color:tk.assignees.includes(n)?th.accentDeep:th.inkMuted}}>{tk.assignees.includes(n)&&<Check size={12}/>}{n}</button>)}</div>
-        </Field>
-        <Field label="Deadline" theme={th}>
-          <input type="date" value={tk.deadline||""} onChange={e=>update(tk.id,{deadline:e.target.value})} style={IS}/>
-        </Field>
-        <Field label="Attachments" theme={th}>
-          {(tk.attachments||[]).length>0&&(
-            <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:10}}>
-              {(tk.attachments||[]).map(a=>(
-                <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,background:th.bgElevated,border:`1px solid ${th.line}`,borderRadius:9,padding:"8px 10px"}}>
-                  <div style={{width:34,height:34,borderRadius:7,background:th.bgSunk,display:"grid",placeItems:"center",color:th.inkMuted,flexShrink:0,fontSize:13}}>{a.kind==="link"?"🔗":"📎"}</div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <button onClick={()=>openAtt(a)} style={{background:"none",border:"none",textAlign:"left",cursor:"pointer",padding:0,fontSize:13,fontWeight:600,color:th.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block",maxWidth:"100%"}}>{a.name}</button>
-                    <div style={{fontSize:11,color:th.inkFaint,marginTop:1}}>{a.kind}{a.size?` · ${fmtSz(a.size)}`:""}</div>
+
+        {/* Compact fields in two columns */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 28px"}}>
+          <Field label="Phase" theme={th}>
+            <select value={tk.phase} onChange={e=>update(tk.id,{phase:e.target.value})} style={IS}>{phases.map(p=><option key={p} value={p}>{p}</option>)}</select>
+          </Field>
+          <Field label="Deadline" theme={th}>
+            <input type="date" value={tk.deadline||""} onChange={e=>update(tk.id,{deadline:e.target.value})} style={IS}/>
+          </Field>
+          <Field label="Priority" theme={th}>
+            <div style={{display:"flex",gap:7}}>{["high","medium","low"].map(p=><button key={p} onClick={()=>update(tk.id,{priority:p})} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 13px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:500,textTransform:"capitalize",fontFamily:"inherit",border:`1px solid ${tk.priority===p?PRIORITIES[p]:th.lineStrong}`,background:tk.priority===p?PRIORITIES[p]+"22":th.bgElevated,color:tk.priority===p?PRIORITIES[p]:th.inkMuted}}><Star size={12} style={{fill:tk.priority===p?PRIORITIES[p]:"none"}}/>{p}</button>)}</div>
+          </Field>
+          <Field label="Cadence" theme={th}>
+            <select value={tk.cadence||"one-time"} onChange={e=>update(tk.id,{cadence:e.target.value})} style={IS}>{["one-time","weekly","monthly","quarterly"].map(c=><option key={c} value={c}>{c}</option>)}</select>
+          </Field>
+          <div style={{gridColumn:"1 / -1"}}>
+            <Field label="Status" theme={th}>
+              <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{STATUS_ORDER.map(s=><button key={s} onClick={()=>update(tk.id,{status:s})} style={{display:"flex",alignItems:"center",gap:4,padding:"6px 11px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:500,fontFamily:"inherit",border:`1px solid ${tk.status===s?sC2[s]:th.lineStrong}`,background:tk.status===s?sC2[s]+"22":th.bgElevated,color:tk.status===s?sC2[s]:th.inkMuted}}>{STATUSES[s].label}</button>)}</div>
+              {tk.status==="done"&&tk.completed_by&&(
+                <div style={{marginTop:10,display:"flex",alignItems:"center",gap:8,background:th.goodSoft,border:`1px solid ${th.good}44`,borderRadius:9,padding:"8px 12px",fontSize:12.5,color:th.good,fontWeight:600}}>
+                  <Check size={14}/>Completed by {tk.completed_by}{tk.completed_at?` · ${new Date(tk.completed_at).toLocaleDateString()}`:""}
+                </div>
+              )}
+            </Field>
+          </div>
+          <div style={{gridColumn:"1 / -1"}}>
+            <Field label="Assignees" theme={th}>
+              <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{TEAM.map(n=><button key={n} onClick={()=>togA(n)} style={{display:"flex",alignItems:"center",gap:4,padding:"6px 11px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:500,fontFamily:"inherit",border:`1px solid ${tk.assignees.includes(n)?th.accent:th.lineStrong}`,background:tk.assignees.includes(n)?th.accentSoft:th.bgElevated,color:tk.assignees.includes(n)?th.accentDeep:th.inkMuted}}>{tk.assignees.includes(n)&&<Check size={12}/>}{n}</button>)}</div>
+            </Field>
+          </div>
+        </div>
+
+        {/* Attachments + Notes side by side on wide screens */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 28px"}}>
+          <Field label="Attachments" theme={th}>
+            {(tk.attachments||[]).length>0&&(
+              <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:10}}>
+                {(tk.attachments||[]).map(a=>(
+                  <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,background:th.bgElevated,border:`1px solid ${th.line}`,borderRadius:9,padding:"8px 10px"}}>
+                    <div style={{width:34,height:34,borderRadius:7,background:th.bgSunk,display:"grid",placeItems:"center",color:th.inkMuted,flexShrink:0,fontSize:13}}>{a.kind==="link"?"🔗":"📎"}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <button onClick={()=>openAtt(a)} style={{background:"none",border:"none",textAlign:"left",cursor:"pointer",padding:0,fontSize:13,fontWeight:600,color:th.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block",maxWidth:"100%"}}>{a.name}</button>
+                      <div style={{fontSize:11,color:th.inkFaint,marginTop:1}}>{a.kind}{a.size?` · ${fmtSz(a.size)}`:""}</div>
+                    </div>
+                    <button onClick={()=>openAtt(a)} style={{background:"none",border:"none",color:th.inkFaint,cursor:"pointer",padding:5,display:"grid",placeItems:"center",borderRadius:6}}><Download size={14}/></button>
+                    <button onClick={()=>remAtt(a)} style={{background:"none",border:"none",color:th.inkFaint,cursor:"pointer",padding:5,display:"grid",placeItems:"center",borderRadius:6}}><Trash2 size={14}/></button>
                   </div>
-                  <button onClick={()=>openAtt(a)} style={{background:"none",border:"none",color:th.inkFaint,cursor:"pointer",padding:5,display:"grid",placeItems:"center",borderRadius:6}}><Download size={14}/></button>
-                  <button onClick={()=>remAtt(a)} style={{background:"none",border:"none",color:th.inkFaint,cursor:"pointer",padding:5,display:"grid",placeItems:"center",borderRadius:6}}><Trash2 size={14}/></button>
+                ))}
+              </div>
+            )}
+            <div style={{display:"flex",alignItems:"center",gap:8,padding:"12px 13px",border:`1.5px dashed ${th.lineStrong}`,borderRadius:10,cursor:"pointer",fontSize:12.5,color:th.inkFaint,background:th.bgSunk,marginBottom:9,opacity:busy?.6:1}} onClick={()=>!busy&&fileRef.current&&fileRef.current.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();onFiles(e.dataTransfer.files);}}>
+              <Paperclip size={15} style={{opacity:.6}}/><span>{busy?"Uploading…":<>Drop a file, or <span style={{color:th.accent,fontWeight:600}}>browse</span></>}</span>
+              <input ref={fileRef} type="file" multiple style={{display:"none"}} onChange={e=>onFiles(e.target.files)}/>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:7}}>
+              <Link2 size={14} style={{opacity:.5,flexShrink:0,color:th.inkFaint}}/>
+              <input value={linkLabel} onChange={e=>setLbl(e.target.value)} placeholder="Label" style={{...IS,maxWidth:120}}/>
+              <input value={linkUrl} onChange={e=>setUrl(e.target.value)} placeholder="Paste a link…" onKeyDown={e=>e.key==="Enter"&&addLink()} style={IS}/>
+              <Btn theme={th} accent onClick={addLink} sm>Add</Btn>
+            </div>
+          </Field>
+          <Field label="Notes" theme={th}>
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:10}}>
+              {tk.notes.length===0&&<div style={{fontSize:13,color:th.inkFaint,fontStyle:"italic"}}>No notes yet.</div>}
+              {tk.notes.map((n,i)=>(
+                <div key={i} style={{background:th.bgElevated,borderRadius:9,padding:"9px 11px",fontSize:13,lineHeight:1.45,color:th.ink}}>
+                  <div style={{fontSize:11.5,marginBottom:3,color:th.inkFaint}}><strong style={{color:th.inkMuted}}>{n.who}</strong> {n.when}</div>
+                  {n.text}
                 </div>
               ))}
             </div>
-          )}
-          <div style={{display:"flex",alignItems:"center",gap:8,padding:"12px 13px",border:`1.5px dashed ${th.lineStrong}`,borderRadius:10,cursor:"pointer",fontSize:12.5,color:th.inkFaint,background:th.bgSunk,marginBottom:9,opacity:busy?.6:1}} onClick={()=>!busy&&fileRef.current&&fileRef.current.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();onFiles(e.dataTransfer.files);}}>
-            <Paperclip size={15} style={{opacity:.6}}/><span>{busy?"Uploading…":<>Drop a file, or <span style={{color:th.accent,fontWeight:600}}>browse</span></>}</span>
-            <input ref={fileRef} type="file" multiple style={{display:"none"}} onChange={e=>onFiles(e.target.files)}/>
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:7}}>
-            <Link2 size={14} style={{opacity:.5,flexShrink:0,color:th.inkFaint}}/>
-            <input value={linkLabel} onChange={e=>setLbl(e.target.value)} placeholder="Label" style={{...IS,maxWidth:120}}/>
-            <input value={linkUrl} onChange={e=>setUrl(e.target.value)} placeholder="Paste a link…" onKeyDown={e=>e.key==="Enter"&&addLink()} style={IS}/>
-            <Btn theme={th} accent onClick={addLink} sm>Add</Btn>
-          </div>
-        </Field>
-        <Field label="Notes" theme={th}>
-          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:10}}>
-            {tk.notes.length===0&&<div style={{fontSize:13,color:th.inkFaint,fontStyle:"italic"}}>No notes yet.</div>}
-            {tk.notes.map((n,i)=>(
-              <div key={i} style={{background:th.bgElevated,borderRadius:9,padding:"9px 11px",fontSize:13,lineHeight:1.45,color:th.ink}}>
-                <div style={{fontSize:11.5,marginBottom:3,color:th.inkFaint}}><strong style={{color:th.inkMuted}}>{n.who}</strong> {n.when}</div>
-                {n.text}
-              </div>
-            ))}
-          </div>
-          <div style={{display:"flex",gap:7}}>
-            <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Add a note…" onKeyDown={e=>e.key==="Enter"&&postNote()} style={IS}/>
-            <Btn theme={th} accent onClick={postNote}>Post</Btn>
-          </div>
-        </Field>
+            <div style={{display:"flex",gap:7}}>
+              <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Add a note…" onKeyDown={e=>e.key==="Enter"&&postNote()} style={IS}/>
+              <Btn theme={th} accent onClick={postNote}>Post</Btn>
+            </div>
+          </Field>
+        </div>
+
         <div style={{marginTop:8,paddingTop:18,borderTop:`1px solid ${th.line}`}}>
           <button onClick={()=>{if(window.confirm("Delete this task? This can't be undone."))onDelete(tk.id);}} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 14px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:600,fontFamily:"inherit",border:`1px solid ${th.bad}55`,background:th.badSoft,color:th.bad}}><Trash2 size={14}/>Delete task</button>
         </div>
