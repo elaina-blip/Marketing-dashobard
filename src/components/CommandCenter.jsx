@@ -1014,10 +1014,10 @@ function CalendarView({tasks,companyId,track,assigneeFilter,setAssigneeFilter,th
               {unscheduled.length>0&&<button onClick={()=>setShowUnsched(v=>!v)} style={{display:"flex",alignItems:"center",gap:6,background:showUnsched?t.warnSoft:t.bgElevated,border:`1px solid ${showUnsched?t.warn:t.lineStrong}`,color:showUnsched?t.warn:t.inkMuted,borderRadius:9,padding:"7px 13px",fontSize:12.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><AlertTriangle size={13}/>{unscheduled.length} unscheduled<ChevronDown size={13} style={{transform:showUnsched?"rotate(180deg)":"none",transition:"transform .15s"}}/></button>}
               <div style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,border:`1px solid ${af!=="all"?t.accent:t.line}`,borderRadius:9,padding:"0 10px"}}>
                 <Users size={14} style={{opacity:.6,color:af!=="all"?t.accent:t.inkFaint}}/>
-                <select style={{border:"none",background:"none",padding:"8px 4px",fontSize:13,color:t.ink,cursor:"pointer",outline:"none",fontFamily:"inherit"}} value={af} onChange={e=>setAssigneeFilter&&setAssigneeFilter(e.target.value)}>
-                  <option value="all">Everyone</option>
-                  <option value="__unassigned">Unassigned</option>
-                  {TEAM.map(n=><option key={n} value={n}>{n}</option>)}
+                <select style={{border:"none",background:t.bgElevated,padding:"8px 4px",fontSize:13,color:t.ink,cursor:"pointer",outline:"none",fontFamily:"inherit"}} value={af} onChange={e=>setAssigneeFilter&&setAssigneeFilter(e.target.value)}>
+                  <option style={{background:t.bgElevated,color:t.ink}} value="all">Everyone</option>
+                  <option style={{background:t.bgElevated,color:t.ink}} value="__unassigned">Unassigned</option>
+                  {TEAM.map(n=><option key={n} style={{background:t.bgElevated,color:t.ink}} value={n}>{n}</option>)}
                 </select>
               </div>
               <button onClick={onStartEdit} style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,color:t.ink,border:`1px solid ${t.lineStrong}`,borderRadius:9,padding:"9px 14px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><CheckSquare size={15}/>Edit</button>
@@ -1625,17 +1625,17 @@ export default function App(){
               </div>
               <div style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:9,padding:"0 10px"}}>
                 <Filter size={14} style={{opacity:.5,color:t.inkFaint}}/>
-                <select style={{border:"none",background:"none",padding:"9px 4px",fontSize:13,color:t.ink,cursor:"pointer",outline:"none",fontFamily:"inherit"}} value={statusF} onChange={e=>setStatusF(e.target.value)}>
-                  <option value="all">All statuses</option>
-                  {STATUS_ORDER.map(s=><option key={s} value={s}>{STATUSES[s].label}</option>)}
+                <select style={{border:"none",background:t.bgElevated,padding:"9px 4px",fontSize:13,color:t.ink,cursor:"pointer",outline:"none",fontFamily:"inherit"}} value={statusF} onChange={e=>setStatusF(e.target.value)}>
+                  <option style={{background:t.bgElevated,color:t.ink}} value="all">All statuses</option>
+                  {STATUS_ORDER.map(s=><option key={s} style={{background:t.bgElevated,color:t.ink}} value={s}>{STATUSES[s].label}</option>)}
                 </select>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,border:`1px solid ${assigneeF!=="all"?t.accent:t.line}`,borderRadius:9,padding:"0 10px"}}>
                 <Users size={14} style={{opacity:.6,color:assigneeF!=="all"?t.accent:t.inkFaint}}/>
-                <select style={{border:"none",background:"none",padding:"9px 4px",fontSize:13,color:t.ink,cursor:"pointer",outline:"none",fontFamily:"inherit"}} value={assigneeF} onChange={e=>setAssigneeF(e.target.value)}>
-                  <option value="all">Everyone</option>
-                  <option value="__unassigned">Unassigned</option>
-                  {TEAM.map(n=><option key={n} value={n}>{n}</option>)}
+                <select style={{border:"none",background:t.bgElevated,padding:"9px 4px",fontSize:13,color:t.ink,cursor:"pointer",outline:"none",fontFamily:"inherit"}} value={assigneeF} onChange={e=>setAssigneeF(e.target.value)}>
+                  <option style={{background:t.bgElevated,color:t.ink}} value="all">Everyone</option>
+                  <option style={{background:t.bgElevated,color:t.ink}} value="__unassigned">Unassigned</option>
+                  {TEAM.map(n=><option key={n} style={{background:t.bgElevated,color:t.ink}} value={n}>{n}</option>)}
                 </select>
               </div>
               {editMode?(
