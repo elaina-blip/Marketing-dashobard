@@ -1,6 +1,6 @@
 "use client";
 import React,{useState,useMemo,useEffect,useRef}from"react";
-import{Search,Megaphone,LayoutGrid,Plus,X,Check,Clock,AlertTriangle,Circle,Star,Users,Calendar,MessageSquare,ChevronDown,Building2,Filter,CalendarDays,ChevronLeft,ChevronRight,Paperclip,Link2,FileText,Download,Trash2,Eye,EyeOff,Copy,BarChart2,Mail,Globe,TrendingUp,Zap,Settings,Upload,Sparkles,CheckSquare,Square}from"lucide-react";
+import{Search,Megaphone,LayoutGrid,Plus,X,Check,Clock,AlertTriangle,Circle,Star,Users,Calendar,MessageSquare,ChevronDown,Building2,Filter,CalendarDays,ChevronLeft,ChevronRight,Paperclip,Link2,FileText,Download,Trash2,Eye,EyeOff,Copy,BarChart2,Mail,Globe,TrendingUp,Zap,Settings,Upload,Sparkles,CheckSquare,Square,Folder,Image,Palette,Phone,Type,FileSpreadsheet}from"lucide-react";
 import{loadTasks,updateTask as dbUpdate,deleteTask as dbDeleteTask,deleteTasks as dbDeleteTasks,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentName,signOut as dbSignOut,createTask as dbCreateTask,importTasks as dbImportTasks,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource,loadMetrics,summarizeMetric}from"@/lib/data";
 import{parseImportFile}from"@/lib/import-tasks";
 
@@ -1535,12 +1535,227 @@ function TaskDrawer({t:tk,onClose,update,onDelete,company,me,onChanged,theme:th}
   );
 }
 
+// ── MARKETING HUB ─────────────────────────────────────────────
+// Central shelf for files, contacts, and brand assets. Self-contained:
+// stores everything in local state for now (no backend table yet), so it
+// can't break the rest of the app. Swap the useState seeds for Supabase
+// reads/writes when a `hub_files` / `hub_contacts` / `hub_brand` table exists.
+function coChip(id,t){
+  const c=id==="all"?{short:"All",color:ALL_COLOR}:(COMPANIES.find(x=>x.id===id)||{short:"—",color:t.inkFaint});
+  return <span style={{fontSize:10.5,fontWeight:600,padding:"3px 8px",borderRadius:6,background:c.color+"22",color:c.color,letterSpacing:".02em"}}>{c.short}</span>;
+}
+function HubTabs({tabs,active,onChange,t}){
+  return(
+    <div style={{display:"flex",gap:4,marginBottom:24,borderBottom:`1px solid ${t.line}`}}>
+      {tabs.map(tab=>{
+        const on=active===tab.id;const Icon=tab.icon;
+        return <button key={tab.id} onClick={()=>onChange(tab.id)} style={{display:"flex",alignItems:"center",gap:7,padding:"9px 14px",background:"none",border:"none",borderBottom:`2px solid ${on?t.accent:"transparent"}`,color:on?t.ink:t.inkMuted,cursor:"pointer",fontSize:13,fontWeight:on?600:500,fontFamily:"inherit",marginBottom:-1}}><Icon size={14}/>{tab.label}</button>;
+      })}
+    </div>
+  );
+}
+function HubFiles({companyId,t}){
+  const seed=[
+    {id:1,name:"Q3 Content Calendar.xlsx",company:"aps",kind:"sheet",added:"Jul 2"},
+    {id:2,name:"Brand Guidelines 2026.pdf",company:"all",kind:"pdf",added:"Jun 28"},
+    {id:3,name:"Ad Spend Tracker.xlsx",company:"ads",kind:"sheet",added:"Jun 24"},
+    {id:4,name:"Media Kit & Rate Card.pdf",company:"tgr",kind:"pdf",added:"Jun 20"},
+    {id:5,name:"Keyword Research Master.xlsx",company:"aps",kind:"sheet",added:"Jun 15"},
+  ];
+  const[files]=useState(seed);
+  const[typeF,setTypeF]=useState("all");
+  const shown=files.filter(f=>(companyId==="all"||f.company===companyId||f.company==="all")&&(typeF==="all"||f.kind===typeF));
+  return(
+    <Panel theme={t} flush>
+      <PHead title="Files" sub="Spreadsheets and PDFs for marketing" theme={t} b right={
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <Tabs2 tabs={["all","sheet","pdf"]} active={typeF} onChange={setTypeF} theme={t}/>
+          <Btn theme={t} sm accent><Upload size={13}/>Upload</Btn>
+        </div>
+      }/>
+      {shown.length===0
+        ? <EmptyState label="No files yet" sub="Upload a spreadsheet or PDF to get started." theme={t}/>
+        : <div>
+            <div style={{display:"grid",gridTemplateColumns:"1.9fr .8fr .8fr .9fr 40px",padding:"10px 22px",borderBottom:`1px solid ${t.line}`,fontSize:10,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em"}}>
+              <div>Name</div><div>Company</div><div>Type</div><div>Added</div><div/>
+            </div>
+            {shown.map((f,i)=>(
+              <div key={f.id} style={{display:"grid",gridTemplateColumns:"1.9fr .8fr .8fr .9fr 40px",padding:"13px 22px",borderBottom:i<shown.length-1?`1px solid ${t.line}`:"none",alignItems:"center"}}>
+                <div style={{display:"flex",alignItems:"center",gap:11}}>
+                  {f.kind==="pdf"?<FileText size={17} style={{color:t.bad}}/>:<FileSpreadsheet size={17} style={{color:t.good}}/>}
+                  <span style={{fontSize:13,color:t.ink}}>{f.name}</span>
+                </div>
+                <div>{coChip(f.company,t)}</div>
+                <div style={{fontSize:12,color:t.inkMuted}}>{f.kind==="pdf"?"PDF":"Sheet"}</div>
+                <div style={{fontSize:12,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>{f.added}</div>
+                <div style={{display:"flex",justifyContent:"flex-end",gap:8}}><Download size={15} style={{color:t.inkFaint,cursor:"pointer"}}/></div>
+              </div>
+            ))}
+          </div>}
+    </Panel>
+  );
+}
+function HubContacts({companyId,t}){
+  const seed=[
+    {id:1,name:"Dana Reyes",role:"Google Ads Rep",company:"ads",email:"dana@google.com",phone:"(415) 555-0142",type:"Ad platform"},
+    {id:2,name:"Marcus True",role:"Local Press — Editor",company:"tgr",email:"marcus@dailypost.com",phone:"(904) 555-0119",type:"Press"},
+    {id:3,name:"Priya Shah",role:"Influencer — Home Services",company:"aps",email:"priya@creators.co",phone:"(305) 555-0187",type:"Influencer"},
+    {id:4,name:"BrightPrint Co.",role:"Print & Signage Vendor",company:"all",email:"orders@brightprint.com",phone:"(212) 555-0164",type:"Vendor"},
+  ];
+  const[contacts]=useState(seed);
+  const shown=contacts.filter(c=>companyId==="all"||c.company===companyId||c.company==="all");
+  const inits=n=>n.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div style={{fontSize:12.5,color:t.inkMuted}}>{shown.length} contact{shown.length!==1?"s":""}</div>
+        <Btn theme={t} sm accent><Plus size={13}/>Add contact</Btn>
+      </div>
+      {shown.length===0
+        ? <Panel theme={t}><EmptyState label="No contacts yet" sub="Add vendors, press, influencers, or ad reps." theme={t}/></Panel>
+        : <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:15}}>
+            {shown.map(c=>(
+              <Panel key={c.id} theme={t}>
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+                  <div style={{width:42,height:42,borderRadius:"50%",background:t.accentSoft,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:600,fontSize:13,color:t.accentDeep,flexShrink:0}}>{inits(c.name)}</div>
+                  <div style={{minWidth:0}}>
+                    <div style={{fontFamily:"'Fraunces',serif",fontSize:15,fontWeight:500,color:t.ink}}>{c.name}</div>
+                    <div style={{fontSize:12,color:t.inkMuted}}>{c.role}</div>
+                  </div>
+                  <div style={{marginLeft:"auto",display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}}>{coChip(c.company,t)}<Pill v="neutral" theme={t}>{c.type}</Pill></div>
+                </div>
+                <div style={{borderTop:`1px solid ${t.line}`,paddingTop:12,display:"flex",flexDirection:"column",gap:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:t.inkMuted}}><Mail size={14} style={{color:t.inkFaint}}/><span style={{color:t.accentDeep}}>{c.email}</span></div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:t.inkMuted}}><Phone size={14} style={{color:t.inkFaint}}/>{c.phone}</div>
+                </div>
+              </Panel>
+            ))}
+          </div>}
+    </div>
+  );
+}
+function Swatch({name,hex,t}){
+  const[copied,setCopied]=useState(false);
+  const copy=()=>{try{navigator.clipboard.writeText(hex);setCopied(true);setTimeout(()=>setCopied(false),1200);}catch{}};
+  return(
+    <div onClick={copy} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
+      <div style={{width:34,height:34,borderRadius:7,background:hex,flexShrink:0,border:`1px solid ${t.lineStrong}`}}/>
+      <div>
+        <div style={{fontSize:12.5,color:t.ink}}>{name}</div>
+        <div style={{fontSize:11,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace",display:"flex",alignItems:"center",gap:5}}>{copied?"Copied!":hex}{!copied&&<Copy size={10}/>}</div>
+      </div>
+    </div>
+  );
+}
+function HubBrand({companyId,t}){
+  const list=companyId==="all"?COMPANIES:COMPANIES.filter(c=>c.id===companyId);
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:24}}>
+      {list.map(co=>{
+        const ct=co.theme;
+        return(
+          <div key={co.id}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+              <span style={{width:8,height:8,borderRadius:2,background:co.color}}/>
+              <span style={{fontFamily:"'Fraunces',serif",fontSize:15,color:t.ink}}>{co.name}</span>
+              {coChip(co.id,t)}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1.1fr 1fr",gap:15,marginBottom:15}}>
+              <Panel theme={t}>
+                <div style={{fontSize:10.5,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em",marginBottom:13,display:"flex",alignItems:"center",gap:6}}><Image size={12}/>Logos</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  <div style={{aspectRatio:"16/9",background:"#F4F7F6",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Fraunces',serif",color:"#1a1a1a",fontSize:14}}>{co.short}</div>
+                  <div style={{aspectRatio:"16/9",background:ct.bgSunk,border:`1px solid ${ct.lineStrong}`,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Fraunces',serif",color:ct.ink,fontSize:14}}>{co.short}</div>
+                  <div style={{aspectRatio:"16/9",background:co.color,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Fraunces',serif",color:"#06171D",fontSize:14}}>{co.short}</div>
+                  <div style={{aspectRatio:"16/9",border:`1px dashed ${t.lineStrong}`,borderRadius:8,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,color:t.inkFaint,cursor:"pointer"}}><Plus size={16}/><span style={{fontSize:10}}>Add</span></div>
+                </div>
+              </Panel>
+              <Panel theme={t}>
+                <div style={{fontSize:10.5,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em",marginBottom:13,display:"flex",alignItems:"center",gap:6}}><Palette size={12}/>Colors</div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  <Swatch name="Primary" hex={co.color} t={t}/>
+                  <Swatch name="Ink" hex={ct.bgCard} t={t}/>
+                  <Swatch name="Accent" hex={ct.gold} t={t}/>
+                </div>
+              </Panel>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:15}}>
+              <Panel theme={t}>
+                <div style={{fontSize:10.5,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em",marginBottom:13,display:"flex",alignItems:"center",gap:6}}><Type size={12}/>Typography</div>
+                <div style={{fontFamily:"'Fraunces',serif",fontSize:20,color:t.ink}}>Fraunces</div>
+                <div style={{fontSize:11,color:t.inkMuted,marginBottom:12}}>Display / headlines</div>
+                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:14,color:t.ink}}>JetBrains Mono</div>
+                <div style={{fontSize:11,color:t.inkMuted}}>Data / captions</div>
+              </Panel>
+              <Panel theme={t}>
+                <div style={{fontSize:10.5,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em",marginBottom:13,display:"flex",alignItems:"center",gap:6}}><MessageSquare size={12}/>Voice & taglines</div>
+                <div style={{fontSize:12.5,color:t.inkMuted,fontStyle:"italic",lineHeight:1.6}}>Add a tagline or brand voice notes for {co.short}.</div>
+              </Panel>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+function HubTemplates({t}){
+  const cats=[
+    {icon:MessageSquare,title:"Caption templates",sub:"Reusable social post copy",border:t.accent},
+    {icon:Mail,title:"Email / outreach",sub:"Cold outreach and nurture drafts",border:t.teal},
+    {icon:CalendarDays,title:"Content calendars",sub:"Skeletons to drop into the board",border:t.gold},
+    {icon:FileText,title:"Post frameworks",sub:"Hook / body / CTA structures",border:t.indigo},
+  ];
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div style={{fontSize:12.5,color:t.inkMuted}}>Reusable starting points for content and outreach</div>
+        <Btn theme={t} sm accent><Plus size={13}/>New template</Btn>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:15}}>
+        {cats.map(c=>{const Icon=c.icon;return(
+          <Panel key={c.title} theme={t} style={{borderTop:`3px solid ${c.border}`}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}><Icon size={16} style={{color:c.border}}/><span style={{fontFamily:"'Fraunces',serif",fontSize:16,fontWeight:500,color:t.ink}}>{c.title}</span></div>
+            <div style={{fontSize:12,color:t.inkMuted,marginBottom:14}}>{c.sub}</div>
+            <EmptyState label="No templates yet" sub="Save your first one to reuse it later." theme={t} pad={20}/>
+          </Panel>
+        );})}
+      </div>
+    </div>
+  );
+}
+function HubView({companyId,theme:t}){
+  const[tab,setTab]=useState("files");
+  const TABS=[
+    {id:"files",label:"Files",icon:Folder},
+    {id:"contacts",label:"Contacts",icon:Users},
+    {id:"brand",label:"Brand kit",icon:Palette},
+    {id:"templates",label:"Templates",icon:Sparkles},
+  ];
+  return(
+    <div style={{padding:"26px 38px 80px",maxWidth:1480}}>
+      <TBar title={<>Marketing <em style={{fontStyle:"italic",color:t.accentDeep}}>Hub</em></>} sub="Files, contacts, and brand assets in one place" actions={<Btn theme={t} accent><Upload size={14}/>Upload</Btn>} theme={t}/>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:15,marginBottom:26}}>
+        <KpiCard label="Spreadsheets" value="14" icon={FileSpreadsheet} theme={t}/>
+        <KpiCard label="PDFs" value="9" icon={FileText} theme={t}/>
+        <KpiCard label="Contacts" value="37" icon={Users} theme={t}/>
+        <KpiCard label="Brand assets" value="22" icon={Palette} theme={t}/>
+      </div>
+      <HubTabs tabs={TABS} active={tab} onChange={setTab} t={t}/>
+      {tab==="files"     &&<HubFiles companyId={companyId} t={t}/>}
+      {tab==="contacts"  &&<HubContacts companyId={companyId} t={t}/>}
+      {tab==="brand"     &&<HubBrand companyId={companyId} t={t}/>}
+      {tab==="templates" &&<HubTemplates t={t}/>}
+    </div>
+  );
+}
+
 // ── MAIN APP ──────────────────────────────────────────────────
 const NAV=[
   {group:"Overview",items:[{id:"overview",label:"Dashboard",icon:LayoutGrid},{id:"reports",label:"Reports & Exports",icon:FileText}]},
   {group:"Channels",items:[{id:"seo",label:"SEO & Organic",icon:Search},{id:"social",label:"Social Media",icon:Globe},{id:"paid",label:"Paid Advertising",icon:BarChart2},{id:"email",label:"Email & Nurture",icon:Mail}]},
   {group:"Tasks",items:[{id:"board",label:"Board",icon:LayoutGrid},{id:"calendar",label:"Calendar",icon:CalendarDays},{id:"timeline",label:"SEO Timeline",icon:TrendingUp}]},
   {group:"Growth",items:[{id:"attribution",label:"Lead Attribution",icon:Zap},{id:"integrations",label:"Integrations & Data",icon:Settings},{id:"logins",label:"Company Logins",icon:Link2}]},
+  {group:"Hub",items:[{id:"hub",label:"Marketing Hub",icon:Folder}]},
 ];
 
 export default function App(){
@@ -1730,6 +1945,7 @@ export default function App(){
         {view==="reports"     &&<ReportsView theme={t}/>}
         {view==="integrations"&&<IntegrationsView theme={t}/>}
         {view==="logins"      &&<LoginsView companyId={cid} theme={t}/>}
+        {view==="hub"         &&<HubView companyId={cid} theme={t}/>}
         {view==="board"       &&<BoardView tasks={tasks} companyId={cid} track={track} statusFilter={statusF} assigneeFilter={assigneeF} theme={t} onOpen={setOpenTask} onUpdate={update} todayISO={todayISO} weekISO={weekISO} editMode={editMode} selected={selected} onToggleSelect={toggleSelect}/>}
         {view==="calendar"    &&<CalendarView tasks={tasks} companyId={cid} track={track} assigneeFilter={assigneeF} setAssigneeFilter={setAssigneeF} theme={t} onOpen={setOpenTask} onAddTask={openNewTask} onReschedule={(id,date)=>update(id,{deadline:date})} editMode={editMode} selected={selected} onToggleSelect={toggleSelect} onOpenDay={setDayModal} onStartEdit={()=>setEditMode(true)} onExitEdit={exitEdit} onDeleteSelected={()=>{if(selected.size&&window.confirm(`Delete ${selected.size} task${selected.size!==1?"s":""}? This can't be undone.`))removeTasks(selected);}}/>}
         {view==="timeline"    &&<TimelineView tasks={tasks} companyId={cid} setCompanyId={setCid} theme={t}/>}
