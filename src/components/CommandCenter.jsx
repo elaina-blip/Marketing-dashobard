@@ -29,6 +29,14 @@ function useTheme(id){return id==="all"?ALL_THEME:(COMPANIES.find(c=>c.id===id)|
 function stC(s,t){return{not_started:t.inkFaint,in_progress:t.accent,blocked:t.bad,done:t.good}[s]||t.inkFaint;}
 function iS(t){return{width:"100%",padding:"9px 12px",background:t.bgSunk,border:`1px solid ${t.lineStrong}`,borderRadius:8,color:t.ink,fontSize:13.5,fontFamily:"'IBM Plex Sans',inherit",outline:"none"};}
 
+// Date field that opens the browser's calendar picker when you click anywhere on it
+// (native <input type=date> otherwise only pops the picker from its little icon).
+function DateInput({value,onChange,theme:t,style}){
+  const ref=useRef(null);
+  const open=()=>{const el=ref.current;if(el&&typeof el.showPicker==="function"){try{el.showPicker();}catch{}}};
+  return <input ref={ref} type="date" value={value||""} onChange={e=>onChange(e.target.value)} onClick={open} onFocus={open} style={{...iS(t),cursor:"pointer",...(style||{})}}/>;
+}
+
 // ── UI ATOMS ──────────────────────────────────────────────────
 function Btn({children,theme:t,accent,sm,onClick}){
   return <button onClick={onClick} style={{border:`1px solid ${accent?t.accent:t.lineStrong}`,background:accent?t.accent:t.bgCard,color:accent?t.bg:t.ink,padding:sm?"5px 10px":"8px 13px",borderRadius:8,fontFamily:"'IBM Plex Sans',inherit",fontSize:sm?12:13,fontWeight:accent?600:500,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7,whiteSpace:"nowrap",boxShadow:accent?`0 6px 16px -8px ${t.accent}cc`:"none"}}>{children}</button>;
@@ -627,12 +635,26 @@ function NewTaskModal({open,onClose,onCreate,defaults,companyId,track,theme:t}){
   const initialCompany=companyId==="all"?COMPANIES[0].id:companyId;
   const [company,setCompany]=useState(initialCompany);
   const [title,setTitle]=useState("");const [phase,setPhase]=useState(defaults.phase);const [priority,setPriority]=useState("medium");const [cadence,setCadence]=useState("one-time");const [deadline,setDeadline]=useState(defaults.deadline||"");const [assignees,setAssignees]=useState([]);const [busy,setBusy]=useState(false);
-  useEffect(()=>{if(!open)return;setCompany(companyId==="all"?COMPANIES[0].id:companyId);setTitle("");setPhase(defaults.phase);setPriority("medium");setCadence("one-time");setDeadline(defaults.deadline||"");setAssignees([]);},[open,defaults.phase,defaults.deadline,companyId]);
+  const [repeat,setRepeat]=useState("none");           // none | daily | weekly | monthly
+  const [weekdays,setWeekdays]=useState([]);           // for weekly: 0=Sun … 6=Sat
+  useEffect(()=>{if(!open)return;setCompany(companyId==="all"?COMPANIES[0].id:companyId);setTitle("");setPhase(defaults.phase);setPriority("medium");setCadence("one-time");setDeadline(defaults.deadline||"");setAssignees([]);setRepeat("none");setWeekdays([]);},[open,defaults.phase,defaults.deadline,companyId]);
   if(!open)return null;
   const IS=iS(t);
   const phases=PHASES_FOR(track);
   const togA=n=>setAssignees(a=>a.includes(n)?a.filter(x=>x!==n):[...a,n]);
-  const submit=async()=>{if(!title.trim())return;setBusy(true);try{await onCreate({company_id:company,track,phase,title:title.trim(),priority,cadence,deadline:deadline||null,assignees});onClose();}finally{setBusy(false);}};
+  const togWd=n=>setWeekdays(w=>w.includes(n)?w.filter(x=>x!==n):[...w,n].sort((a,b)=>a-b));
+  const DOWS=[["Sun",0],["Mon",1],["Tue",2],["Wed",3],["Thu",4],["Fri",5],["Sat",6]];
+  const repeatNeedsDate=repeat!=="none"&&!deadline;
+  const submit=async()=>{
+    if(!title.trim())return;
+    if(repeat!=="none"&&!deadline){return;} // guard: repeating needs a start date
+    setBusy(true);
+    try{
+      const rep=repeat==="none"?null:{freq:repeat,weekdays:repeat==="weekly"?(weekdays.length?weekdays:undefined):undefined};
+      await onCreate({company_id:company,track,phase,title:title.trim(),priority,cadence,deadline:deadline||null,assignees,repeat:rep});
+      onClose();
+    }finally{setBusy(false);}
+  };
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",display:"grid",placeItems:"center",zIndex:100,backdropFilter:"blur(4px)",padding:20}} onClick={onClose}>
       <div style={{width:560,maxWidth:"94vw",maxHeight:"90vh",background:t.bgCard,overflowY:"auto",padding:30,borderRadius:16,border:`1px solid ${t.lineStrong}`,boxShadow:"0 30px 80px rgba(0,0,0,.6)"}} onClick={e=>e.stopPropagation()}>
@@ -647,8 +669,25 @@ function NewTaskModal({open,onClose,onCreate,defaults,companyId,track,theme:t}){
           {label:"Phase",content:<select value={phase} onChange={e=>setPhase(e.target.value)} style={IS}>{phases.map(p=><option key={p} value={p}>{p}</option>)}</select>},
           {label:"Assign to",content:<div style={{display:"flex",flexWrap:"wrap",gap:8}}>{TEAM.map(n=><button key={n} onClick={()=>togA(n)} style={{display:"flex",alignItems:"center",gap:4,padding:"6px 12px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:500,fontFamily:"inherit",border:`1px solid ${assignees.includes(n)?t.accent:t.lineStrong}`,background:assignees.includes(n)?t.accentSoft:t.bgElevated,color:assignees.includes(n)?t.accentDeep:t.inkMuted}}>{assignees.includes(n)&&<Check size={12}/>}{n}</button>)}</div>},
           {label:"Priority",content:<div style={{display:"flex",gap:8}}>{["high","medium","low"].map(p=><button key={p} onClick={()=>setPriority(p)} style={{padding:"6px 14px",borderRadius:8,border:"1px solid",cursor:"pointer",fontSize:12.5,fontWeight:500,textTransform:"capitalize",fontFamily:"inherit",borderColor:priority===p?t.accent:t.lineStrong,background:priority===p?t.accentSoft:t.bgElevated,color:priority===p?t.accentDeep:t.inkMuted}}>{p}</button>)}</div>},
-          {label:"Cadence",content:<select value={cadence} onChange={e=>setCadence(e.target.value)} style={IS}>{["one-time","weekly","monthly","quarterly"].map(c=><option key={c} value={c}>{c}</option>)}</select>},
-          {label:"Deadline",content:<input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} style={IS}/>},
+          {label:repeat==="none"?"Deadline":"Start date",content:<DateInput value={deadline} onChange={setDeadline} theme={t}/>},
+          {label:"Repeat",content:<div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              {[["none","Doesn't repeat"],["daily","Daily"],["weekly","Weekly"],["monthly","Monthly"]].map(([v,lbl])=><button key={v} onClick={()=>setRepeat(v)} style={{padding:"6px 13px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:600,fontFamily:"inherit",border:`1px solid ${repeat===v?t.accent:t.lineStrong}`,background:repeat===v?t.accentSoft:t.bgElevated,color:repeat===v?t.accentDeep:t.inkMuted}}>{lbl}</button>)}
+            </div>
+            {repeat==="weekly"&&<div style={{marginTop:12}}>
+              <div style={{fontSize:11.5,color:t.inkFaint,marginBottom:7}}>Repeat on {weekdays.length?"":"(defaults to the start date's day)"}</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                {DOWS.map(([lbl,n])=><button key={n} onClick={()=>togWd(n)} style={{width:42,padding:"7px 0",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"inherit",textAlign:"center",border:`1px solid ${weekdays.includes(n)?t.accent:t.lineStrong}`,background:weekdays.includes(n)?t.accentSoft:t.bgElevated,color:weekdays.includes(n)?t.accentDeep:t.inkMuted}}>{lbl}</button>)}
+              </div>
+            </div>}
+            {repeat!=="none"&&<div style={{marginTop:10,fontSize:12,color:repeatNeedsDate?t.bad:t.inkMuted,lineHeight:1.5}}>
+              {repeatNeedsDate
+                ?"Pick a start date above to schedule the repeats."
+                :repeat==="daily"?"Creates a task every day for about a month."
+                :repeat==="weekly"?`Creates a task every week${weekdays.length>1?" on the selected days":""} for about 3 months.`
+                :"Creates a task every month for about 6 months."}
+            </div>}
+          </div>},
         ].map(({label,content})=>(
           <div key={label} style={{marginBottom:20}}>
             <label style={{display:"block",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",color:t.inkFaint,marginBottom:7}}>{label}</label>
@@ -657,7 +696,7 @@ function NewTaskModal({open,onClose,onCreate,defaults,companyId,track,theme:t}){
         ))}
         <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
           <Btn theme={t} onClick={onClose}>Cancel</Btn>
-          <Btn theme={t} accent onClick={submit}>{busy?"Creating…":"Create task"}</Btn>
+          <Btn theme={t} accent onClick={submit}>{busy?"Creating…":repeat==="none"?"Create task":"Create repeating task"}</Btn>
         </div>
       </div>
     </div>
@@ -1291,7 +1330,7 @@ function TaskDrawer({t:tk,onClose,update,onDelete,company,me,onChanged,theme:th}
             <select value={tk.phase} onChange={e=>update(tk.id,{phase:e.target.value})} style={IS}>{phases.map(p=><option key={p} value={p}>{p}</option>)}</select>
           </Field>
           <Field label="Deadline" theme={th}>
-            <input type="date" value={tk.deadline||""} onChange={e=>update(tk.id,{deadline:e.target.value})} style={IS}/>
+            <DateInput value={tk.deadline||""} onChange={v=>update(tk.id,{deadline:v})} theme={th}/>
           </Field>
           <Field label="Priority" theme={th}>
             <div style={{display:"flex",gap:7}}>{["high","medium","low"].map(p=><button key={p} onClick={()=>update(tk.id,{priority:p})} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 13px",borderRadius:8,cursor:"pointer",fontSize:12.5,fontWeight:500,textTransform:"capitalize",fontFamily:"inherit",border:`1px solid ${tk.priority===p?PRIORITIES[p]:th.lineStrong}`,background:tk.priority===p?PRIORITIES[p]+"22":th.bgElevated,color:tk.priority===p?PRIORITIES[p]:th.inkMuted}}><Star size={12} style={{fill:tk.priority===p?PRIORITIES[p]:"none"}}/>{p}</button>)}</div>

@@ -14,6 +14,14 @@ export type Task = {
   attachments: Attachment[];
 };
 
+export type RepeatSpec = {
+  freq: "daily" | "weekly" | "monthly";
+  // For weekly: which weekdays (0=Sun … 6=Sat). If empty, uses the start date's weekday.
+  weekdays?: number[];
+  // How many occurrences to generate (bounded). Defaults applied in createTask.
+  count?: number;
+};
+
 export type NewTaskInput = {
   company_id: string;
   track: "seo" | "paid_social";
@@ -25,6 +33,7 @@ export type NewTaskInput = {
   deadline?: string | null;
   recurring?: boolean;
   assignees?: string[];
+  repeat?: RepeatSpec | null;   // when set, createTask generates the series
 };
 
 export type Attachment = {
@@ -79,11 +88,57 @@ export async function deleteTasks(ids: string[]) {
   if (error) throw error;
 }
 
+// Generate the list of ISO dates for a recurring series, starting from `startISO`.
+// Bounded so we never create a runaway number of rows.
+function expandRecurrence(startISO: string, repeat: RepeatSpec): string[] {
+  const MAX = 260;                       // hard ceiling (e.g. ~1 year of weekdays)
+  const HORIZON_DAYS = 366;              // don't schedule further than ~1 year out
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const [y, m, d] = startISO.split("-").map(Number);
+  const start = new Date(y, m - 1, d);
+  const horizon = new Date(start); horizon.setDate(horizon.getDate() + HORIZON_DAYS);
+  const want = Math.min(repeat.count ?? defaultCount(repeat.freq), MAX);
+  const out: string[] = [];
+
+  if (repeat.freq === "daily") {
+    const cur = new Date(start);
+    while (out.length < want && cur <= horizon) { out.push(iso(cur)); cur.setDate(cur.getDate() + 1); }
+  } else if (repeat.freq === "weekly") {
+    // Which weekdays to hit each week; default to the start date's own weekday.
+    const days = (repeat.weekdays && repeat.weekdays.length) ? [...repeat.weekdays].sort((a, b) => a - b) : [start.getDay()];
+    // Walk week by week from the Sunday of the start week, emitting matching days that are >= start.
+    const weekStart = new Date(start); weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    while (out.length < want && weekStart <= horizon) {
+      for (const wd of days) {
+        const day = new Date(weekStart); day.setDate(day.getDate() + wd);
+        if (day >= start && day <= horizon && out.length < want) out.push(iso(day));
+      }
+      weekStart.setDate(weekStart.getDate() + 7);
+    }
+    out.sort();
+  } else { // monthly — same day-of-month each month, clamped to each month's length
+    const targetDay = start.getDate();
+    for (let k = 0; out.length < want; k++) {
+      const cand = new Date(start.getFullYear(), start.getMonth() + k, 1);
+      const lastDay = new Date(cand.getFullYear(), cand.getMonth() + 1, 0).getDate();
+      cand.setDate(Math.min(targetDay, lastDay));
+      if (cand > horizon) break;
+      out.push(iso(cand));
+    }
+  }
+  return out;
+}
+function defaultCount(freq: RepeatSpec["freq"]): number {
+  if (freq === "daily") return 30;      // ~a month of days
+  if (freq === "weekly") return 12;     // ~3 months of weeks (per selected weekday)
+  return 6;                             // ~6 months of months
+}
+
 export async function createTask(input: NewTaskInput) {
   const { data: maxRows } = await supabase.from("tasks").select("sort_order").order("sort_order", { ascending: false }).limit(1);
-  const sort_order = (maxRows?.[0]?.sort_order ?? -1) + 1;
+  let sort_order = (maxRows?.[0]?.sort_order ?? -1) + 1;
 
-  const payload = {
+  const base = {
     company_id: input.company_id,
     track: input.track,
     phase: input.phase,
@@ -91,15 +146,29 @@ export async function createTask(input: NewTaskInput) {
     priority: input.priority ?? "medium",
     status: input.status ?? "not_started",
     cadence: input.cadence ?? "one-time",
-    deadline: input.deadline || null,
     recurring: input.recurring ?? false,
-    sort_order,
   };
+  const names = (input.assignees || []).filter(Boolean);
 
+  // ---- Recurring: expand into a dated series ----
+  if (input.repeat && input.deadline) {
+    const dates = expandRecurrence(input.deadline, input.repeat);
+    const cadence = input.repeat.freq === "daily" ? "weekly" : input.repeat.freq; // schema cadence has no "daily"
+    const payload = dates.map(dl => ({ ...base, cadence, recurring: true, deadline: dl, sort_order: sort_order++ }));
+    const { data: inserted, error } = await supabase.from("tasks").insert(payload).select("id");
+    if (error) throw error;
+    if (names.length && inserted?.length) {
+      const rows: { task_id: string; name: string }[] = [];
+      for (const r of inserted) for (const name of names) rows.push({ task_id: (r as any).id, name });
+      await supabase.from("task_assignees").insert(rows);
+    }
+    return inserted?.[0] ?? null;
+  }
+
+  // ---- Single task ----
+  const payload = { ...base, deadline: input.deadline || null, sort_order };
   const { data, error } = await supabase.from("tasks").insert(payload).select().single();
   if (error) throw error;
-
-  const names = (input.assignees || []).filter(Boolean);
   if (data && names.length) {
     await supabase.from("task_assignees").insert(names.map(name => ({ task_id: data.id, name })));
   }
