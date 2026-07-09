@@ -5,6 +5,7 @@ const supabase = createClient();
 export type Task = {
   id: string; company_id: string; track: "seo" | "paid_social";
   phase: string; title: string; why?: string; cadence?: string; tools?: string;
+  caption?: string | null;
   priority: "high" | "medium" | "low";
   status: "not_started" | "in_progress" | "blocked" | "done";
   deadline?: string | null; platform?: string | null; recurring: boolean;
@@ -70,7 +71,7 @@ export async function loadTasks(): Promise<Task[]> {
 
 // ---- Task field updates ----
 export async function updateTask(id: string, patch: Partial<Task>) {
-  const allowed = ["status", "priority", "deadline", "title", "why", "tools", "cadence", "phase", "completed_by", "completed_at"];
+  const allowed = ["status", "priority", "deadline", "title", "why", "tools", "cadence", "phase", "completed_by", "completed_at", "caption"];
   const clean: any = {};
   for (const k of allowed) if (k in patch) clean[k] = (patch as any)[k];
   if (Object.keys(clean).length) await supabase.from("tasks").update(clean).eq("id", id);

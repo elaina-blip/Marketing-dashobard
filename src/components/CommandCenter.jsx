@@ -1335,8 +1335,10 @@ function TimelineView({tasks,companyId,setCompanyId,theme:t}){
 function TaskDrawer({t:tk,onClose,update,onDelete,company,me,onChanged,theme:th}){
   const [note,setNote]=useState("");const [linkUrl,setUrl]=useState("");const [linkLabel,setLbl]=useState("");const [busy,setBusy]=useState(false);
   const [titleDraft,setTitleDraft]=useState(tk.title);
-  useEffect(()=>{setTitleDraft(tk.title);},[tk.id]);
+  const [captionDraft,setCaptionDraft]=useState(tk.caption||"");
+  useEffect(()=>{setTitleDraft(tk.title);setCaptionDraft(tk.caption||"");},[tk.id]);
   const saveTitle=()=>{const v=titleDraft.trim();if(v&&v!==tk.title)update(tk.id,{title:v});else setTitleDraft(tk.title);};
+  const saveCaption=()=>{const v=captionDraft;if(v!==(tk.caption||""))update(tk.id,{caption:v});};
   const phases=useMemo(()=>{const p=PHASES_FOR(tk.track);return p.includes(tk.phase)?p:[tk.phase,...p];},[tk.track,tk.phase]);
   const fileRef=useRef(null);const who=me||"Someone";const IS=iS(th);
   const togA=async name=>{const has=tk.assignees.includes(name);update(tk.id,{assignees:has?tk.assignees.filter(a=>a!==name):[...tk.assignees,name]});await dbSetAssignee(tk.id,name,!has);};
@@ -1362,6 +1364,15 @@ function TaskDrawer({t:tk,onClose,update,onDelete,company,me,onChanged,theme:th}
         <Field label="Title" theme={th}>
           <textarea value={titleDraft} onChange={e=>setTitleDraft(e.target.value)} onBlur={saveTitle} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();e.target.blur();}}} rows={2} style={{...IS,fontFamily:"'Fraunces',serif",fontSize:20,lineHeight:1.35,resize:"vertical"}}/>
         </Field>
+
+        {/* Caption — large area so most of the post copy is visible at once */}
+        <div style={{marginBottom:22}}>
+          <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,fontSize:12.5,fontWeight:700,color:th.inkMuted,marginBottom:9,textTransform:"uppercase",letterSpacing:".05em"}}>
+            <span style={{display:"flex",alignItems:"center",gap:6}}><MessageSquare size={13}/>Caption</span>
+            <span style={{fontSize:11,fontWeight:600,color:th.inkFaint,textTransform:"none",letterSpacing:0,fontFamily:"'JetBrains Mono',monospace"}}>{captionDraft.length} char{captionDraft.length!==1?"s":""}</span>
+          </label>
+          <textarea value={captionDraft} onChange={e=>setCaptionDraft(e.target.value)} onBlur={saveCaption} placeholder="Write the caption for this post…" rows={10} style={{...IS,minHeight:220,lineHeight:1.55,fontSize:14,resize:"vertical",whiteSpace:"pre-wrap"}}/>
+        </div>
 
         {/* Compact fields in two columns */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 28px"}}>
@@ -1479,7 +1490,7 @@ export default function App(){
       else{p.completed_by=null;p.completed_at=null;}
     }
     setTasks(ts=>ts.map(tk=>tk.id===id?{...tk,...p}:tk));
-    const dp={};for(const k of["status","priority","deadline","title","phase","cadence","why","completed_by","completed_at"])if(k in p)dp[k]=p[k];
+    const dp={};for(const k of["status","priority","deadline","title","phase","cadence","why","completed_by","completed_at","caption"])if(k in p)dp[k]=p[k];
     if(Object.keys(dp).length)dbUpdate(id,dp);
   };
   const removeTask=async id=>{setOpenTask(null);setTasks(ts=>ts.filter(tk=>tk.id!==id));await dbDeleteTask(id);};
