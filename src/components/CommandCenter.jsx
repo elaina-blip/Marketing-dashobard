@@ -1,7 +1,7 @@
 "use client";
 import React,{useState,useMemo,useEffect,useRef}from"react";
 import{Search,Megaphone,LayoutGrid,Plus,X,Check,Clock,AlertTriangle,Circle,Star,Users,Calendar,MessageSquare,ChevronDown,Building2,Filter,CalendarDays,ChevronLeft,ChevronRight,Paperclip,Link2,FileText,Download,Trash2,Eye,EyeOff,Copy,BarChart2,Mail,Globe,TrendingUp,Zap,Settings,Upload,Sparkles,CheckSquare,Square,Folder,Image,Palette,Phone,Type,FileSpreadsheet}from"lucide-react";
-import{loadTasks,updateTask as dbUpdate,deleteTask as dbDeleteTask,deleteTasks as dbDeleteTasks,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentName,signOut as dbSignOut,createTask as dbCreateTask,importTasks as dbImportTasks,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource,loadMetrics,summarizeMetric,loadHubFiles,uploadHubFile,hubFileUrl,deleteHubFile,loadContacts,createContact,deleteContact,loadBrandAssets,saveBrandAsset,uploadBrandLogo,brandAssetUrl,deleteBrandAsset,loadTemplates,saveTemplate,deleteTemplate}from"@/lib/data";
+import{loadTasks,updateTask as dbUpdate,deleteTask as dbDeleteTask,deleteTasks as dbDeleteTasks,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentName,signOut as dbSignOut,createTask as dbCreateTask,importTasks as dbImportTasks,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource,loadMetrics,summarizeMetric,loadHubFiles,uploadHubFile,hubFileUrl,deleteHubFile,loadContacts,createContact,deleteContact,loadBrandAssets,saveBrandAsset,uploadBrandLogo,brandAssetUrl,deleteBrandAsset,loadTemplates,saveTemplate,deleteTemplate,setHubFileCompany,setContactCompany,setTemplateCompany}from"@/lib/data";
 import{parseImportFile}from"@/lib/import-tasks";
 
 // ── COMPANIES ──────────────────────────────────────────────────
@@ -1542,6 +1542,20 @@ function coChip(id,t){
   const c=id==="all"?{short:"All",color:ALL_COLOR}:(COMPANIES.find(x=>x.id===id)||{short:"—",color:t.inkFaint});
   return <span style={{fontSize:10.5,fontWeight:600,padding:"3px 8px",borderRadius:6,background:c.color+"22",color:c.color,letterSpacing:".02em"}}>{c.short}</span>;
 }
+// Editable company badge: looks like coChip, but is a dropdown so an item can be
+// reassigned to a different company inline. Used in the Files/Contacts/Templates lists.
+function CompanyChipSelect({value,onChange,includeAll,t}){
+  const opts=includeAll?[{id:"all",short:"All",name:"All Companies",color:ALL_COLOR},...COMPANIES]:COMPANIES;
+  const cur=value==="all"?{short:"All",color:ALL_COLOR}:(COMPANIES.find(x=>x.id===value)||{short:"—",color:t.inkFaint});
+  return(
+    <span style={{position:"relative",display:"inline-flex",alignItems:"center"}} title="Change company">
+      <span style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10.5,fontWeight:600,padding:"3px 7px 3px 8px",borderRadius:6,background:cur.color+"22",color:cur.color,cursor:"pointer",letterSpacing:".02em"}}>{cur.short}<ChevronDown size={11} style={{opacity:.7}}/></span>
+      <select value={value} onChange={e=>onChange(e.target.value)} style={{position:"absolute",inset:0,opacity:0,cursor:"pointer",width:"100%"}}>
+        {opts.map(o=><option key={o.id} value={o.id} style={{background:t.bgElevated,color:t.ink}}>{o.name||o.short}</option>)}
+      </select>
+    </span>
+  );
+}
 function HubTabs({tabs,active,onChange,t}){
   return(
     <div style={{display:"flex",gap:4,marginBottom:24,borderBottom:`1px solid ${t.line}`}}>
@@ -1555,8 +1569,8 @@ function HubTabs({tabs,active,onChange,t}){
 function CompanyPicker({value,onChange,includeAll,t}){
   const opts=includeAll?[{id:"all",name:"All Companies"},...COMPANIES]:COMPANIES;
   return(
-    <select value={value} onChange={e=>onChange(e.target.value)} style={{...iS(t),cursor:"pointer"}}>
-      {opts.map(o=><option key={o.id} value={o.id}>{o.name||o.short}</option>)}
+    <select value={value} onChange={e=>onChange(e.target.value)} style={{...iS(t),cursor:"pointer",background:t.bgElevated,color:t.ink}}>
+      {opts.map(o=><option key={o.id} value={o.id} style={{background:t.bgElevated,color:t.ink}}>{o.name||o.short}</option>)}
     </select>
   );
 }
@@ -1605,6 +1619,7 @@ function HubFiles({companyId,me,t}){
 
   const open=async f=>{const url=await hubFileUrl(f.storage_path);if(url)window.open(url,"_blank");};
   const del=async f=>{if(!window.confirm(`Delete "${f.name}"?`))return;await deleteHubFile(f);await reload();};
+  const reassign=async(f,cid)=>{if(cid===f.company_id)return;setFiles(fs=>fs.map(x=>x.id===f.id?{...x,company_id:cid}:x));try{await setHubFileCompany(f.id,cid);}catch(err){alert("Couldn't reassign: "+(err?.message||err));reload();}};
   const shown=files.filter(f=>(companyId==="all"||f.company_id===companyId||f.company_id==="all")&&(typeF==="all"||f.kind===typeF));
   const coName=upCompany==="all"?"All companies":(COMPANIES.find(c=>c.id===upCompany)?.name||upCompany);
   return(
@@ -1635,7 +1650,7 @@ function HubFiles({companyId,me,t}){
                   {f.kind==="pdf"?<FileText size={17} style={{color:t.bad,flexShrink:0}}/>:<FileSpreadsheet size={17} style={{color:t.good,flexShrink:0}}/>}
                   <span style={{fontSize:13,color:t.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</span>
                 </div>
-                <div>{coChip(f.company_id,t)}</div>
+                <div><CompanyChipSelect value={f.company_id} onChange={cid=>reassign(f,cid)} includeAll t={t}/></div>
                 <div style={{fontSize:12,color:t.inkMuted}}>{f.kind==="pdf"?"PDF":f.kind==="sheet"?"Sheet":"File"}</div>
                 <div style={{fontSize:12,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>{new Date(f.created_at).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</div>
                 <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
@@ -1703,6 +1718,7 @@ function HubContacts({companyId,t}){
   const reload=async()=>{try{setContacts(await loadContacts());}finally{setLoading(false);}};
   useEffect(()=>{reload();},[]);
   const del=async c=>{if(!window.confirm(`Delete ${c.name}?`))return;await deleteContact(c.id);await reload();};
+  const reassign=async(c,cid)=>{if(cid===c.company_id)return;setContacts(cs=>cs.map(x=>x.id===c.id?{...x,company_id:cid}:x));try{await setContactCompany(c.id,cid);}catch(err){alert("Couldn't reassign: "+(err?.message||err));reload();}};
   const shown=contacts.filter(c=>companyId==="all"||c.company_id===companyId||c.company_id==="all");
   const inits=n=>n.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
   return(
@@ -1724,7 +1740,7 @@ function HubContacts({companyId,t}){
                     <div style={{fontFamily:"'Fraunces',serif",fontSize:15,fontWeight:500,color:t.ink}}>{c.name}</div>
                     <div style={{fontSize:12,color:t.inkMuted}}>{c.role}</div>
                   </div>
-                  <div style={{marginLeft:"auto",display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}}>{coChip(c.company_id,t)}{c.contact_type&&<Pill v="neutral" theme={t}>{c.contact_type}</Pill>}</div>
+                  <div style={{marginLeft:"auto",display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}}><CompanyChipSelect value={c.company_id} onChange={cid=>reassign(c,cid)} includeAll t={t}/>{c.contact_type&&<Pill v="neutral" theme={t}>{c.contact_type}</Pill>}</div>
                 </div>
                 <div style={{borderTop:`1px solid ${t.line}`,paddingTop:12,display:"flex",flexDirection:"column",gap:8}}>
                   {c.email&&<div style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:t.inkMuted}}><Mail size={14} style={{color:t.inkFaint}}/><span style={{color:t.accentDeep}}>{c.email}</span></div>}
@@ -1901,6 +1917,7 @@ function HubTemplates({companyId,t}){
   const reload=async()=>{try{setTemplates(await loadTemplates());}finally{setLoading(false);}};
   useEffect(()=>{reload();},[]);
   const del=async id=>{if(!window.confirm("Delete this template?"))return;await deleteTemplate(id);setOpenTpl(null);await reload();};
+  const reassign=async(tpl,cid)=>{if(cid===tpl.company_id)return;setTemplates(ts=>ts.map(x=>x.id===tpl.id?{...x,company_id:cid}:x));setOpenTpl(o=>o&&o.id===tpl.id?{...o,company_id:cid}:o);try{await setTemplateCompany(tpl.id,cid);}catch(err){alert("Couldn't reassign: "+(err?.message||err));reload();}};
   const shown=templates.filter(x=>companyId==="all"||x.company_id===companyId||x.company_id==="all");
   const borders={caption:t.accent,email:t.teal,calendar:t.gold,framework:t.indigo};
   return(
@@ -1910,7 +1927,7 @@ function HubTemplates({companyId,t}){
         <div onClick={()=>setOpenTpl(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",backdropFilter:"blur(4px)",display:"grid",placeItems:"center",zIndex:100,padding:20}}>
           <div onClick={e=>e.stopPropagation()} style={{width:600,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",background:t.bgCard,border:`1px solid ${t.lineStrong}`,borderRadius:16,padding:28,boxShadow:t.shadowHover}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-              <div><div style={{fontFamily:"'Fraunces',serif",fontSize:19,fontWeight:500,color:t.ink}}>{openTpl.title}</div><div style={{fontSize:12,color:t.inkMuted,marginTop:3}}>{(TPL_CATS[openTpl.category]||{}).label||openTpl.category}</div></div>
+              <div><div style={{fontFamily:"'Fraunces',serif",fontSize:19,fontWeight:500,color:t.ink}}>{openTpl.title}</div><div style={{fontSize:12,color:t.inkMuted,marginTop:3,display:"flex",alignItems:"center",gap:8}}>{(TPL_CATS[openTpl.category]||{}).label||openTpl.category}<span style={{color:t.inkFaint}}>·</span><span style={{display:"flex",alignItems:"center",gap:5}}>Company: <CompanyChipSelect value={openTpl.company_id} onChange={cid=>reassign(openTpl,cid)} includeAll t={t}/></span></div></div>
               <button onClick={()=>setOpenTpl(null)} style={{background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:8,padding:7,cursor:"pointer",color:t.inkFaint,display:"grid",placeItems:"center"}}><X size={18}/></button>
             </div>
             <div style={{whiteSpace:"pre-wrap",fontSize:13.5,color:t.ink,lineHeight:1.6,background:t.bgSunk,border:`1px solid ${t.line}`,borderRadius:10,padding:16}}>{openTpl.body||"(empty)"}</div>

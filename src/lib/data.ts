@@ -453,6 +453,12 @@ export async function deleteHubFile(f: HubFile) {
   await supabase.from("hub_files").delete().eq("id", f.id);
 }
 
+// Reassign a file to a different company (or "all").
+export async function setHubFileCompany(id: string, companyId: string) {
+  const { error } = await supabase.from("hub_files").update({ company_id: companyId }).eq("id", id);
+  if (error) throw error;
+}
+
 // ---- Contacts ----
 export type HubContact = {
   id: string; company_id: string; name: string; role: string | null;
@@ -480,6 +486,12 @@ export async function createContact(c: {
 
 export async function deleteContact(id: string) {
   await supabase.from("hub_contacts").delete().eq("id", id);
+}
+
+// Reassign a contact to a different company (or "all").
+export async function setContactCompany(id: string, companyId: string) {
+  const { error } = await supabase.from("hub_contacts").update({ company_id: companyId }).eq("id", id);
+  if (error) throw error;
 }
 
 // ---- Brand assets (logos, colors, fonts, voice) ----
@@ -551,4 +563,10 @@ export async function saveTemplate(t: {
 
 export async function deleteTemplate(id: string) {
   await supabase.from("hub_templates").delete().eq("id", id);
+}
+
+// Reassign a template to a different company (or "all").
+export async function setTemplateCompany(id: string, companyId: string) {
+  const { error } = await supabase.from("hub_templates").update({ company_id: companyId }).eq("id", id);
+  if (error) throw error;
 }
