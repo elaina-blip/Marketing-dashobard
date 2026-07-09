@@ -404,3 +404,151 @@ export function summarizeMetric(rows: MetricRow[], metric: string, days = 28): M
   const changePct = prevTotal > 0 ? ((total - prevTotal) / prevTotal) * 100 : null;
   return { total, prevTotal, changePct, series };
 }
+
+// ============================================================================
+// MARKETING HUB — files, contacts, brand assets, templates
+// Uses the "hub" Storage bucket + hub_* tables (see 05_hub.sql / 06_hub_storage.sql).
+// Same patterns as attachments above: upload to Storage, keep metadata in a table.
+// ============================================================================
+
+// ---- Files (spreadsheets, PDFs) ----
+export type HubFile = {
+  id: string; company_id: string; name: string; kind: string;
+  storage_path: string; size_bytes: number | null; created_by: string | null;
+  created_at: string;
+};
+
+export async function loadHubFiles(): Promise<HubFile[]> {
+  const { data } = await supabase.from("hub_files").select("*").order("created_at", { ascending: false });
+  return (data || []) as HubFile[];
+}
+
+// Detect kind from the filename so the UI shows the right icon.
+function hubKind(name: string): string {
+  const n = name.toLowerCase();
+  if (n.endsWith(".pdf")) return "pdf";
+  if (n.endsWith(".xlsx") || n.endsWith(".xls") || n.endsWith(".csv") || n.endsWith(".tsv")) return "sheet";
+  return "file";
+}
+
+export async function uploadHubFile(companyId: string, file: File, createdBy: string): Promise<HubFile> {
+  const path = `files/${companyId}/${Date.now()}_${file.name}`;
+  const { error: upErr } = await supabase.storage.from("hub").upload(path, file);
+  if (upErr) throw upErr;
+  const { data, error } = await supabase.from("hub_files").insert({
+    company_id: companyId, name: file.name, kind: hubKind(file.name),
+    storage_path: path, size_bytes: file.size, created_by: createdBy,
+  }).select().single();
+  if (error) throw error;
+  return data as HubFile;
+}
+
+export async function hubFileUrl(storagePath: string): Promise<string | undefined> {
+  const { data } = await supabase.storage.from("hub").createSignedUrl(storagePath, 3600);
+  return data?.signedUrl;
+}
+
+export async function deleteHubFile(f: HubFile) {
+  if (f.storage_path) await supabase.storage.from("hub").remove([f.storage_path]);
+  await supabase.from("hub_files").delete().eq("id", f.id);
+}
+
+// ---- Contacts ----
+export type HubContact = {
+  id: string; company_id: string; name: string; role: string | null;
+  contact_type: string | null; email: string | null; phone: string | null;
+  notes: string | null; created_at: string;
+};
+
+export async function loadContacts(): Promise<HubContact[]> {
+  const { data } = await supabase.from("hub_contacts").select("*").order("name");
+  return (data || []) as HubContact[];
+}
+
+export async function createContact(c: {
+  company_id: string; name: string; role?: string; contact_type?: string;
+  email?: string; phone?: string; notes?: string;
+}): Promise<HubContact> {
+  const { data, error } = await supabase.from("hub_contacts").insert({
+    company_id: c.company_id, name: c.name, role: c.role || null,
+    contact_type: c.contact_type || null, email: c.email || null,
+    phone: c.phone || null, notes: c.notes || null,
+  }).select().single();
+  if (error) throw error;
+  return data as HubContact;
+}
+
+export async function deleteContact(id: string) {
+  await supabase.from("hub_contacts").delete().eq("id", id);
+}
+
+// ---- Brand assets (logos, colors, fonts, voice) ----
+export type BrandAsset = {
+  id: string; company_id: string; asset_type: string; label: string | null;
+  value: string | null; storage_path: string | null; sort_order: number; created_at: string;
+};
+
+export async function loadBrandAssets(): Promise<BrandAsset[]> {
+  const { data } = await supabase.from("hub_brand_assets").select("*")
+    .order("company_id").order("asset_type").order("sort_order");
+  return (data || []) as BrandAsset[];
+}
+
+// Save a text asset (color hex, font name, voice/tagline). No file involved.
+export async function saveBrandAsset(a: {
+  company_id: string; asset_type: string; label?: string; value?: string; sort_order?: number;
+}): Promise<BrandAsset> {
+  const { data, error } = await supabase.from("hub_brand_assets").insert({
+    company_id: a.company_id, asset_type: a.asset_type, label: a.label || null,
+    value: a.value ?? null, sort_order: a.sort_order ?? 0,
+  }).select().single();
+  if (error) throw error;
+  return data as BrandAsset;
+}
+
+// Upload a logo image and record it as a brand asset.
+export async function uploadBrandLogo(companyId: string, file: File, label?: string): Promise<BrandAsset> {
+  const path = `brand/${companyId}/${Date.now()}_${file.name}`;
+  const { error: upErr } = await supabase.storage.from("hub").upload(path, file);
+  if (upErr) throw upErr;
+  const { data, error } = await supabase.from("hub_brand_assets").insert({
+    company_id: companyId, asset_type: "logo", label: label || file.name, storage_path: path,
+  }).select().single();
+  if (error) throw error;
+  return data as BrandAsset;
+}
+
+export async function brandAssetUrl(storagePath: string): Promise<string | undefined> {
+  const { data } = await supabase.storage.from("hub").createSignedUrl(storagePath, 3600);
+  return data?.signedUrl;
+}
+
+export async function deleteBrandAsset(a: BrandAsset) {
+  if (a.storage_path) await supabase.storage.from("hub").remove([a.storage_path]);
+  await supabase.from("hub_brand_assets").delete().eq("id", a.id);
+}
+
+// ---- Templates ----
+export type HubTemplate = {
+  id: string; company_id: string; category: string; title: string;
+  body: string | null; created_at: string;
+};
+
+export async function loadTemplates(): Promise<HubTemplate[]> {
+  const { data } = await supabase.from("hub_templates").select("*").order("created_at", { ascending: false });
+  return (data || []) as HubTemplate[];
+}
+
+export async function saveTemplate(t: {
+  company_id?: string; category: string; title: string; body?: string;
+}): Promise<HubTemplate> {
+  const { data, error } = await supabase.from("hub_templates").insert({
+    company_id: t.company_id || "all", category: t.category, title: t.title, body: t.body || null,
+  }).select().single();
+  if (error) throw error;
+  return data as HubTemplate;
+}
+
+export async function deleteTemplate(id: string) {
+  await supabase.from("hub_templates").delete().eq("id", id);
+}

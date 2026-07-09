@@ -1,7 +1,7 @@
 "use client";
 import React,{useState,useMemo,useEffect,useRef}from"react";
 import{Search,Megaphone,LayoutGrid,Plus,X,Check,Clock,AlertTriangle,Circle,Star,Users,Calendar,MessageSquare,ChevronDown,Building2,Filter,CalendarDays,ChevronLeft,ChevronRight,Paperclip,Link2,FileText,Download,Trash2,Eye,EyeOff,Copy,BarChart2,Mail,Globe,TrendingUp,Zap,Settings,Upload,Sparkles,CheckSquare,Square,Folder,Image,Palette,Phone,Type,FileSpreadsheet}from"lucide-react";
-import{loadTasks,updateTask as dbUpdate,deleteTask as dbDeleteTask,deleteTasks as dbDeleteTasks,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentName,signOut as dbSignOut,createTask as dbCreateTask,importTasks as dbImportTasks,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource,loadMetrics,summarizeMetric}from"@/lib/data";
+import{loadTasks,updateTask as dbUpdate,deleteTask as dbDeleteTask,deleteTasks as dbDeleteTasks,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentName,signOut as dbSignOut,createTask as dbCreateTask,importTasks as dbImportTasks,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource,loadMetrics,summarizeMetric,loadHubFiles,uploadHubFile,hubFileUrl,deleteHubFile,loadContacts,createContact,deleteContact,loadBrandAssets,saveBrandAsset,uploadBrandLogo,brandAssetUrl,deleteBrandAsset,loadTemplates,saveTemplate,deleteTemplate}from"@/lib/data";
 import{parseImportFile}from"@/lib/import-tasks";
 
 // ── COMPANIES ──────────────────────────────────────────────────
@@ -1536,10 +1536,8 @@ function TaskDrawer({t:tk,onClose,update,onDelete,company,me,onChanged,theme:th}
 }
 
 // ── MARKETING HUB ─────────────────────────────────────────────
-// Central shelf for files, contacts, and brand assets. Self-contained:
-// stores everything in local state for now (no backend table yet), so it
-// can't break the rest of the app. Swap the useState seeds for Supabase
-// reads/writes when a `hub_files` / `hub_contacts` / `hub_brand` table exists.
+// Functional, Supabase-backed. Files upload to the "hub" bucket; contacts,
+// brand assets, and templates persist in the hub_* tables (see 05_hub.sql).
 function coChip(id,t){
   const c=id==="all"?{short:"All",color:ALL_COLOR}:(COMPANIES.find(x=>x.id===id)||{short:"—",color:t.inkFaint});
   return <span style={{fontSize:10.5,fontWeight:600,padding:"3px 8px",borderRadius:6,background:c.color+"22",color:c.color,letterSpacing:".02em"}}>{c.short}</span>;
@@ -1554,64 +1552,129 @@ function HubTabs({tabs,active,onChange,t}){
     </div>
   );
 }
-function HubFiles({companyId,t}){
-  const seed=[
-    {id:1,name:"Q3 Content Calendar.xlsx",company:"aps",kind:"sheet",added:"Jul 2"},
-    {id:2,name:"Brand Guidelines 2026.pdf",company:"all",kind:"pdf",added:"Jun 28"},
-    {id:3,name:"Ad Spend Tracker.xlsx",company:"ads",kind:"sheet",added:"Jun 24"},
-    {id:4,name:"Media Kit & Rate Card.pdf",company:"tgr",kind:"pdf",added:"Jun 20"},
-    {id:5,name:"Keyword Research Master.xlsx",company:"aps",kind:"sheet",added:"Jun 15"},
-  ];
-  const[files]=useState(seed);
+function CompanyPicker({value,onChange,includeAll,t}){
+  const opts=includeAll?[{id:"all",name:"All Companies"},...COMPANIES]:COMPANIES;
+  return(
+    <select value={value} onChange={e=>onChange(e.target.value)} style={{...iS(t),cursor:"pointer"}}>
+      {opts.map(o=><option key={o.id} value={o.id}>{o.name||o.short}</option>)}
+    </select>
+  );
+}
+
+// ---- FILES ----
+function HubFiles({companyId,me,t}){
+  const[files,setFiles]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[busy,setBusy]=useState(false);
   const[typeF,setTypeF]=useState("all");
-  const shown=files.filter(f=>(companyId==="all"||f.company===companyId||f.company==="all")&&(typeF==="all"||f.kind===typeF));
+  const[upCompany,setUpCompany]=useState(companyId==="all"?"aps":companyId);
+  const inputRef=useRef(null);
+  const reload=async()=>{try{setFiles(await loadHubFiles());}finally{setLoading(false);}};
+  useEffect(()=>{reload();},[]);
+  useEffect(()=>{setUpCompany(companyId==="all"?"aps":companyId);},[companyId]);
+  const onPick=async e=>{
+    const fl=Array.from(e.target.files||[]);if(!fl.length)return;
+    setBusy(true);
+    try{for(const f of fl)await uploadHubFile(upCompany,f,me);await reload();}
+    catch(err){alert("Upload failed: "+(err?.message||err));}
+    finally{setBusy(false);if(inputRef.current)inputRef.current.value="";}
+  };
+  const open=async f=>{const url=await hubFileUrl(f.storage_path);if(url)window.open(url,"_blank");};
+  const del=async f=>{if(!window.confirm(`Delete "${f.name}"?`))return;await deleteHubFile(f);await reload();};
+  const shown=files.filter(f=>(companyId==="all"||f.company_id===companyId||f.company_id==="all")&&(typeF==="all"||f.kind===typeF));
   return(
     <Panel theme={t} flush>
       <PHead title="Files" sub="Spreadsheets and PDFs for marketing" theme={t} b right={
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <Tabs2 tabs={["all","sheet","pdf"]} active={typeF} onChange={setTypeF} theme={t}/>
-          <Btn theme={t} sm accent><Upload size={13}/>Upload</Btn>
+          <div style={{width:150}}><CompanyPicker value={upCompany} onChange={setUpCompany} t={t}/></div>
+          <input ref={inputRef} type="file" multiple onChange={onPick} style={{display:"none"}} accept=".pdf,.xlsx,.xls,.csv,.tsv,.doc,.docx,.ppt,.pptx,.png,.jpg,.jpeg"/>
+          <Btn theme={t} sm accent onClick={()=>inputRef.current&&inputRef.current.click()}><Upload size={13}/>{busy?"Uploading…":"Upload"}</Btn>
         </div>
       }/>
-      {shown.length===0
+      {loading?<EmptyState label="Loading…" sub="Fetching your files." theme={t}/>
+        :shown.length===0
         ? <EmptyState label="No files yet" sub="Upload a spreadsheet or PDF to get started." theme={t}/>
         : <div>
-            <div style={{display:"grid",gridTemplateColumns:"1.9fr .8fr .8fr .9fr 40px",padding:"10px 22px",borderBottom:`1px solid ${t.line}`,fontSize:10,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em"}}>
+            <div style={{display:"grid",gridTemplateColumns:"1.9fr .8fr .8fr .9fr 60px",padding:"10px 22px",borderBottom:`1px solid ${t.line}`,fontSize:10,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em"}}>
               <div>Name</div><div>Company</div><div>Type</div><div>Added</div><div/>
             </div>
             {shown.map((f,i)=>(
-              <div key={f.id} style={{display:"grid",gridTemplateColumns:"1.9fr .8fr .8fr .9fr 40px",padding:"13px 22px",borderBottom:i<shown.length-1?`1px solid ${t.line}`:"none",alignItems:"center"}}>
-                <div style={{display:"flex",alignItems:"center",gap:11}}>
-                  {f.kind==="pdf"?<FileText size={17} style={{color:t.bad}}/>:<FileSpreadsheet size={17} style={{color:t.good}}/>}
-                  <span style={{fontSize:13,color:t.ink}}>{f.name}</span>
+              <div key={f.id} style={{display:"grid",gridTemplateColumns:"1.9fr .8fr .8fr .9fr 60px",padding:"13px 22px",borderBottom:i<shown.length-1?`1px solid ${t.line}`:"none",alignItems:"center"}}>
+                <div onClick={()=>open(f)} style={{display:"flex",alignItems:"center",gap:11,cursor:"pointer",minWidth:0}}>
+                  {f.kind==="pdf"?<FileText size={17} style={{color:t.bad,flexShrink:0}}/>:<FileSpreadsheet size={17} style={{color:t.good,flexShrink:0}}/>}
+                  <span style={{fontSize:13,color:t.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</span>
                 </div>
-                <div>{coChip(f.company,t)}</div>
-                <div style={{fontSize:12,color:t.inkMuted}}>{f.kind==="pdf"?"PDF":"Sheet"}</div>
-                <div style={{fontSize:12,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>{f.added}</div>
-                <div style={{display:"flex",justifyContent:"flex-end",gap:8}}><Download size={15} style={{color:t.inkFaint,cursor:"pointer"}}/></div>
+                <div>{coChip(f.company_id,t)}</div>
+                <div style={{fontSize:12,color:t.inkMuted}}>{f.kind==="pdf"?"PDF":f.kind==="sheet"?"Sheet":"File"}</div>
+                <div style={{fontSize:12,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>{new Date(f.created_at).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</div>
+                <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
+                  <Download size={15} style={{color:t.inkFaint,cursor:"pointer"}} onClick={()=>open(f)}/>
+                  <Trash2 size={15} style={{color:t.inkFaint,cursor:"pointer"}} onClick={()=>del(f)}/>
+                </div>
               </div>
             ))}
           </div>}
     </Panel>
   );
 }
+
+// ---- CONTACTS ----
+function ContactModal({companyId,onClose,onSaved,t}){
+  const[form,setForm]=useState({company_id:companyId==="all"?"aps":companyId,name:"",role:"",contact_type:"Vendor",email:"",phone:"",notes:""});
+  const[busy,setBusy]=useState(false);
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const submit=async()=>{
+    if(!form.name.trim())return;
+    setBusy(true);
+    try{await createContact({...form,name:form.name.trim()});onSaved();onClose();}
+    catch(err){alert("Save failed: "+(err?.message||err));setBusy(false);}
+  };
+  const TYPES=["Vendor","Press","Influencer","Ad platform","Client","Partner","Other"];
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",backdropFilter:"blur(4px)",display:"grid",placeItems:"center",zIndex:100,padding:20}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:520,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",background:t.bgCard,border:`1px solid ${t.lineStrong}`,borderRadius:16,padding:28,boxShadow:t.shadowHover}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div style={{fontFamily:"'Fraunces',serif",fontSize:19,fontWeight:500,color:t.ink}}>Add contact</div>
+          <button onClick={onClose} style={{background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:8,padding:7,cursor:"pointer",color:t.inkFaint,display:"grid",placeItems:"center"}}><X size={18}/></button>
+        </div>
+        <Field label="Name" theme={t}><input value={form.name} onChange={e=>set("name",e.target.value)} placeholder="Jane Smith" style={iS(t)}/></Field>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}}>
+          <Field label="Company" theme={t}><CompanyPicker value={form.company_id} onChange={v=>set("company_id",v)} includeAll t={t}/></Field>
+          <Field label="Type" theme={t}><select value={form.contact_type} onChange={e=>set("contact_type",e.target.value)} style={{...iS(t),cursor:"pointer"}}>{TYPES.map(x=><option key={x}>{x}</option>)}</select></Field>
+        </div>
+        <Field label="Role / title" theme={t}><input value={form.role} onChange={e=>set("role",e.target.value)} placeholder="Google Ads Rep" style={iS(t)}/></Field>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}}>
+          <Field label="Email" theme={t}><input value={form.email} onChange={e=>set("email",e.target.value)} placeholder="jane@company.com" style={iS(t)}/></Field>
+          <Field label="Phone" theme={t}><input value={form.phone} onChange={e=>set("phone",e.target.value)} placeholder="(555) 555-0100" style={iS(t)}/></Field>
+        </div>
+        <Field label="Notes" theme={t}><textarea value={form.notes} onChange={e=>set("notes",e.target.value)} rows={3} placeholder="Anything worth remembering…" style={{...iS(t),resize:"vertical"}}/></Field>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:9,marginTop:6}}>
+          <Btn theme={t} onClick={onClose}>Cancel</Btn>
+          <Btn theme={t} accent onClick={submit}>{busy?"Saving…":"Save contact"}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
 function HubContacts({companyId,t}){
-  const seed=[
-    {id:1,name:"Dana Reyes",role:"Google Ads Rep",company:"ads",email:"dana@google.com",phone:"(415) 555-0142",type:"Ad platform"},
-    {id:2,name:"Marcus True",role:"Local Press — Editor",company:"tgr",email:"marcus@dailypost.com",phone:"(904) 555-0119",type:"Press"},
-    {id:3,name:"Priya Shah",role:"Influencer — Home Services",company:"aps",email:"priya@creators.co",phone:"(305) 555-0187",type:"Influencer"},
-    {id:4,name:"BrightPrint Co.",role:"Print & Signage Vendor",company:"all",email:"orders@brightprint.com",phone:"(212) 555-0164",type:"Vendor"},
-  ];
-  const[contacts]=useState(seed);
-  const shown=contacts.filter(c=>companyId==="all"||c.company===companyId||c.company==="all");
+  const[contacts,setContacts]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[modal,setModal]=useState(false);
+  const reload=async()=>{try{setContacts(await loadContacts());}finally{setLoading(false);}};
+  useEffect(()=>{reload();},[]);
+  const del=async c=>{if(!window.confirm(`Delete ${c.name}?`))return;await deleteContact(c.id);await reload();};
+  const shown=contacts.filter(c=>companyId==="all"||c.company_id===companyId||c.company_id==="all");
   const inits=n=>n.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
   return(
     <div>
+      {modal&&<ContactModal companyId={companyId} onClose={()=>setModal(false)} onSaved={reload} t={t}/>}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div style={{fontSize:12.5,color:t.inkMuted}}>{shown.length} contact{shown.length!==1?"s":""}</div>
-        <Btn theme={t} sm accent><Plus size={13}/>Add contact</Btn>
+        <Btn theme={t} sm accent onClick={()=>setModal(true)}><Plus size={13}/>Add contact</Btn>
       </div>
-      {shown.length===0
+      {loading?<Panel theme={t}><EmptyState label="Loading…" sub="Fetching contacts." theme={t}/></Panel>
+        :shown.length===0
         ? <Panel theme={t}><EmptyState label="No contacts yet" sub="Add vendors, press, influencers, or ad reps." theme={t}/></Panel>
         : <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:15}}>
             {shown.map(c=>(
@@ -1622,18 +1685,22 @@ function HubContacts({companyId,t}){
                     <div style={{fontFamily:"'Fraunces',serif",fontSize:15,fontWeight:500,color:t.ink}}>{c.name}</div>
                     <div style={{fontSize:12,color:t.inkMuted}}>{c.role}</div>
                   </div>
-                  <div style={{marginLeft:"auto",display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}}>{coChip(c.company,t)}<Pill v="neutral" theme={t}>{c.type}</Pill></div>
+                  <div style={{marginLeft:"auto",display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}}>{coChip(c.company_id,t)}{c.contact_type&&<Pill v="neutral" theme={t}>{c.contact_type}</Pill>}</div>
                 </div>
                 <div style={{borderTop:`1px solid ${t.line}`,paddingTop:12,display:"flex",flexDirection:"column",gap:8}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:t.inkMuted}}><Mail size={14} style={{color:t.inkFaint}}/><span style={{color:t.accentDeep}}>{c.email}</span></div>
-                  <div style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:t.inkMuted}}><Phone size={14} style={{color:t.inkFaint}}/>{c.phone}</div>
+                  {c.email&&<div style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:t.inkMuted}}><Mail size={14} style={{color:t.inkFaint}}/><span style={{color:t.accentDeep}}>{c.email}</span></div>}
+                  {c.phone&&<div style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:t.inkMuted}}><Phone size={14} style={{color:t.inkFaint}}/>{c.phone}</div>}
+                  {c.notes&&<div style={{fontSize:12,color:t.inkFaint,lineHeight:1.5}}>{c.notes}</div>}
                 </div>
+                <div style={{marginTop:12,display:"flex",justifyContent:"flex-end"}}><button onClick={()=>del(c)} style={{background:"none",border:"none",cursor:"pointer",color:t.inkFaint,display:"flex",alignItems:"center",gap:5,fontSize:12,fontFamily:"inherit"}}><Trash2 size={13}/>Delete</button></div>
               </Panel>
             ))}
           </div>}
     </div>
   );
 }
+
+// ---- BRAND KIT ----
 function Swatch({name,hex,t}){
   const[copied,setCopied]=useState(false);
   const copy=()=>{try{navigator.clipboard.writeText(hex);setCopied(true);setTimeout(()=>setCopied(false),1200);}catch{}};
@@ -1647,83 +1714,203 @@ function Swatch({name,hex,t}){
     </div>
   );
 }
-function HubBrand({companyId,t}){
-  const list=companyId==="all"?COMPANIES:COMPANIES.filter(c=>c.id===companyId);
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:24}}>
-      {list.map(co=>{
-        const ct=co.theme;
-        return(
-          <div key={co.id}>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-              <span style={{width:8,height:8,borderRadius:2,background:co.color}}/>
-              <span style={{fontFamily:"'Fraunces',serif",fontSize:15,color:t.ink}}>{co.name}</span>
-              {coChip(co.id,t)}
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"1.1fr 1fr",gap:15,marginBottom:15}}>
-              <Panel theme={t}>
-                <div style={{fontSize:10.5,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em",marginBottom:13,display:"flex",alignItems:"center",gap:6}}><Image size={12}/>Logos</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  <div style={{aspectRatio:"16/9",background:"#F4F7F6",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Fraunces',serif",color:"#1a1a1a",fontSize:14}}>{co.short}</div>
-                  <div style={{aspectRatio:"16/9",background:ct.bgSunk,border:`1px solid ${ct.lineStrong}`,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Fraunces',serif",color:ct.ink,fontSize:14}}>{co.short}</div>
-                  <div style={{aspectRatio:"16/9",background:co.color,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Fraunces',serif",color:"#06171D",fontSize:14}}>{co.short}</div>
-                  <div style={{aspectRatio:"16/9",border:`1px dashed ${t.lineStrong}`,borderRadius:8,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,color:t.inkFaint,cursor:"pointer"}}><Plus size={16}/><span style={{fontSize:10}}>Add</span></div>
-                </div>
-              </Panel>
-              <Panel theme={t}>
-                <div style={{fontSize:10.5,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em",marginBottom:13,display:"flex",alignItems:"center",gap:6}}><Palette size={12}/>Colors</div>
-                <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                  <Swatch name="Primary" hex={co.color} t={t}/>
-                  <Swatch name="Ink" hex={ct.bgCard} t={t}/>
-                  <Swatch name="Accent" hex={ct.gold} t={t}/>
-                </div>
-              </Panel>
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:15}}>
-              <Panel theme={t}>
-                <div style={{fontSize:10.5,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em",marginBottom:13,display:"flex",alignItems:"center",gap:6}}><Type size={12}/>Typography</div>
-                <div style={{fontFamily:"'Fraunces',serif",fontSize:20,color:t.ink}}>Fraunces</div>
-                <div style={{fontSize:11,color:t.inkMuted,marginBottom:12}}>Display / headlines</div>
-                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:14,color:t.ink}}>JetBrains Mono</div>
-                <div style={{fontSize:11,color:t.inkMuted}}>Data / captions</div>
-              </Panel>
-              <Panel theme={t}>
-                <div style={{fontSize:10.5,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em",marginBottom:13,display:"flex",alignItems:"center",gap:6}}><MessageSquare size={12}/>Voice & taglines</div>
-                <div style={{fontSize:12.5,color:t.inkMuted,fontStyle:"italic",lineHeight:1.6}}>Add a tagline or brand voice notes for {co.short}.</div>
-              </Panel>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-function HubTemplates({t}){
-  const cats=[
-    {icon:MessageSquare,title:"Caption templates",sub:"Reusable social post copy",border:t.accent},
-    {icon:Mail,title:"Email / outreach",sub:"Cold outreach and nurture drafts",border:t.teal},
-    {icon:CalendarDays,title:"Content calendars",sub:"Skeletons to drop into the board",border:t.gold},
-    {icon:FileText,title:"Post frameworks",sub:"Hook / body / CTA structures",border:t.indigo},
-  ];
+function BrandCompany({co,assets,onChange,t}){
+  const ct=co.theme;
+  const logos=assets.filter(a=>a.asset_type==="logo");
+  const colors=assets.filter(a=>a.asset_type==="color");
+  const voice=assets.find(a=>a.asset_type==="voice");
+  const logoInput=useRef(null);
+  const[logoUrls,setLogoUrls]=useState({});
+  const[voiceDraft,setVoiceDraft]=useState(voice?.value||"");
+  const[addingColor,setAddingColor]=useState(false);
+  const[newColor,setNewColor]=useState({label:"",value:"#000000"});
+  useEffect(()=>{setVoiceDraft(voice?.value||"");},[voice?.id]);
+  useEffect(()=>{(async()=>{const m={};for(const l of logos){if(l.storage_path){const u=await brandAssetUrl(l.storage_path);if(u)m[l.id]=u;}}setLogoUrls(m);})();},[logos.map(l=>l.id).join(",")]);
+  const onLogo=async e=>{
+    const f=(e.target.files||[])[0];if(!f)return;
+    try{await uploadBrandLogo(co.id,f);onChange();}
+    catch(err){alert("Logo upload failed: "+(err?.message||err));}
+    finally{if(logoInput.current)logoInput.current.value="";}
+  };
+  const addColor=async()=>{
+    if(!newColor.value)return;
+    await saveBrandAsset({company_id:co.id,asset_type:"color",label:newColor.label||"Color",value:newColor.value});
+    setAddingColor(false);setNewColor({label:"",value:"#000000"});onChange();
+  };
+  const saveVoice=async()=>{
+    if(voiceDraft===(voice?.value||""))return;
+    if(voice)await deleteBrandAsset(voice);
+    if(voiceDraft.trim())await saveBrandAsset({company_id:co.id,asset_type:"voice",label:"Voice",value:voiceDraft});
+    onChange();
+  };
+  const delColor=async c=>{await deleteBrandAsset(c);onChange();};
+  const delLogo=async l=>{if(!window.confirm("Delete this logo?"))return;await deleteBrandAsset(l);onChange();};
   return(
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <div style={{fontSize:12.5,color:t.inkMuted}}>Reusable starting points for content and outreach</div>
-        <Btn theme={t} sm accent><Plus size={13}/>New template</Btn>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+        <span style={{width:8,height:8,borderRadius:2,background:co.color}}/>
+        <span style={{fontFamily:"'Fraunces',serif",fontSize:15,color:t.ink}}>{co.name}</span>
+        {coChip(co.id,t)}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:15}}>
-        {cats.map(c=>{const Icon=c.icon;return(
-          <Panel key={c.title} theme={t} style={{borderTop:`3px solid ${c.border}`}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}><Icon size={16} style={{color:c.border}}/><span style={{fontFamily:"'Fraunces',serif",fontSize:16,fontWeight:500,color:t.ink}}>{c.title}</span></div>
-            <div style={{fontSize:12,color:t.inkMuted,marginBottom:14}}>{c.sub}</div>
-            <EmptyState label="No templates yet" sub="Save your first one to reuse it later." theme={t} pad={20}/>
-          </Panel>
-        );})}
+      <div style={{display:"grid",gridTemplateColumns:"1.1fr 1fr",gap:15,marginBottom:15}}>
+        <Panel theme={t}>
+          <div style={{fontSize:10.5,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em",marginBottom:13,display:"flex",alignItems:"center",gap:6}}><Image size={12}/>Logos</div>
+          <input ref={logoInput} type="file" accept="image/*" onChange={onLogo} style={{display:"none"}}/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            {logos.map(l=>(
+              <div key={l.id} style={{position:"relative",aspectRatio:"16/9",background:ct.bgSunk,border:`1px solid ${ct.lineStrong}`,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+                {logoUrls[l.id]?<img src={logoUrls[l.id]} alt={l.label} style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain"}}/>:<span style={{fontSize:10,color:t.inkFaint}}>…</span>}
+                <button onClick={()=>delLogo(l)} style={{position:"absolute",top:4,right:4,background:"rgba(0,0,0,.55)",border:"none",borderRadius:5,padding:3,cursor:"pointer",color:"#fff",display:"grid",placeItems:"center"}}><X size={11}/></button>
+              </div>
+            ))}
+            <div onClick={()=>logoInput.current&&logoInput.current.click()} style={{aspectRatio:"16/9",border:`1px dashed ${t.lineStrong}`,borderRadius:8,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,color:t.inkFaint,cursor:"pointer"}}><Plus size={16}/><span style={{fontSize:10}}>Add logo</span></div>
+          </div>
+        </Panel>
+        <Panel theme={t}>
+          <div style={{fontSize:10.5,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em",marginBottom:13,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <span style={{display:"flex",alignItems:"center",gap:6}}><Palette size={12}/>Colors</span>
+            <button onClick={()=>setAddingColor(v=>!v)} style={{background:"none",border:"none",cursor:"pointer",color:t.accent,display:"flex",alignItems:"center",gap:3,fontSize:11,fontFamily:"inherit"}}><Plus size={12}/>Add</button>
+          </div>
+          {addingColor&&(
+            <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12,padding:10,background:t.bgElevated,borderRadius:8}}>
+              <input type="color" value={newColor.value} onChange={e=>setNewColor(c=>({...c,value:e.target.value}))} style={{width:34,height:34,border:"none",background:"none",cursor:"pointer"}}/>
+              <input value={newColor.label} onChange={e=>setNewColor(c=>({...c,label:e.target.value}))} placeholder="Label" style={{...iS(t),padding:"6px 9px",fontSize:12}}/>
+              <Btn theme={t} sm accent onClick={addColor}>Save</Btn>
+            </div>
+          )}
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {colors.length===0&&!addingColor&&<div style={{fontSize:12,color:t.inkFaint}}>No colors yet. Click Add.</div>}
+            {colors.map(c=>(
+              <div key={c.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <Swatch name={c.label||"Color"} hex={c.value} t={t}/>
+                <button onClick={()=>delColor(c)} style={{background:"none",border:"none",cursor:"pointer",color:t.inkFaint}}><Trash2 size={13}/></button>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:15}}>
+        <Panel theme={t}>
+          <div style={{fontSize:10.5,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em",marginBottom:13,display:"flex",alignItems:"center",gap:6}}><Type size={12}/>Typography</div>
+          <div style={{fontFamily:"'Fraunces',serif",fontSize:20,color:t.ink}}>Fraunces</div>
+          <div style={{fontSize:11,color:t.inkMuted,marginBottom:12}}>Display / headlines</div>
+          <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:14,color:t.ink}}>JetBrains Mono</div>
+          <div style={{fontSize:11,color:t.inkMuted}}>Data / captions</div>
+        </Panel>
+        <Panel theme={t}>
+          <div style={{fontSize:10.5,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em",marginBottom:13,display:"flex",alignItems:"center",gap:6}}><MessageSquare size={12}/>Voice & taglines</div>
+          <textarea value={voiceDraft} onChange={e=>setVoiceDraft(e.target.value)} onBlur={saveVoice} rows={4} placeholder={`Add a tagline or brand voice notes for ${co.short}…`} style={{...iS(t),resize:"vertical",fontSize:12.5,lineHeight:1.6}}/>
+          <div style={{fontSize:10.5,color:t.inkFaint,marginTop:6}}>Saves when you click away.</div>
+        </Panel>
       </div>
     </div>
   );
 }
-function HubView({companyId,theme:t}){
+function HubBrand({companyId,t}){
+  const[assets,setAssets]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const reload=async()=>{try{setAssets(await loadBrandAssets());}finally{setLoading(false);}};
+  useEffect(()=>{reload();},[]);
+  const list=companyId==="all"?COMPANIES:COMPANIES.filter(c=>c.id===companyId);
+  if(loading)return <Panel theme={t}><EmptyState label="Loading…" sub="Fetching brand assets." theme={t}/></Panel>;
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:24}}>
+      {list.map(co=><BrandCompany key={co.id} co={co} assets={assets.filter(a=>a.company_id===co.id)} onChange={reload} t={t}/>)}
+    </div>
+  );
+}
+
+// ---- TEMPLATES ----
+function TemplateModal({companyId,onClose,onSaved,t}){
+  const[form,setForm]=useState({company_id:companyId==="all"?"all":companyId,category:"caption",title:"",body:""});
+  const[busy,setBusy]=useState(false);
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const submit=async()=>{
+    if(!form.title.trim())return;
+    setBusy(true);
+    try{await saveTemplate({...form,title:form.title.trim()});onSaved();onClose();}
+    catch(err){alert("Save failed: "+(err?.message||err));setBusy(false);}
+  };
+  const CATS=[["caption","Caption"],["email","Email / outreach"],["calendar","Content calendar"],["framework","Post framework"]];
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",backdropFilter:"blur(4px)",display:"grid",placeItems:"center",zIndex:100,padding:20}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:600,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",background:t.bgCard,border:`1px solid ${t.lineStrong}`,borderRadius:16,padding:28,boxShadow:t.shadowHover}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div style={{fontFamily:"'Fraunces',serif",fontSize:19,fontWeight:500,color:t.ink}}>New template</div>
+          <button onClick={onClose} style={{background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:8,padding:7,cursor:"pointer",color:t.inkFaint,display:"grid",placeItems:"center"}}><X size={18}/></button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 20px"}}>
+          <Field label="Category" theme={t}><select value={form.category} onChange={e=>set("category",e.target.value)} style={{...iS(t),cursor:"pointer"}}>{CATS.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></Field>
+          <Field label="Company" theme={t}><CompanyPicker value={form.company_id} onChange={v=>set("company_id",v)} includeAll t={t}/></Field>
+        </div>
+        <Field label="Title" theme={t}><input value={form.title} onChange={e=>set("title",e.target.value)} placeholder="Launch-week hook" style={iS(t)}/></Field>
+        <Field label="Body" theme={t}><textarea value={form.body} onChange={e=>set("body",e.target.value)} rows={8} placeholder="Write the reusable copy or framework…" style={{...iS(t),resize:"vertical",lineHeight:1.55}}/></Field>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:9}}>
+          <Btn theme={t} onClick={onClose}>Cancel</Btn>
+          <Btn theme={t} accent onClick={submit}>{busy?"Saving…":"Save template"}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+const TPL_CATS={caption:{label:"Caption templates",icon:MessageSquare},email:{label:"Email / outreach",icon:Mail},calendar:{label:"Content calendars",icon:CalendarDays},framework:{label:"Post frameworks",icon:FileText}};
+function HubTemplates({companyId,t}){
+  const[templates,setTemplates]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[modal,setModal]=useState(false);
+  const[openTpl,setOpenTpl]=useState(null);
+  const reload=async()=>{try{setTemplates(await loadTemplates());}finally{setLoading(false);}};
+  useEffect(()=>{reload();},[]);
+  const del=async id=>{if(!window.confirm("Delete this template?"))return;await deleteTemplate(id);setOpenTpl(null);await reload();};
+  const shown=templates.filter(x=>companyId==="all"||x.company_id===companyId||x.company_id==="all");
+  const borders={caption:t.accent,email:t.teal,calendar:t.gold,framework:t.indigo};
+  return(
+    <div>
+      {modal&&<TemplateModal companyId={companyId} onClose={()=>setModal(false)} onSaved={reload} t={t}/>}
+      {openTpl&&(
+        <div onClick={()=>setOpenTpl(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",backdropFilter:"blur(4px)",display:"grid",placeItems:"center",zIndex:100,padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:600,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",background:t.bgCard,border:`1px solid ${t.lineStrong}`,borderRadius:16,padding:28,boxShadow:t.shadowHover}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+              <div><div style={{fontFamily:"'Fraunces',serif",fontSize:19,fontWeight:500,color:t.ink}}>{openTpl.title}</div><div style={{fontSize:12,color:t.inkMuted,marginTop:3}}>{(TPL_CATS[openTpl.category]||{}).label||openTpl.category}</div></div>
+              <button onClick={()=>setOpenTpl(null)} style={{background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:8,padding:7,cursor:"pointer",color:t.inkFaint,display:"grid",placeItems:"center"}}><X size={18}/></button>
+            </div>
+            <div style={{whiteSpace:"pre-wrap",fontSize:13.5,color:t.ink,lineHeight:1.6,background:t.bgSunk,border:`1px solid ${t.line}`,borderRadius:10,padding:16}}>{openTpl.body||"(empty)"}</div>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:16}}>
+              <button onClick={()=>del(openTpl.id)} style={{background:"none",border:"none",cursor:"pointer",color:t.bad,display:"flex",alignItems:"center",gap:5,fontSize:13,fontFamily:"inherit"}}><Trash2 size={14}/>Delete</button>
+              <Btn theme={t} accent onClick={()=>{navigator.clipboard.writeText(openTpl.body||"");}}>Copy text</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div style={{fontSize:12.5,color:t.inkMuted}}>Reusable starting points for content and outreach</div>
+        <Btn theme={t} sm accent onClick={()=>setModal(true)}><Plus size={13}/>New template</Btn>
+      </div>
+      {loading?<Panel theme={t}><EmptyState label="Loading…" sub="Fetching templates." theme={t}/></Panel>
+        :<div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:15}}>
+          {Object.entries(TPL_CATS).map(([cat,meta])=>{
+            const Icon=meta.icon;const items=shown.filter(x=>x.category===cat);
+            return(
+              <Panel key={cat} theme={t} style={{borderTop:`3px solid ${borders[cat]}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><Icon size={16} style={{color:borders[cat]}}/><span style={{fontFamily:"'Fraunces',serif",fontSize:16,fontWeight:500,color:t.ink}}>{meta.label}</span><span style={{marginLeft:"auto",fontSize:11,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>{items.length}</span></div>
+                {items.length===0
+                  ? <EmptyState label="None yet" sub="Save your first one to reuse it later." theme={t} pad={18}/>
+                  : <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      {items.map(x=>(
+                        <div key={x.id} onClick={()=>setOpenTpl(x)} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 11px",background:t.bgElevated,borderRadius:8,cursor:"pointer",border:`1px solid ${t.line}`}}>
+                          <span style={{fontSize:13,color:t.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.title}</span>
+                          {x.company_id!=="all"&&<span style={{marginLeft:"auto"}}>{coChip(x.company_id,t)}</span>}
+                        </div>
+                      ))}
+                    </div>}
+              </Panel>
+            );
+          })}
+        </div>}
+    </div>
+  );
+}
+function HubView({companyId,me,theme:t}){
   const[tab,setTab]=useState("files");
   const TABS=[
     {id:"files",label:"Files",icon:Folder},
@@ -1733,18 +1920,12 @@ function HubView({companyId,theme:t}){
   ];
   return(
     <div style={{padding:"26px 38px 80px",maxWidth:1480}}>
-      <TBar title={<>Marketing <em style={{fontStyle:"italic",color:t.accentDeep}}>Hub</em></>} sub="Files, contacts, and brand assets in one place" actions={<Btn theme={t} accent><Upload size={14}/>Upload</Btn>} theme={t}/>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:15,marginBottom:26}}>
-        <KpiCard label="Spreadsheets" value="14" icon={FileSpreadsheet} theme={t}/>
-        <KpiCard label="PDFs" value="9" icon={FileText} theme={t}/>
-        <KpiCard label="Contacts" value="37" icon={Users} theme={t}/>
-        <KpiCard label="Brand assets" value="22" icon={Palette} theme={t}/>
-      </div>
+      <TBar title={<>Marketing <em style={{fontStyle:"italic",color:t.accentDeep}}>Hub</em></>} sub="Files, contacts, and brand assets in one place" theme={t}/>
       <HubTabs tabs={TABS} active={tab} onChange={setTab} t={t}/>
-      {tab==="files"     &&<HubFiles companyId={companyId} t={t}/>}
+      {tab==="files"     &&<HubFiles companyId={companyId} me={me} t={t}/>}
       {tab==="contacts"  &&<HubContacts companyId={companyId} t={t}/>}
       {tab==="brand"     &&<HubBrand companyId={companyId} t={t}/>}
-      {tab==="templates" &&<HubTemplates t={t}/>}
+      {tab==="templates" &&<HubTemplates companyId={companyId} t={t}/>}
     </div>
   );
 }
@@ -1945,7 +2126,7 @@ export default function App(){
         {view==="reports"     &&<ReportsView theme={t}/>}
         {view==="integrations"&&<IntegrationsView theme={t}/>}
         {view==="logins"      &&<LoginsView companyId={cid} theme={t}/>}
-        {view==="hub"         &&<HubView companyId={cid} theme={t}/>}
+        {view==="hub"         &&<HubView companyId={cid} me={me} theme={t}/>}
         {view==="board"       &&<BoardView tasks={tasks} companyId={cid} track={track} statusFilter={statusF} assigneeFilter={assigneeF} theme={t} onOpen={setOpenTask} onUpdate={update} todayISO={todayISO} weekISO={weekISO} editMode={editMode} selected={selected} onToggleSelect={toggleSelect}/>}
         {view==="calendar"    &&<CalendarView tasks={tasks} companyId={cid} track={track} assigneeFilter={assigneeF} setAssigneeFilter={setAssigneeF} theme={t} onOpen={setOpenTask} onAddTask={openNewTask} onReschedule={(id,date)=>update(id,{deadline:date})} editMode={editMode} selected={selected} onToggleSelect={toggleSelect} onOpenDay={setDayModal} onStartEdit={()=>setEditMode(true)} onExitEdit={exitEdit} onDeleteSelected={()=>{if(selected.size&&window.confirm(`Delete ${selected.size} task${selected.size!==1?"s":""}? This can't be undone.`))removeTasks(selected);}}/>}
         {view==="timeline"    &&<TimelineView tasks={tasks} companyId={cid} setCompanyId={setCid} theme={t}/>}
