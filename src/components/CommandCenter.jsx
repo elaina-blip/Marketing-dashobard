@@ -14,12 +14,18 @@ theme:{bg:"#0D0B18",bgCard:"#160F2B",bgElevated:"#1E1540",bgSunk:"#0A0814",ink:"
 theme:{bg:"#0E0F12",bgCard:"#17181D",bgElevated:"#1F2128",bgSunk:"#121317",ink:"#F5F2EE",inkMuted:"#A8A29B",inkFaint:"#6F6A63",inkGhost:"#3C3935",line:"rgba(255,180,120,.12)",lineStrong:"rgba(255,180,120,.24)",accent:"#FF7A1A",accentHover:"#FF9444",accentSoft:"rgba(255,122,26,.16)",accentWash:"rgba(255,122,26,.07)",accentDeep:"#FFA85C",gold:"#FFB020",goldSoft:"rgba(255,176,32,.16)",teal:"#2DD4BF",tealSoft:"rgba(45,212,191,.15)",indigo:"#A6B4FC",indigoSoft:"rgba(129,140,248,.17)",pink:"#F472B6",pinkSoft:"rgba(244,114,182,.16)",good:"#36D77E",goodSoft:"rgba(54,215,126,.15)",warn:"#FFB020",warnSoft:"rgba(255,176,32,.16)",bad:"#FF6B5E",badSoft:"rgba(255,107,94,.15)",sideBg:"#090A0C",sideText:"#C5BFB7",sideTextDim:"#6F6A63",shadowCard:"0 1px 2px rgba(0,0,0,.5),0 0 0 1px rgba(255,180,120,.06)",shadowHover:"0 16px 40px -18px rgba(0,0,0,.72),0 0 0 1px rgba(255,122,26,.22)",navActiveBg:"linear-gradient(90deg,rgba(255,122,26,.22),rgba(255,122,26,.05))",navActiveText:"#FFE6CF",gradBrand:"linear-gradient(150deg,#FF7A1A,#FFB020)",gradBg:"radial-gradient(700px 360px at -10% -8%,rgba(255,122,26,.14),transparent 60%),radial-gradient(620px 340px at 110% 108%,rgba(255,176,32,.10),transparent 62%)"}},
 ];
 
+// ── ALL-COMPANIES THEME ────────────────────────────────────────
+// A distinct emerald identity so "All Companies" no longer looks like APS.
+// (APS=cyan, ADS=purple, TGR=orange, All=green.)
+const ALL_COLOR="#2FD98A";
+const ALL_THEME={bg:"#081512",bgCard:"#0D2620",bgElevated:"#123029",bgSunk:"#061A15",ink:"#E9F9F1",inkMuted:"#9CCBB8",inkFaint:"#6B9A87",inkGhost:"#3A5C4F",line:"rgba(120,220,180,.13)",lineStrong:"rgba(120,220,180,.26)",accent:"#2FD98A",accentHover:"#54E6A2",accentSoft:"rgba(47,217,138,.15)",accentWash:"rgba(47,217,138,.07)",accentDeep:"#7DF0BD",gold:"#F5C542",goldSoft:"rgba(245,197,66,.16)",teal:"#25D3C0",tealSoft:"rgba(37,211,192,.15)",indigo:"#8FB7FC",indigoSoft:"rgba(143,183,252,.17)",pink:"#F472B6",pinkSoft:"rgba(244,114,182,.16)",good:"#34E07B",goodSoft:"rgba(52,224,123,.15)",warn:"#F5C542",warnSoft:"rgba(245,197,66,.16)",bad:"#FF6B73",badSoft:"rgba(255,107,115,.15)",sideBg:"#050F0C",sideText:"#A6D2C2",sideTextDim:"#5A8474",shadowCard:"0 1px 2px rgba(0,0,0,.45),0 0 0 1px rgba(120,220,180,.06)",shadowHover:"0 16px 40px -18px rgba(0,0,0,.7),0 0 0 1px rgba(47,217,138,.22)",navActiveBg:"linear-gradient(90deg,rgba(47,217,138,.22),rgba(47,217,138,.05))",navActiveText:"#D6FCEB",gradBrand:"linear-gradient(150deg,#2FD98A,#25D3C0)",gradBg:"radial-gradient(700px 360px at -10% -8%,rgba(47,217,138,.14),transparent 60%),radial-gradient(620px 340px at 110% 108%,rgba(37,211,192,.10),transparent 62%)"};
+
 let TEAM=["Marshall","Elaina","Weston","Deva"];
 const STATUSES={not_started:{label:"Not Started",icon:Circle},in_progress:{label:"In Progress",icon:Clock},blocked:{label:"Blocked",icon:AlertTriangle},done:{label:"Done",icon:Check}};
 const STATUS_ORDER=["not_started","in_progress","blocked","done"];
 const PRIORITIES={high:"#FF6B5E",medium:"#FFB020",low:"#6F6A63"};
 function fmtDate(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
-function useTheme(id){return(id==="all"?COMPANIES[0]:COMPANIES.find(c=>c.id===id)||COMPANIES[0]).theme;}
+function useTheme(id){return id==="all"?ALL_THEME:(COMPANIES.find(c=>c.id===id)||COMPANIES[0]).theme;}
 function stC(s,t){return{not_started:t.inkFaint,in_progress:t.accent,blocked:t.bad,done:t.good}[s]||t.inkFaint;}
 function iS(t){return{width:"100%",padding:"9px 12px",background:t.bgSunk,border:`1px solid ${t.lineStrong}`,borderRadius:8,color:t.ink,fontSize:13.5,fontFamily:"'IBM Plex Sans',inherit",outline:"none"};}
 
@@ -618,8 +624,8 @@ function SetupScreen({onDone,me}){
 // ── NEW TASK MODAL ─────────────────────────────────────────────
 const PHASES_FOR=track=>(track==="seo"?SEO_MASTER:PAID_MASTER).map(([p])=>p);
 function NewTaskModal({open,onClose,onCreate,defaults,companyId,track,theme:t}){
-  const [title,setTitle]=useState("");const [phase,setPhase]=useState(defaults.phase);const [priority,setPriority]=useState("medium");const [cadence,setCadence]=useState("one-time");const [deadline,setDeadline]=useState("");const [assignees,setAssignees]=useState([]);const [busy,setBusy]=useState(false);
-  useEffect(()=>{if(!open)return;setTitle("");setPhase(defaults.phase);setPriority("medium");setCadence("one-time");setDeadline("");setAssignees([]);},[open,defaults.phase]);
+  const [title,setTitle]=useState("");const [phase,setPhase]=useState(defaults.phase);const [priority,setPriority]=useState("medium");const [cadence,setCadence]=useState("one-time");const [deadline,setDeadline]=useState(defaults.deadline||"");const [assignees,setAssignees]=useState([]);const [busy,setBusy]=useState(false);
+  useEffect(()=>{if(!open)return;setTitle("");setPhase(defaults.phase);setPriority("medium");setCadence("one-time");setDeadline(defaults.deadline||"");setAssignees([]);},[open,defaults.phase,defaults.deadline]);
   if(!open)return null;
   const IS=iS(t);
   const phases=PHASES_FOR(track);
@@ -864,36 +870,73 @@ function BoardView({tasks,companyId,track,statusFilter,theme:t,onOpen,onUpdate,t
 }
 
 // ── CALENDAR VIEW ─────────────────────────────────────────────
-function CalendarView({tasks,companyId,theme:t,onOpen}){
-  const [cal,setCal]=useState(()=>{const d=new Date();return{y:d.getFullYear(),m:d.getMonth()};});
+const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const ymd=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const parseISO=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d);};
+const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x;};
+const startOfWeek=d=>addDays(d,-d.getDay());
+
+function CalendarView({tasks,companyId,track,theme:t,onOpen,onAddTask}){
+  const [mode,setMode]=useState("month");                 // day | week | month
+  const [anchor,setAnchor]=useState(()=>{const d=new Date();d.setHours(0,0,0,0);return d;}); // reference date
   const [showUnsched,setShowUnsched]=useState(false);
-  const {y,m}=cal;
+  const todayStr=ymd(new Date());
+
   const scoped=useMemo(()=>tasks.filter(tk=>companyId==="all"||tk.companyId===companyId),[tasks,companyId]);
   const dated=useMemo(()=>scoped.filter(tk=>tk.deadline),[scoped]);
   const unscheduled=useMemo(()=>scoped.filter(tk=>!tk.deadline&&tk.status!=="done"),[scoped]);
   const byDay=useMemo(()=>{const map={};for(const tk of dated)(map[tk.deadline]||=[]).push(tk);return map;},[dated]);
-  const first=new Date(y,m,1);const sDow=first.getDay();const dim=new Date(y,m+1,0).getDate();
-  const todayStr=new Date().toISOString().slice(0,10);
-  const cells=[];for(let i=0;i<sDow;i++)cells.push(null);
-  for(let d=1;d<=dim;d++){const ds=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;cells.push({d,ds,tasks:byDay[ds]||[]});}
-  while(cells.length%7!==0)cells.push(null);
-  const monthCount=dated.filter(tk=>tk.deadline.startsWith(`${y}-${String(m+1).padStart(2,"0")}`)).length;
-  const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  // ---- Navigation: step depends on the current mode ----
+  const step=dir=>{
+    if(mode==="month"){const d=new Date(anchor);d.setDate(1);d.setMonth(d.getMonth()+dir);setAnchor(d);}
+    else if(mode==="week")setAnchor(addDays(anchor,7*dir));
+    else setAnchor(addDays(anchor,dir));
+  };
+  const goToday=()=>{const d=new Date();d.setHours(0,0,0,0);setAnchor(d);};
+
+  // ---- Title + counts for the active range ----
+  const rangeLabel=(()=>{
+    if(mode==="month")return `${MONTHS[anchor.getMonth()]} ${anchor.getFullYear()}`;
+    if(mode==="week"){const s=startOfWeek(anchor),e=addDays(s,6);
+      const sameMonth=s.getMonth()===e.getMonth();
+      return sameMonth?`${MONTHS[s.getMonth()]} ${s.getDate()}–${e.getDate()}, ${s.getFullYear()}`
+        :`${MONTHS[s.getMonth()]} ${s.getDate()} – ${MONTHS[e.getMonth()]} ${e.getDate()}, ${e.getFullYear()}`;}
+    return `${DOW[anchor.getDay()]}, ${MONTHS[anchor.getMonth()]} ${anchor.getDate()}, ${anchor.getFullYear()}`;
+  })();
+  const inRange=(()=>{
+    if(mode==="month")return tk=>tk.deadline.startsWith(`${anchor.getFullYear()}-${String(anchor.getMonth()+1).padStart(2,"0")}`);
+    if(mode==="week"){const s=ymd(startOfWeek(anchor)),e=ymd(addDays(startOfWeek(anchor),6));return tk=>tk.deadline>=s&&tk.deadline<=e;}
+    const a=ymd(anchor);return tk=>tk.deadline===a;
+  })();
+  const rangeCount=dated.filter(inRange).length;
+
+  const addBtnBg=t.accent;
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",padding:"20px 38px 24px",overflow:"hidden"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,background:t.bgCard,border:`1px solid ${t.line}`,borderRadius:14,padding:"14px 16px"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <button onClick={()=>setCal(m===0?{y:y-1,m:11}:{y,m:m-1})} style={{background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:9,padding:7,cursor:"pointer",color:t.inkMuted,display:"grid",placeItems:"center"}}><ChevronLeft size={18}/></button>
-          <h2 style={{margin:0,fontSize:20,fontWeight:500,letterSpacing:"-.02em",color:t.ink,minWidth:170,textAlign:"center",fontFamily:"'Fraunces',serif"}}>{MONTHS[m]} {y}</h2>
-          <button onClick={()=>setCal(m===11?{y:y+1,m:0}:{y,m:m+1})} style={{background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:9,padding:7,cursor:"pointer",color:t.inkMuted,display:"grid",placeItems:"center"}}><ChevronRight size={18}/></button>
-          <button onClick={()=>{const d=new Date();setCal({y:d.getFullYear(),m:d.getMonth()});}} style={{background:t.accent,color:t.bg,border:"none",borderRadius:9,padding:"8px 14px",fontSize:13,fontWeight:600,cursor:"pointer",marginLeft:4,fontFamily:"inherit"}}>Today</button>
+      {/* Toolbar */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,background:t.bgCard,border:`1px solid ${t.line}`,borderRadius:14,padding:"14px 16px",flexWrap:"wrap",gap:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+          <button onClick={()=>step(-1)} style={{background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:9,padding:7,cursor:"pointer",color:t.inkMuted,display:"grid",placeItems:"center"}}><ChevronLeft size={18}/></button>
+          <h2 style={{margin:0,fontSize:mode==="day"?17:20,fontWeight:500,letterSpacing:"-.02em",color:t.ink,minWidth:mode==="month"?170:220,textAlign:"center",fontFamily:"'Fraunces',serif"}}>{rangeLabel}</h2>
+          <button onClick={()=>step(1)} style={{background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:9,padding:7,cursor:"pointer",color:t.inkMuted,display:"grid",placeItems:"center"}}><ChevronRight size={18}/></button>
+          <button onClick={goToday} style={{background:t.accent,color:t.bg,border:"none",borderRadius:9,padding:"8px 14px",fontSize:13,fontWeight:600,cursor:"pointer",marginLeft:4,fontFamily:"inherit"}}>Today</button>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <span style={{fontSize:12.5,color:t.inkMuted,fontWeight:600}}>{monthCount} task{monthCount!==1?"s":""} due this month</span>
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          {/* Day / Week / Month segmented control */}
+          <div style={{display:"flex",gap:3,background:t.bgElevated,padding:3,borderRadius:9,border:`1px solid ${t.line}`}}>
+            {["day","week","month"].map(mv=>(
+              <button key={mv} onClick={()=>setMode(mv)} style={{padding:"6px 14px",borderRadius:6,fontSize:12.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",textTransform:"capitalize",background:mode===mv?t.bgCard:"transparent",color:mode===mv?t.accentDeep:t.inkMuted,boxShadow:mode===mv?t.shadowCard:"none"}}>{mv}</button>
+            ))}
+          </div>
+          <span style={{fontSize:12.5,color:t.inkMuted,fontWeight:600}}>{rangeCount} task{rangeCount!==1?"s":""} this {mode}</span>
           {unscheduled.length>0&&<button onClick={()=>setShowUnsched(v=>!v)} style={{display:"flex",alignItems:"center",gap:6,background:showUnsched?t.warnSoft:t.bgElevated,border:`1px solid ${showUnsched?t.warn:t.lineStrong}`,color:showUnsched?t.warn:t.inkMuted,borderRadius:9,padding:"7px 13px",fontSize:12.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><AlertTriangle size={13}/>{unscheduled.length} unscheduled<ChevronDown size={13} style={{transform:showUnsched?"rotate(180deg)":"none",transition:"transform .15s"}}/></button>}
+          <button onClick={()=>onAddTask&&onAddTask(mode==="day"?ymd(anchor):"")} style={{display:"flex",alignItems:"center",gap:6,background:addBtnBg,color:t.bg,border:"none",borderRadius:9,padding:"9px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 16px -8px ${t.accent}cc`}}><Plus size={15}/>Add task</button>
         </div>
       </div>
+
+      {/* Unscheduled tray */}
       {showUnsched&&unscheduled.length>0&&(
         <div style={{marginBottom:16,background:t.bgCard,border:`1px solid ${t.line}`,borderRadius:14,padding:"14px 16px"}}>
           <div style={{fontSize:12,color:t.inkMuted,marginBottom:10}}>These board tasks have no deadline yet — click one to open it and set a deadline, and it will appear on the calendar automatically.</div>
@@ -907,33 +950,126 @@ function CalendarView({tasks,companyId,theme:t,onOpen}){
           </div>
         </div>
       )}
-      <div style={{flex:1,overflowY:"auto",border:`1px solid ${t.line}`,borderRadius:14,minHeight:0,background:t.bgCard}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:1,background:t.line}}>
-          {DOW.map(d=><div key={d} style={{background:t.bgElevated,padding:"11px 0",textAlign:"center",fontSize:11.5,fontWeight:700,color:t.inkMuted,letterSpacing:".08em",textTransform:"uppercase"}}>{d}</div>)}
-          {cells.map((cell,i)=>{
-            if(!cell)return <div key={i} style={{background:t.bgSunk,minHeight:160}}/>;
-            const isT=cell.ds===todayStr;
-            return(
-              <div key={i} style={{background:isT?`${t.accent}11`:t.bgCard,minHeight:160,padding:"7px 8px",display:"flex",flexDirection:"column",border:isT?`1px solid ${t.accent}`:"none"}}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${t.line}`}}>
-                  <div style={{fontSize:14,fontWeight:700,color:isT?t.bg:t.inkMuted,...(isT?{background:t.accent,width:22,height:22,borderRadius:"50%",display:"grid",placeItems:"center",fontSize:12}:{})}}>{cell.d}</div>
+
+      {/* Active view */}
+      {mode==="month"&&<MonthGrid anchor={anchor} byDay={byDay} todayStr={todayStr} theme={t} onOpen={onOpen} onAddTask={onAddTask}/>}
+      {mode==="week" &&<WeekGrid  anchor={anchor} byDay={byDay} todayStr={todayStr} theme={t} onOpen={onOpen} onAddTask={onAddTask}/>}
+      {mode==="day"  &&<DayList   anchor={anchor} byDay={byDay} todayStr={todayStr} theme={t} onOpen={onOpen} onAddTask={onAddTask}/>}
+    </div>
+  );
+}
+
+// Small reusable task chip used across calendar views.
+function CalTaskChip({tk,theme:t,onOpen}){
+  const co=COMPANIES.find(c=>c.id===tk.companyId);
+  return(
+    <button onClick={()=>onOpen&&onOpen(tk.id)} title={`${tk.title}${tk.assignees.length?` · ${tk.assignees.join(", ")}`:""}${tk.status==="done"&&tk.completed_by?` · Done by ${tk.completed_by}`:""}`} style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,border:"none",borderLeft:`3px solid ${co?.color||t.accent}`,borderRadius:6,padding:"5px 7px",fontSize:11.5,color:t.inkMuted,overflow:"hidden",cursor:"pointer",fontFamily:"inherit",textAlign:"left",width:"100%"}}>
+      <span style={{width:6,height:6,borderRadius:"50%",background:stC(tk.status,t),flexShrink:0}}/>
+      <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:tk.status==="done"?"line-through":"none"}}>{tk.title}</span>
+      {tk.assignees.length>0&&<span style={{flexShrink:0,fontSize:9.5,fontWeight:700,color:t.accentDeep,background:t.accentSoft,borderRadius:8,padding:"1px 6px"}}>{tk.assignees.map(a=>a.charAt(0)).join("")}</span>}
+    </button>
+  );
+}
+
+// MONTH — 7-column grid (hover a day to reveal a + to add on that date).
+function MonthGrid({anchor,byDay,todayStr,theme:t,onOpen,onAddTask}){
+  const y=anchor.getFullYear(),m=anchor.getMonth();
+  const sDow=new Date(y,m,1).getDay();const dim=new Date(y,m+1,0).getDate();
+  const cells=[];for(let i=0;i<sDow;i++)cells.push(null);
+  for(let d=1;d<=dim;d++){const ds=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;cells.push({d,ds,tasks:byDay[ds]||[]});}
+  while(cells.length%7!==0)cells.push(null);
+  return(
+    <div style={{flex:1,overflowY:"auto",border:`1px solid ${t.line}`,borderRadius:14,minHeight:0,background:t.bgCard}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:1,background:t.line}}>
+        {DOW.map(d=><div key={d} style={{background:t.bgElevated,padding:"11px 0",textAlign:"center",fontSize:11.5,fontWeight:700,color:t.inkMuted,letterSpacing:".08em",textTransform:"uppercase"}}>{d}</div>)}
+        {cells.map((cell,i)=>{
+          if(!cell)return <div key={i} style={{background:t.bgSunk,minHeight:150}}/>;
+          const isT=cell.ds===todayStr;
+          return(
+            <div key={i} className="cal-day" style={{position:"relative",background:isT?`${t.accent}11`:t.bgCard,minHeight:150,padding:"7px 8px",display:"flex",flexDirection:"column",border:isT?`1px solid ${t.accent}`:"none"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${t.line}`}}>
+                <div style={{fontSize:14,fontWeight:700,color:isT?t.bg:t.inkMuted,...(isT?{background:t.accent,width:22,height:22,borderRadius:"50%",display:"grid",placeItems:"center",fontSize:12}:{})}}>{cell.d}</div>
+                <div style={{display:"flex",alignItems:"center",gap:5}}>
                   {cell.tasks.length>0&&<span style={{fontSize:10.5,fontWeight:700,color:t.accent,background:t.accentSoft,borderRadius:9,padding:"2px 8px"}}>{cell.tasks.length}</span>}
-                </div>
-                <div style={{display:"flex",flexDirection:"column",gap:4,overflowY:"auto"}}>
-                  {cell.tasks.slice(0,5).map(tk=>{const co=COMPANIES.find(c=>c.id===tk.companyId);return(
-                    <button key={tk.id} onClick={()=>onOpen&&onOpen(tk.id)} title={`${tk.title}${tk.assignees.length?` · ${tk.assignees.join(", ")}`:""}${tk.status==="done"&&tk.completed_by?` · Done by ${tk.completed_by}`:""}`} style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,border:"none",borderLeft:`3px solid ${co?.color||t.accent}`,borderRadius:6,padding:"5px 7px",fontSize:11.5,color:t.inkMuted,overflow:"hidden",cursor:"pointer",fontFamily:"inherit",textAlign:"left",width:"100%"}}>
-                      <span style={{width:6,height:6,borderRadius:"50%",background:stC(tk.status,t),flexShrink:0}}/>
-                      <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:tk.status==="done"?"line-through":"none"}}>{tk.title}</span>
-                      {tk.assignees.length>0&&<span style={{flexShrink:0,fontSize:9.5,fontWeight:700,color:t.accentDeep,background:t.accentSoft,borderRadius:8,padding:"1px 6px"}}>{tk.assignees.map(a=>a.charAt(0)).join("")}</span>}
-                    </button>
-                  );})}
-                  {cell.tasks.length>5&&<span style={{fontSize:11,color:t.accent,fontWeight:700,padding:"2px 0"}}>+{cell.tasks.length-5} more</span>}
+                  <button className="cal-add" onClick={()=>onAddTask&&onAddTask(cell.ds)} title={`Add task on ${cell.ds}`} style={{opacity:0,transition:"opacity .12s",background:t.bgElevated,border:`1px solid ${t.lineStrong}`,color:t.accent,borderRadius:6,width:20,height:20,display:"grid",placeItems:"center",cursor:"pointer",padding:0}}><Plus size={13}/></button>
                 </div>
               </div>
-            );
-          })}
-        </div>
+              <div style={{display:"flex",flexDirection:"column",gap:4,overflowY:"auto"}}>
+                {cell.tasks.slice(0,5).map(tk=><CalTaskChip key={tk.id} tk={tk} theme={t} onOpen={onOpen}/>)}
+                {cell.tasks.length>5&&<span style={{fontSize:11,color:t.accent,fontWeight:700,padding:"2px 0"}}>+{cell.tasks.length-5} more</span>}
+              </div>
+            </div>
+          );
+        })}
       </div>
+    </div>
+  );
+}
+
+// WEEK — 7 taller day columns for the week containing the anchor date.
+function WeekGrid({anchor,byDay,todayStr,theme:t,onOpen,onAddTask}){
+  const start=startOfWeek(anchor);
+  const days=Array.from({length:7},(_,i)=>{const d=addDays(start,i);const ds=ymd(d);return{d,ds,tasks:byDay[ds]||[]};});
+  return(
+    <div style={{flex:1,overflowY:"auto",border:`1px solid ${t.line}`,borderRadius:14,minHeight:0,background:t.bgCard}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:1,background:t.line,minHeight:"100%"}}>
+        {days.map((day,i)=>{
+          const isT=day.ds===todayStr;
+          return(
+            <div key={i} className="cal-day" style={{position:"relative",background:isT?`${t.accent}11`:t.bgCard,display:"flex",flexDirection:"column",minHeight:420}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 10px 8px",borderBottom:`1px solid ${t.line}`,position:"sticky",top:0,background:isT?t.bgCard:t.bgElevated}}>
+                <div>
+                  <div style={{fontSize:10.5,fontWeight:700,color:t.inkFaint,letterSpacing:".08em",textTransform:"uppercase"}}>{DOW[day.d.getDay()]}</div>
+                  <div style={{fontSize:16,fontWeight:700,color:isT?t.accent:t.ink,fontFamily:"'Fraunces',serif"}}>{day.d.getDate()}</div>
+                </div>
+                <button className="cal-add" onClick={()=>onAddTask&&onAddTask(day.ds)} title={`Add task on ${day.ds}`} style={{opacity:0,transition:"opacity .12s",background:t.bgElevated,border:`1px solid ${t.lineStrong}`,color:t.accent,borderRadius:6,width:22,height:22,display:"grid",placeItems:"center",cursor:"pointer",padding:0}}><Plus size={14}/></button>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:5,padding:"8px",overflowY:"auto",flex:1}}>
+                {day.tasks.length===0&&<button onClick={()=>onAddTask&&onAddTask(day.ds)} style={{border:`1px dashed ${t.line}`,background:"none",borderRadius:8,padding:"10px 8px",fontSize:11.5,color:t.inkGhost,cursor:"pointer",fontFamily:"inherit"}}>+ Add</button>}
+                {day.tasks.map(tk=><CalTaskChip key={tk.id} tk={tk} theme={t} onOpen={onOpen}/>)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// DAY — a single agenda list for the anchor date.
+function DayList({anchor,byDay,todayStr,theme:t,onOpen,onAddTask}){
+  const ds=ymd(anchor);const items=byDay[ds]||[];const isT=ds===todayStr;
+  return(
+    <div style={{flex:1,overflowY:"auto",border:`1px solid ${t.line}`,borderRadius:14,minHeight:0,background:t.bgCard,padding:"20px 22px"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:44,height:44,borderRadius:12,background:isT?t.accent:t.bgElevated,color:isT?t.bg:t.ink,display:"grid",placeItems:"center",fontFamily:"'Fraunces',serif",fontSize:20,fontWeight:600}}>{anchor.getDate()}</div>
+          <div>
+            <div style={{fontSize:15,fontWeight:600,color:t.ink}}>{DOW[anchor.getDay()]}, {MONTHS[anchor.getMonth()]} {anchor.getDate()}</div>
+            <div style={{fontSize:12.5,color:t.inkMuted}}>{items.length} task{items.length!==1?"s":""} due{isT?" · today":""}</div>
+          </div>
+        </div>
+        <button onClick={()=>onAddTask&&onAddTask(ds)} style={{display:"flex",alignItems:"center",gap:6,background:t.accent,color:t.bg,border:"none",borderRadius:9,padding:"9px 14px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Plus size={15}/>Add task on this day</button>
+      </div>
+      {items.length===0
+        ?<div style={{textAlign:"center",color:t.inkFaint,padding:"48px 20px",fontSize:14}}>Nothing scheduled for this day.</div>
+        :<div style={{display:"flex",flexDirection:"column",gap:8,maxWidth:640}}>
+          {items.map(tk=>{const co=COMPANIES.find(c=>c.id===tk.companyId);const St=STATUSES[tk.status];const Ico=St.icon;return(
+            <button key={tk.id} onClick={()=>onOpen&&onOpen(tk.id)} style={{display:"flex",alignItems:"center",gap:12,background:t.bgElevated,border:`1px solid ${t.line}`,borderLeft:`3px solid ${co?.color||t.accent}`,borderRadius:10,padding:"12px 14px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",width:"100%"}}>
+              <Ico size={17} style={{color:stC(tk.status,t),flexShrink:0}}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:14,fontWeight:500,color:tk.status==="done"?t.inkFaint:t.ink,textDecoration:tk.status==="done"?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tk.title}</div>
+                <div style={{display:"flex",alignItems:"center",gap:9,marginTop:3,flexWrap:"wrap"}}>
+                  {co&&<span style={{fontSize:10.5,fontWeight:700,padding:"2px 7px",borderRadius:5,background:co.color+"22",color:co.color}}>{co.short}</span>}
+                  <span style={{fontSize:11,color:t.inkFaint}}>{tk.phase}</span>
+                  {tk.assignees.length>0&&<span style={{display:"flex",alignItems:"center",gap:3,fontSize:11.5,color:t.inkMuted}}><Users size={11}/>{tk.assignees.join(", ")}</span>}
+                  {tk.status==="done"&&tk.completed_by&&<span style={{display:"flex",alignItems:"center",gap:3,fontSize:11,fontWeight:600,color:t.good,background:t.goodSoft,padding:"2px 8px",borderRadius:5}}><Check size={11}/>Done by {tk.completed_by}</span>}
+                </div>
+              </div>
+              <Star size={14} style={{color:PRIORITIES[tk.priority],fill:tk.priority==="high"?PRIORITIES.high:"none",flexShrink:0}}/>
+            </button>
+          );})}
+        </div>}
     </div>
   );
 }
@@ -974,7 +1110,7 @@ function TimelineView({tasks,companyId,setCompanyId,theme:t}){
         <span style={{background:t.warnSoft,color:t.warn,fontSize:12,fontWeight:600,padding:"5px 11px",borderRadius:10}}>12-week rollout</span>
       </div>
       <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
-        {[{id:"all",short:"ALL",color:"rgba(255,255,255,.3)"},...COMPANIES].map(c=>{
+        {[{id:"all",short:"ALL",color:ALL_COLOR},...COMPANIES].map(c=>{
           const active=companyId===c.id;
           return <button key={c.id} onClick={()=>setCompanyId(c.id)} style={{padding:"6px 16px",fontSize:13,fontWeight:500,borderRadius:10,cursor:"pointer",border:`1px solid ${active?c.color||t.accent:t.lineStrong}`,background:active?c.color||t.accent:"transparent",color:active?t.bg:t.inkMuted,fontFamily:"inherit"}}>{c.short}</button>;
         })}
@@ -1130,12 +1266,12 @@ const NAV=[
 export default function App(){
   const [tasks,setTasks]=useState([]);const [loading,setLoading]=useState(true);const [me,setMe]=useState("Someone");
   const [cid,setCid]=useState("aps");const [view,setView]=useState("overview");const [track,setTrack]=useState("seo");
-  const [statusF,setStatusF]=useState("all");const [openTask,setOpenTask]=useState(null);const [newTaskOpen,setNewTaskOpen]=useState(false);const [importOpen,setImportOpen]=useState(false);const [coMenu,setCoMenu]=useState(false);
+  const [statusF,setStatusF]=useState("all");const [openTask,setOpenTask]=useState(null);const [newTaskOpen,setNewTaskOpen]=useState(false);const [newTaskDeadline,setNewTaskDeadline]=useState("");const [importOpen,setImportOpen]=useState(false);const [coMenu,setCoMenu]=useState(false);
   const mapRow=r=>({...r,companyId:r.company_id,deadline:r.deadline||"",notes:(r.notes||[]).map(n=>({id:n.id,who:n.author,text:n.body,when:new Date(n.created_at).toLocaleDateString()})),attachments:(r.attachments||[]).map(a=>({...a,type:a.kind}))});
   const reload=React.useCallback(async()=>{const rows=await loadTasks();setTasks(rows.map(mapRow));},[]);
   useEffect(()=>{(async()=>{try{const[rows,team,name]=await Promise.all([loadTasks(),getTeam(),currentName()]);if(team&&team.length)TEAM=team;setMe(name);setTasks(rows.map(mapRow));}finally{setLoading(false);}})();},[]);
   const t=useTheme(cid);
-  const activeCo=cid==="all"?{id:"all",name:"All Companies",short:"ALL",color:"rgba(255,255,255,.3)",site:""}:COMPANIES.find(c=>c.id===cid)||COMPANIES[0];
+  const activeCo=cid==="all"?{id:"all",name:"All Companies",short:"ALL",color:ALL_COLOR,site:""}:COMPANIES.find(c=>c.id===cid)||COMPANIES[0];
   const todayISO=useMemo(()=>{const d=new Date();d.setHours(0,0,0,0);return fmtDate(d);},[]);
   const weekISO=useMemo(()=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+7);return fmtDate(d);},[]);
   const scope=tasks.filter(tk=>(cid==="all"||tk.companyId===cid)&&tk.track===track&&(!tk.recurring||(tk.deadline>=todayISO&&tk.deadline<=weekISO)));
@@ -1155,6 +1291,8 @@ export default function App(){
   const removeTask=async id=>{setOpenTask(null);setTasks(ts=>ts.filter(tk=>tk.id!==id));await dbDeleteTask(id);};
   const createTask=async input=>{await dbCreateTask(input);await reload();};
   const importTasks=async rows=>{const n=await dbImportTasks(rows);await reload();return n;};
+  // Opens the New Task drawer, optionally pre-filling a deadline (used by the calendar).
+  const openNewTask=(deadline="")=>{setNewTaskDeadline(deadline||"");setNewTaskOpen(true);};
   const detail=openTask?tasks.find(tk=>tk.id===openTask):null;
   const defPhase=track==="seo"?SEO_TIMELINE[0].phase:PAID_MASTER[0][0];
   if(loading)return <div style={{minHeight:"100vh",display:"grid",placeItems:"center",background:"#0E0F12",fontFamily:"'IBM Plex Sans',ui-sans-serif,sans-serif",color:"#6F6A63",fontSize:14}}>Loading your command center…</div>;
@@ -1162,7 +1300,7 @@ export default function App(){
   const isBoardMode=["board","calendar","timeline"].includes(view);
   return(
     <div style={{display:"grid",gridTemplateColumns:"248px 1fr",minHeight:"100vh",fontFamily:"'IBM Plex Sans',-apple-system,system-ui,sans-serif",background:t.bg,color:t.ink}}>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0;}::-webkit-scrollbar{width:9px;height:9px;}::-webkit-scrollbar-thumb{background:${t.lineStrong};border-radius:5px;border:2px solid ${t.bg};}.kpi-card:hover{box-shadow:${t.shadowHover};transform:translateY(-2px);}.kpi-card:hover .kpi-line{opacity:1!important;}.tbl-row:hover{background:${t.accentWash}!important;}.kan-card:hover{box-shadow:${t.shadowHover};transform:translateY(-2px);}.task-row:hover{background:${t.bgElevated}!important;}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0;}::-webkit-scrollbar{width:9px;height:9px;}::-webkit-scrollbar-thumb{background:${t.lineStrong};border-radius:5px;border:2px solid ${t.bg};}.kpi-card:hover{box-shadow:${t.shadowHover};transform:translateY(-2px);}.kpi-card:hover .kpi-line{opacity:1!important;}.tbl-row:hover{background:${t.accentWash}!important;}.kan-card:hover{box-shadow:${t.shadowHover};transform:translateY(-2px);}.task-row:hover{background:${t.bgElevated}!important;}.cal-day:hover .cal-add{opacity:1!important;}`}</style>
 
       {/* SIDEBAR */}
       <aside style={{background:t.sideBg,backgroundImage:t.gradBg,color:t.sideText,padding:"24px 16px 18px",position:"sticky",top:0,height:"100vh",display:"flex",flexDirection:"column",overflowY:"auto",borderRight:`1px solid ${t.line}`}}>
@@ -1272,7 +1410,7 @@ export default function App(){
                 </select>
               </div>
               <button onClick={()=>setImportOpen(true)} style={{display:"flex",alignItems:"center",gap:6,background:t.bgElevated,color:t.ink,border:`1px solid ${t.lineStrong}`,borderRadius:9,padding:"10px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Upload size={15}/>Import</button>
-              <button onClick={()=>setNewTaskOpen(true)} style={{display:"flex",alignItems:"center",gap:6,background:t.accent,color:t.bg,border:"none",borderRadius:9,padding:"10px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 16px -8px ${t.accent}cc`}}><Plus size={15}/>Add task</button>
+              <button onClick={()=>openNewTask()} style={{display:"flex",alignItems:"center",gap:6,background:t.accent,color:t.bg,border:"none",borderRadius:9,padding:"10px 15px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 16px -8px ${t.accent}cc`}}><Plus size={15}/>Add task</button>
             </div>
           </div>
         )}
@@ -1288,12 +1426,12 @@ export default function App(){
         {view==="integrations"&&<IntegrationsView theme={t}/>}
         {view==="logins"      &&<LoginsView companyId={cid} theme={t}/>}
         {view==="board"       &&<BoardView tasks={tasks} companyId={cid} track={track} statusFilter={statusF} theme={t} onOpen={setOpenTask} onUpdate={update} todayISO={todayISO} weekISO={weekISO}/>}
-        {view==="calendar"    &&<CalendarView tasks={tasks} companyId={cid} theme={t} onOpen={setOpenTask}/>}
+        {view==="calendar"    &&<CalendarView tasks={tasks} companyId={cid} track={track} theme={t} onOpen={setOpenTask} onAddTask={openNewTask}/>}
         {view==="timeline"    &&<TimelineView tasks={tasks} companyId={cid} setCompanyId={setCid} theme={t}/>}
       </main>
 
       {detail&&<TaskDrawer t={detail} onClose={()=>setOpenTask(null)} update={update} onDelete={removeTask} company={COMPANIES.find(c=>c.id===detail.companyId)||COMPANIES[0]} me={me} onChanged={reload} theme={t}/>}
-      <NewTaskModal open={newTaskOpen} onClose={()=>setNewTaskOpen(false)} onCreate={createTask} defaults={{phase:defPhase}} companyId={cid==="all"?COMPANIES[0].id:cid} track={track} theme={t}/>
+      <NewTaskModal open={newTaskOpen} onClose={()=>setNewTaskOpen(false)} onCreate={createTask} defaults={{phase:defPhase,deadline:newTaskDeadline}} companyId={cid==="all"?COMPANIES[0].id:cid} track={track} theme={t}/>
       <ImportModal open={importOpen} onClose={()=>setImportOpen(false)} onImport={importTasks} companyId={cid} track={track} theme={t}/>
     </div>
   );
