@@ -419,7 +419,8 @@ export type HubFile = {
 };
 
 export type HubFolder = {
-  id: string; company_id: string; name: string; created_by: string | null; created_at: string;
+  id: string; company_id: string; name: string; parent_id: string | null;
+  created_by: string | null; created_at: string;
 };
 
 export async function loadHubFiles(): Promise<HubFile[]> {
@@ -464,15 +465,21 @@ export async function setHubFileCompany(id: string, companyId: string) {
   if (error) throw error;
 }
 
+// Rename a file (its display name only; the stored blob path is unchanged).
+export async function renameHubFile(id: string, name: string) {
+  const { error } = await supabase.from("hub_files").update({ name }).eq("id", id);
+  if (error) throw error;
+}
+
 // ---- Folders (organize files) ----
 export async function loadHubFolders(): Promise<HubFolder[]> {
   const { data } = await supabase.from("hub_folders").select("*").order("name");
   return (data || []) as HubFolder[];
 }
 
-export async function createHubFolder(companyId: string, name: string, createdBy?: string): Promise<HubFolder> {
+export async function createHubFolder(companyId: string, name: string, createdBy?: string, parentId?: string | null): Promise<HubFolder> {
   const { data, error } = await supabase.from("hub_folders").insert({
-    company_id: companyId, name, created_by: createdBy || null,
+    company_id: companyId, name, created_by: createdBy || null, parent_id: parentId ?? null,
   }).select().single();
   if (error) throw error;
   return data as HubFolder;
@@ -483,11 +490,24 @@ export async function renameHubFolder(id: string, name: string) {
   if (error) throw error;
 }
 
-// Deleting a folder does not delete its files (FK is ON DELETE SET NULL), so
-// they fall back to the top level. We also proactively clear folder_id so the
-// UI updates immediately even if the FK action lags.
+// Move a folder under another folder (or null for top level). The caller is
+// responsible for not creating a cycle (moving a folder into its own subtree);
+// the UI enforces that with a descendant check before calling this.
+export async function setHubFolderParent(id: string, parentId: string | null) {
+  const { error } = await supabase.from("hub_folders").update({ parent_id: parentId }).eq("id", id);
+  if (error) throw error;
+}
+
+// Deleting a folder does not delete its files or subfolders. Files fall back to
+// the top level, and any child folders move up to this folder's own parent, so
+// nothing is lost. (The FK is ON DELETE SET NULL; we also update eagerly so the
+// UI reflects it immediately.)
 export async function deleteHubFolder(id: string) {
+  // Find this folder's parent so children can inherit it, keeping the tree tidy.
+  const { data: self } = await supabase.from("hub_folders").select("parent_id").eq("id", id).single();
+  const newParent = (self as any)?.parent_id ?? null;
   await supabase.from("hub_files").update({ folder_id: null }).eq("folder_id", id);
+  await supabase.from("hub_folders").update({ parent_id: newParent }).eq("parent_id", id);
   const { error } = await supabase.from("hub_folders").delete().eq("id", id);
   if (error) throw error;
 }
