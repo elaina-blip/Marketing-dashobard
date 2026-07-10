@@ -415,7 +415,11 @@ export function summarizeMetric(rows: MetricRow[], metric: string, days = 28): M
 export type HubFile = {
   id: string; company_id: string; name: string; kind: string;
   storage_path: string; size_bytes: number | null; created_by: string | null;
-  created_at: string;
+  folder_id: string | null; created_at: string;
+};
+
+export type HubFolder = {
+  id: string; company_id: string; name: string; created_by: string | null; created_at: string;
 };
 
 export async function loadHubFiles(): Promise<HubFile[]> {
@@ -431,13 +435,14 @@ function hubKind(name: string): string {
   return "file";
 }
 
-export async function uploadHubFile(companyId: string, file: File, createdBy: string): Promise<HubFile> {
+export async function uploadHubFile(companyId: string, file: File, createdBy: string, folderId?: string | null): Promise<HubFile> {
   const path = `files/${companyId}/${Date.now()}_${file.name}`;
   const { error: upErr } = await supabase.storage.from("hub").upload(path, file);
   if (upErr) throw upErr;
   const { data, error } = await supabase.from("hub_files").insert({
     company_id: companyId, name: file.name, kind: hubKind(file.name),
     storage_path: path, size_bytes: file.size, created_by: createdBy,
+    folder_id: folderId ?? null,
   }).select().single();
   if (error) throw error;
   return data as HubFile;
@@ -456,6 +461,40 @@ export async function deleteHubFile(f: HubFile) {
 // Reassign a file to a different company (or "all").
 export async function setHubFileCompany(id: string, companyId: string) {
   const { error } = await supabase.from("hub_files").update({ company_id: companyId }).eq("id", id);
+  if (error) throw error;
+}
+
+// ---- Folders (organize files) ----
+export async function loadHubFolders(): Promise<HubFolder[]> {
+  const { data } = await supabase.from("hub_folders").select("*").order("name");
+  return (data || []) as HubFolder[];
+}
+
+export async function createHubFolder(companyId: string, name: string, createdBy?: string): Promise<HubFolder> {
+  const { data, error } = await supabase.from("hub_folders").insert({
+    company_id: companyId, name, created_by: createdBy || null,
+  }).select().single();
+  if (error) throw error;
+  return data as HubFolder;
+}
+
+export async function renameHubFolder(id: string, name: string) {
+  const { error } = await supabase.from("hub_folders").update({ name }).eq("id", id);
+  if (error) throw error;
+}
+
+// Deleting a folder does not delete its files (FK is ON DELETE SET NULL), so
+// they fall back to the top level. We also proactively clear folder_id so the
+// UI updates immediately even if the FK action lags.
+export async function deleteHubFolder(id: string) {
+  await supabase.from("hub_files").update({ folder_id: null }).eq("folder_id", id);
+  const { error } = await supabase.from("hub_folders").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// Move a file into a folder, or pass null to move it back to the top level.
+export async function setHubFileFolder(fileId: string, folderId: string | null) {
+  const { error } = await supabase.from("hub_files").update({ folder_id: folderId }).eq("id", fileId);
   if (error) throw error;
 }
 

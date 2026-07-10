@@ -1,7 +1,7 @@
 "use client";
 import React,{useState,useMemo,useEffect,useRef}from"react";
-import{Search,Megaphone,LayoutGrid,Plus,X,Check,Clock,AlertTriangle,Circle,Star,Users,Calendar,MessageSquare,ChevronDown,Building2,Filter,CalendarDays,ChevronLeft,ChevronRight,Paperclip,Link2,FileText,Download,Trash2,Eye,EyeOff,Copy,BarChart2,Mail,Globe,TrendingUp,Zap,Settings,Upload,Sparkles,CheckSquare,Square,Folder,Image,Palette,Phone,Type,FileSpreadsheet}from"lucide-react";
-import{loadTasks,updateTask as dbUpdate,deleteTask as dbDeleteTask,deleteTasks as dbDeleteTasks,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentName,signOut as dbSignOut,createTask as dbCreateTask,importTasks as dbImportTasks,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource,loadMetrics,summarizeMetric,loadHubFiles,uploadHubFile,hubFileUrl,deleteHubFile,loadContacts,createContact,deleteContact,loadBrandAssets,saveBrandAsset,uploadBrandLogo,brandAssetUrl,deleteBrandAsset,loadTemplates,saveTemplate,deleteTemplate,setHubFileCompany,setContactCompany,setTemplateCompany}from"@/lib/data";
+import{Search,Megaphone,LayoutGrid,Plus,X,Check,Clock,AlertTriangle,Circle,Star,Users,Calendar,MessageSquare,ChevronDown,Building2,Filter,CalendarDays,ChevronLeft,ChevronRight,Paperclip,Link2,FileText,Download,Trash2,Eye,EyeOff,Copy,BarChart2,Mail,Globe,TrendingUp,Zap,Settings,Upload,Sparkles,CheckSquare,Square,Folder,FolderPlus,Edit3,Image,Palette,Phone,Type,FileSpreadsheet}from"lucide-react";
+import{loadTasks,updateTask as dbUpdate,deleteTask as dbDeleteTask,deleteTasks as dbDeleteTasks,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentName,signOut as dbSignOut,createTask as dbCreateTask,importTasks as dbImportTasks,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource,loadMetrics,summarizeMetric,loadHubFiles,uploadHubFile,hubFileUrl,deleteHubFile,loadHubFolders,createHubFolder,renameHubFolder,deleteHubFolder,setHubFileFolder,loadContacts,createContact,deleteContact,loadBrandAssets,saveBrandAsset,uploadBrandLogo,brandAssetUrl,deleteBrandAsset,loadTemplates,saveTemplate,deleteTemplate,setHubFileCompany,setContactCompany,setTemplateCompany}from"@/lib/data";
 import{parseImportFile}from"@/lib/import-tasks";
 
 // ── COMPANIES ──────────────────────────────────────────────────
@@ -1578,22 +1578,27 @@ function CompanyPicker({value,onChange,includeAll,t}){
 // ---- FILES ----
 function HubFiles({companyId,me,t}){
   const[files,setFiles]=useState([]);
+  const[folders,setFolders]=useState([]);
   const[loading,setLoading]=useState(true);
   const[busy,setBusy]=useState(false);
   const[typeF,setTypeF]=useState("all");
   const[upCompany,setUpCompany]=useState(companyId==="all"?"aps":companyId);
+  const[openFolder,setOpenFolder]=useState(null);   // folder id currently open, or null = top level
   const[dragOver,setDragOver]=useState(false);
-  const[progress,setProgress]=useState(null);   // {done,total} while uploading a batch
+  const[progress,setProgress]=useState(null);        // {done,total} while uploading a batch
   const inputRef=useRef(null);
-  const dragDepth=useRef(0);                     // track nested dragenter/leave so the overlay doesn't flicker
-  const reload=async()=>{try{setFiles(await loadHubFiles());}finally{setLoading(false);}};
+  const dragDepth=useRef(0);                          // track nested dragenter/leave so the overlay doesn't flicker
+  const reload=async()=>{try{const[fl,fo]=await Promise.all([loadHubFiles(),loadHubFolders()]);setFiles(fl);setFolders(fo);}finally{setLoading(false);}};
   useEffect(()=>{reload();},[]);
   useEffect(()=>{setUpCompany(companyId==="all"?"aps":companyId);},[companyId]);
+  // If the company scope changes and the open folder no longer belongs, pop back to top level.
+  useEffect(()=>{if(openFolder&&!folders.some(f=>f.id===openFolder&&(companyId==="all"||f.company_id===companyId||f.company_id==="all")))setOpenFolder(null);},[companyId,folders]);
 
   const ACCEPT=[".pdf",".xlsx",".xls",".csv",".tsv",".doc",".docx",".ppt",".pptx",".png",".jpg",".jpeg"];
   const accepted=name=>ACCEPT.some(ext=>name.toLowerCase().endsWith(ext));
+  const inScope=x=>companyId==="all"||x.company_id===companyId||x.company_id==="all";
 
-  // Shared upload path used by both the picker and drag-and-drop.
+  // Shared upload path used by both the picker and drag-and-drop. Uploads land in the open folder.
   const uploadFiles=async fl=>{
     const list=Array.from(fl||[]).filter(Boolean);
     if(!list.length)return;
@@ -1603,7 +1608,7 @@ function HubFiles({companyId,me,t}){
     setBusy(true);setProgress({done:0,total:ok.length});
     try{
       let done=0;
-      for(const f of ok){await uploadHubFile(upCompany,f,me);setProgress({done:++done,total:ok.length});}
+      for(const f of ok){await uploadHubFile(upCompany,f,me,openFolder);setProgress({done:++done,total:ok.length});}
       await reload();
       if(skipped>0)alert(`${skipped} file${skipped!==1?"s were":" was"} skipped (unsupported type).`);
     }catch(err){alert("Upload failed: "+(err?.message||err));}
@@ -1620,38 +1625,111 @@ function HubFiles({companyId,me,t}){
   const open=async f=>{const url=await hubFileUrl(f.storage_path);if(url)window.open(url,"_blank");};
   const del=async f=>{if(!window.confirm(`Delete "${f.name}"?`))return;await deleteHubFile(f);await reload();};
   const reassign=async(f,cid)=>{if(cid===f.company_id)return;setFiles(fs=>fs.map(x=>x.id===f.id?{...x,company_id:cid}:x));try{await setHubFileCompany(f.id,cid);}catch(err){alert("Couldn't reassign: "+(err?.message||err));reload();}};
-  const shown=files.filter(f=>(companyId==="all"||f.company_id===companyId||f.company_id==="all")&&(typeF==="all"||f.kind===typeF));
+
+  // ---- Folder actions ----
+  const newFolder=async()=>{
+    const name=(window.prompt("New folder name:")||"").trim();
+    if(!name)return;
+    try{const f=await createHubFolder(upCompany,name,me);setFolders(fs=>[...fs,f].sort((a,b)=>a.name.localeCompare(b.name)));}
+    catch(err){alert("Couldn't create folder: "+(err?.message||err));}
+  };
+  const renameFolder=async fo=>{
+    const name=(window.prompt("Rename folder:",fo.name)||"").trim();
+    if(!name||name===fo.name)return;
+    setFolders(fs=>fs.map(x=>x.id===fo.id?{...x,name}:x).sort((a,b)=>a.name.localeCompare(b.name)));
+    try{await renameHubFolder(fo.id,name);}catch(err){alert("Couldn't rename: "+(err?.message||err));reload();}
+  };
+  const removeFolder=async fo=>{
+    const n=files.filter(f=>f.folder_id===fo.id).length;
+    if(!window.confirm(`Delete folder "${fo.name}"?${n?` Its ${n} file${n!==1?"s":""} will move back to All files (not deleted).`:""}`))return;
+    if(openFolder===fo.id)setOpenFolder(null);
+    setFolders(fs=>fs.filter(x=>x.id!==fo.id));
+    setFiles(fs=>fs.map(x=>x.folder_id===fo.id?{...x,folder_id:null}:x));
+    try{await deleteHubFolder(fo.id);}catch(err){alert("Couldn't delete: "+(err?.message||err));reload();}
+  };
+  const moveFile=async(f,folderId)=>{
+    const fid=folderId||null;if(fid===(f.folder_id||null))return;
+    setFiles(fs=>fs.map(x=>x.id===f.id?{...x,folder_id:fid}:x));
+    try{await setHubFileFolder(f.id,fid);}catch(err){alert("Couldn't move: "+(err?.message||err));reload();}
+  };
+
+  const shownFolders=folders.filter(inScope);
+  const scopedFiles=files.filter(f=>inScope(f)&&(typeF==="all"||f.kind===typeF));
+  const shown=scopedFiles.filter(f=>(openFolder?f.folder_id===openFolder:!f.folder_id));
+  const curFolder=openFolder?folders.find(f=>f.id===openFolder):null;
   const coName=upCompany==="all"?"All companies":(COMPANIES.find(c=>c.id===upCompany)?.name||upCompany);
+  const folderOpts=[{id:"",name:"— No folder —"},...shownFolders.map(f=>({id:f.id,name:f.name}))];
+  const countIn=fid=>scopedFiles.filter(f=>f.folder_id===fid).length;
   return(
     <div onDragEnter={onDragEnter} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} style={{position:"relative"}}>
     <Panel theme={t} flush style={dragOver?{borderColor:t.accent,boxShadow:`0 0 0 2px ${t.accent}55`}:undefined}>
-      <PHead title="Files" sub="Drag & drop files here, or use Upload" theme={t} b right={
+      <PHead title="Files" sub={curFolder?`Folder · ${curFolder.name}`:"Organize files into folders · drag & drop to upload"} theme={t} b right={
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <Tabs2 tabs={["all","sheet","pdf"]} active={typeF} onChange={setTypeF} theme={t}/>
           <div style={{width:150}}><CompanyPicker value={upCompany} onChange={setUpCompany} t={t}/></div>
+          <Btn theme={t} sm onClick={newFolder}><FolderPlus size={13}/>New folder</Btn>
           <input ref={inputRef} type="file" multiple onChange={onPick} style={{display:"none"}} accept={ACCEPT.join(",")}/>
           <Btn theme={t} sm accent onClick={()=>inputRef.current&&inputRef.current.click()}><Upload size={13}/>{busy?(progress?`Uploading ${progress.done}/${progress.total}…`:"Uploading…"):"Upload"}</Btn>
         </div>
       }/>
-      {loading?<EmptyState label="Loading…" sub="Fetching your files." theme={t}/>
-        :shown.length===0
-        ? <div onClick={()=>inputRef.current&&inputRef.current.click()} style={{margin:"20px 22px 26px",border:`2px dashed ${dragOver?t.accent:t.lineStrong}`,borderRadius:14,padding:"46px 20px",textAlign:"center",cursor:"pointer",background:dragOver?`${t.accent}0d`:t.bgElevated,transition:"all .15s"}}>
-            <div style={{width:52,height:52,margin:"0 auto 14px",borderRadius:14,background:t.bgCard,border:`1px solid ${t.line}`,display:"grid",placeItems:"center"}}><Upload size={22} style={{color:t.accent}}/></div>
-            <div style={{fontSize:15,fontWeight:600,color:t.ink,marginBottom:5}}>Drag & drop files here</div>
-            <div style={{fontSize:12.5,color:t.inkMuted,lineHeight:1.5}}>or click to browse · PDFs, spreadsheets, docs, slides, images<br/>New files upload to <strong style={{color:t.inkMuted}}>{coName}</strong></div>
+
+      {/* Breadcrumb when inside a folder */}
+      {curFolder&&(
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"11px 22px",borderBottom:`1px solid ${t.line}`,fontSize:12.5}}>
+          <button onClick={()=>setOpenFolder(null)} style={{background:"none",border:"none",color:t.accent,cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:0}}>All files</button>
+          <ChevronRight size={13} style={{color:t.inkFaint}}/>
+          <span style={{display:"flex",alignItems:"center",gap:6,color:t.ink,fontWeight:600}}><Folder size={13} style={{color:t.accent}}/>{curFolder.name}</span>
+          <div style={{marginLeft:"auto",display:"flex",gap:12}}>
+            <button onClick={()=>renameFolder(curFolder)} style={{background:"none",border:"none",color:t.inkMuted,cursor:"pointer",fontFamily:"inherit",fontSize:12,display:"flex",alignItems:"center",gap:4}}><Edit3 size={12}/>Rename</button>
+            <button onClick={()=>removeFolder(curFolder)} style={{background:"none",border:"none",color:t.inkMuted,cursor:"pointer",fontFamily:"inherit",fontSize:12,display:"flex",alignItems:"center",gap:4}}><Trash2 size={12}/>Delete folder</button>
           </div>
+        </div>
+      )}
+
+      {loading?<EmptyState label="Loading…" sub="Fetching your files." theme={t}/>:
+      <div>
+        {/* Folder grid — only at the top level */}
+        {!curFolder&&shownFolders.length>0&&(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:12,padding:"18px 22px",borderBottom:`1px solid ${t.line}`}}>
+            {shownFolders.map(fo=>(
+              <div key={fo.id} onClick={()=>setOpenFolder(fo.id)} style={{display:"flex",alignItems:"center",gap:11,padding:"13px 14px",background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:11,cursor:"pointer"}}>
+                <Folder size={20} style={{color:t.accent,flexShrink:0}}/>
+                <div style={{minWidth:0,flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:t.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fo.name}</div>
+                  <div style={{fontSize:11,color:t.inkFaint}}>{countIn(fo.id)} file{countIn(fo.id)!==1?"s":""}</div>
+                </div>
+                {companyId==="all"&&<span style={{flexShrink:0}}>{coChip(fo.company_id,t)}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* File list (unfiled at top level, or the folder's files inside a folder) */}
+        {shown.length===0
+        ? (!curFolder&&shownFolders.length>0
+            ? <div onClick={()=>inputRef.current&&inputRef.current.click()} style={{margin:"18px 22px",padding:"26px 20px",textAlign:"center",fontSize:12.5,color:t.inkMuted,border:`1px dashed ${t.lineStrong}`,borderRadius:12,cursor:"pointer"}}>No loose files. Open a folder above, or drop files here to add them.</div>
+            : <div onClick={()=>inputRef.current&&inputRef.current.click()} style={{margin:"20px 22px 26px",border:`2px dashed ${dragOver?t.accent:t.lineStrong}`,borderRadius:14,padding:"46px 20px",textAlign:"center",cursor:"pointer",background:dragOver?`${t.accent}0d`:t.bgElevated,transition:"all .15s"}}>
+                <div style={{width:52,height:52,margin:"0 auto 14px",borderRadius:14,background:t.bgCard,border:`1px solid ${t.line}`,display:"grid",placeItems:"center"}}><Upload size={22} style={{color:t.accent}}/></div>
+                <div style={{fontSize:15,fontWeight:600,color:t.ink,marginBottom:5}}>Drag & drop files here</div>
+                <div style={{fontSize:12.5,color:t.inkMuted,lineHeight:1.5}}>or click to browse · PDFs, spreadsheets, docs, slides, images<br/>New files upload to <strong style={{color:t.inkMuted}}>{coName}</strong>{curFolder?<> · folder <strong style={{color:t.inkMuted}}>{curFolder.name}</strong></>:null}</div>
+              </div>)
         : <div>
-            <div style={{display:"grid",gridTemplateColumns:"1.9fr .8fr .8fr .9fr 60px",padding:"10px 22px",borderBottom:`1px solid ${t.line}`,fontSize:10,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em"}}>
-              <div>Name</div><div>Company</div><div>Type</div><div>Added</div><div/>
+            <div style={{display:"grid",gridTemplateColumns:"1.7fr .8fr .7fr 1fr .8fr 60px",padding:"10px 22px",borderBottom:`1px solid ${t.line}`,fontSize:10,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em"}}>
+              <div>Name</div><div>Company</div><div>Type</div><div>Folder</div><div>Added</div><div/>
             </div>
             {shown.map((f,i)=>(
-              <div key={f.id} style={{display:"grid",gridTemplateColumns:"1.9fr .8fr .8fr .9fr 60px",padding:"13px 22px",borderBottom:i<shown.length-1?`1px solid ${t.line}`:"none",alignItems:"center"}}>
+              <div key={f.id} style={{display:"grid",gridTemplateColumns:"1.7fr .8fr .7fr 1fr .8fr 60px",padding:"13px 22px",borderBottom:i<shown.length-1?`1px solid ${t.line}`:"none",alignItems:"center"}}>
                 <div onClick={()=>open(f)} style={{display:"flex",alignItems:"center",gap:11,cursor:"pointer",minWidth:0}}>
                   {f.kind==="pdf"?<FileText size={17} style={{color:t.bad,flexShrink:0}}/>:<FileSpreadsheet size={17} style={{color:t.good,flexShrink:0}}/>}
                   <span style={{fontSize:13,color:t.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</span>
                 </div>
                 <div><CompanyChipSelect value={f.company_id} onChange={cid=>reassign(f,cid)} includeAll t={t}/></div>
                 <div style={{fontSize:12,color:t.inkMuted}}>{f.kind==="pdf"?"PDF":f.kind==="sheet"?"Sheet":"File"}</div>
+                <div>
+                  <select value={f.folder_id||""} onChange={e=>moveFile(f,e.target.value)} title="Move to folder" style={{maxWidth:"100%",border:`1px solid ${t.line}`,background:t.bgElevated,color:f.folder_id?t.ink:t.inkFaint,borderRadius:7,padding:"5px 7px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit",outline:"none"}}>
+                    {folderOpts.map(o=><option key={o.id||"none"} value={o.id} style={{background:t.bgElevated,color:t.ink}}>{o.name}</option>)}
+                  </select>
+                </div>
                 <div style={{fontSize:12,color:t.inkFaint,fontFamily:"'JetBrains Mono',monospace"}}>{new Date(f.created_at).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</div>
                 <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
                   <Download size={15} style={{color:t.inkFaint,cursor:"pointer"}} onClick={()=>open(f)}/>
@@ -1660,13 +1738,14 @@ function HubFiles({companyId,me,t}){
               </div>
             ))}
           </div>}
+      </div>}
     </Panel>
     {/* Full-panel drop overlay shown while dragging files anywhere over the Files area */}
     {dragOver&&<div style={{position:"absolute",inset:0,borderRadius:12,background:`${t.accent}14`,border:`2px dashed ${t.accent}`,display:"grid",placeItems:"center",pointerEvents:"none",zIndex:5,backdropFilter:"blur(1px)"}}>
       <div style={{textAlign:"center"}}>
         <div style={{width:60,height:60,margin:"0 auto 12px",borderRadius:16,background:t.bgCard,border:`1px solid ${t.accent}`,display:"grid",placeItems:"center",boxShadow:t.shadowCard}}><Upload size={26} style={{color:t.accent}}/></div>
         <div style={{fontSize:16,fontWeight:700,color:t.ink}}>Drop to upload</div>
-        <div style={{fontSize:12.5,color:t.inkMuted,marginTop:3}}>Files will be added to {coName}</div>
+        <div style={{fontSize:12.5,color:t.inkMuted,marginTop:3}}>Files will be added to {coName}{curFolder?<> · {curFolder.name}</>:null}</div>
       </div>
     </div>}
     </div>
