@@ -1,6 +1,6 @@
 "use client";
 import React,{useState,useMemo,useEffect,useRef}from"react";
-import{Search,Megaphone,LayoutGrid,Plus,X,Check,Clock,AlertTriangle,Circle,Star,Users,Calendar,MessageSquare,ChevronDown,Building2,Filter,CalendarDays,ChevronLeft,ChevronRight,Paperclip,Link2,FileText,Download,Trash2,Eye,EyeOff,Copy,BarChart2,Mail,Globe,TrendingUp,Zap,Settings,Upload,Sparkles,CheckSquare,Square,Folder,FolderPlus,Edit3,Image,Palette,Phone,Type,FileSpreadsheet}from"lucide-react";
+import{Search,Megaphone,LayoutGrid,Plus,X,Check,Clock,AlertTriangle,Circle,Star,Users,Calendar,MessageSquare,ChevronDown,Building2,Filter,CalendarDays,ChevronLeft,ChevronRight,Paperclip,Link2,FileText,Download,Trash2,Eye,EyeOff,Copy,BarChart2,Mail,Globe,TrendingUp,Zap,Settings,Upload,Sparkles,CheckSquare,Square,Folder,FolderPlus,Edit3,GripVertical,Image,Palette,Phone,Type,FileSpreadsheet}from"lucide-react";
 import{loadTasks,updateTask as dbUpdate,deleteTask as dbDeleteTask,deleteTasks as dbDeleteTasks,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentName,signOut as dbSignOut,createTask as dbCreateTask,importTasks as dbImportTasks,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource,loadMetrics,summarizeMetric,loadHubFiles,uploadHubFile,hubFileUrl,deleteHubFile,loadHubFolders,createHubFolder,renameHubFolder,deleteHubFolder,setHubFileFolder,renameHubFile,setHubFolderParent,loadContacts,createContact,deleteContact,loadBrandAssets,saveBrandAsset,uploadBrandLogo,brandAssetUrl,deleteBrandAsset,loadTemplates,saveTemplate,deleteTemplate,setHubFileCompany,setContactCompany,setTemplateCompany}from"@/lib/data";
 import{parseImportFile}from"@/lib/import-tasks";
 
@@ -1585,6 +1585,8 @@ function HubFiles({companyId,me,t}){
   const[upCompany,setUpCompany]=useState(companyId==="all"?"aps":companyId);
   const[openFolder,setOpenFolder]=useState(null);   // folder id currently open, or null = top level
   const[dragOver,setDragOver]=useState(false);
+  const[internalDrag,setInternalDrag]=useState(null); // {kind:'file'|'folder',id,name} while dragging within the Hub
+  const[dropTarget,setDropTarget]=useState(undefined); // folder id (or null=top) currently hovered as an internal drop target
   const[progress,setProgress]=useState(null);        // {done,total} while uploading a batch
   const inputRef=useRef(null);
   const dragDepth=useRef(0);                          // track nested dragenter/leave so the overlay doesn't flicker
@@ -1676,6 +1678,42 @@ function HubFiles({companyId,me,t}){
     try{await setHubFolderParent(fo.id,pid);}catch(err){alert("Couldn't move folder: "+(err?.message||err));reload();}
   };
 
+  // ---- Internal drag & drop: move an existing file or folder into a folder ----
+  // Uses a custom dataTransfer type so it never collides with OS-file uploads
+  // (those carry the "Files" type, which the upload handlers key off of).
+  const DND="application/x-hub-item";
+  const startItemDrag=(e,kind,item)=>{
+    try{e.dataTransfer.setData(DND,JSON.stringify({kind,id:item.id}));e.dataTransfer.effectAllowed="move";}catch{}
+    setInternalDrag({kind,id:item.id,name:item.name});
+  };
+  const endItemDrag=()=>{setInternalDrag(null);setDropTarget(undefined);};
+  // Can the current internal drag land on this folder (or null=top level)?
+  const canDropOn=targetId=>{
+    if(!internalDrag)return false;
+    if(internalDrag.kind==="file"){
+      const f=files.find(x=>x.id===internalDrag.id);
+      return !!f&&(f.folder_id||null)!==(targetId||null);
+    }
+    // folder: not onto itself, not into its own subtree, not a no-op
+    if(internalDrag.id===targetId)return false;
+    const fo=folders.find(x=>x.id===internalDrag.id);
+    if(!fo)return false;
+    if((fo.parent_id||null)===(targetId||null))return false;
+    return !descendantIds(internalDrag.id).includes(targetId);
+  };
+  const dropOn=async targetId=>{
+    const drag=internalDrag;setInternalDrag(null);setDropTarget(undefined);
+    if(!drag||!canDropOn(targetId))return;
+    if(drag.kind==="file"){const f=files.find(x=>x.id===drag.id);if(f)await moveFile(f,targetId||null);}
+    else{const fo=folders.find(x=>x.id===drag.id);if(fo)await moveFolder(fo,targetId||null);}
+  };
+  // Props applied to any element that should accept an internal drop.
+  const dropZone=targetId=>({
+    onDragOver:e=>{if(internalDrag&&canDropOn(targetId)){e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect="move";if(dropTarget!==targetId)setDropTarget(targetId);}},
+    onDragLeave:e=>{if(internalDrag&&dropTarget===targetId)setDropTarget(undefined);},
+    onDrop:e=>{if(internalDrag){e.preventDefault();e.stopPropagation();dropOn(targetId);}},
+  });
+
   const scopedFiles=files.filter(f=>inScope(f)&&(typeF==="all"||f.kind===typeF));
   const curFolder=openFolder?folders.find(f=>f.id===openFolder):null;
   const subFolders=childrenOf(openFolder);                                  // folders shown at this level
@@ -1702,13 +1740,13 @@ function HubFiles({companyId,me,t}){
       {/* Breadcrumb trail when inside a folder (supports several levels deep) */}
       {curFolder&&(
         <div style={{display:"flex",alignItems:"center",gap:7,padding:"11px 22px",borderBottom:`1px solid ${t.line}`,fontSize:12.5,flexWrap:"wrap"}}>
-          <button onClick={()=>setOpenFolder(null)} style={{background:"none",border:"none",color:t.accent,cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:0}}>All files</button>
+          <button {...dropZone(null)} onClick={()=>setOpenFolder(null)} style={{background:dropTarget===null&&internalDrag?t.accentSoft:"none",border:dropTarget===null&&internalDrag?`1px solid ${t.accent}`:"1px solid transparent",borderRadius:6,color:t.accent,cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:"2px 6px"}}>All files</button>
           {crumbs.map((c,i)=>(
             <span key={c.id} style={{display:"flex",alignItems:"center",gap:7}}>
               <ChevronRight size={13} style={{color:t.inkFaint}}/>
               {i===crumbs.length-1
                 ? <span style={{display:"flex",alignItems:"center",gap:6,color:t.ink,fontWeight:600}}><Folder size={13} style={{color:t.accent}}/>{c.name}</span>
-                : <button onClick={()=>setOpenFolder(c.id)} style={{background:"none",border:"none",color:t.accent,cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:0}}>{c.name}</button>}
+                : <button {...dropZone(c.id)} onClick={()=>setOpenFolder(c.id)} style={{background:dropTarget===c.id&&internalDrag?t.accentSoft:"none",border:dropTarget===c.id&&internalDrag?`1px solid ${t.accent}`:"1px solid transparent",borderRadius:6,color:t.accent,cursor:"pointer",fontFamily:"inherit",fontSize:12.5,padding:"2px 6px"}}>{c.name}</button>}
             </span>
           ))}
           <div style={{marginLeft:"auto",display:"flex",gap:12}}>
@@ -1725,15 +1763,23 @@ function HubFiles({companyId,me,t}){
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12,padding:"18px 22px",borderBottom:`1px solid ${t.line}`}}>
             {subFolders.map(fo=>{
               const subCount=childrenOf(fo.id).length;
+              const isTarget=internalDrag&&dropTarget===fo.id&&canDropOn(fo.id);
+              const isDragging=internalDrag&&internalDrag.kind==="folder"&&internalDrag.id===fo.id;
               return(
-              <div key={fo.id} onClick={()=>setOpenFolder(fo.id)} style={{display:"flex",alignItems:"center",gap:11,padding:"12px 13px",background:t.bgElevated,border:`1px solid ${t.line}`,borderRadius:11,cursor:"pointer"}}>
+              <div key={fo.id}
+                draggable
+                onDragStart={e=>startItemDrag(e,"folder",fo)}
+                onDragEnd={endItemDrag}
+                {...dropZone(fo.id)}
+                onClick={()=>setOpenFolder(fo.id)}
+                style={{display:"flex",alignItems:"center",gap:11,padding:"12px 13px",background:isTarget?t.accentSoft:t.bgElevated,border:`1px solid ${isTarget?t.accent:t.line}`,borderRadius:11,cursor:internalDrag?"grabbing":"pointer",opacity:isDragging?.45:1,boxShadow:isTarget?`0 0 0 2px ${t.accent}55`:"none"}}>
                 <Folder size={20} style={{color:t.accent,flexShrink:0}}/>
                 <div style={{minWidth:0,flex:1}}>
                   <div style={{fontSize:13,fontWeight:600,color:t.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fo.name}</div>
-                  <div style={{fontSize:11,color:t.inkFaint}}>{countIn(fo.id)} file{countIn(fo.id)!==1?"s":""}{subCount?` · ${subCount} folder${subCount!==1?"s":""}`:""}</div>
+                  <div style={{fontSize:11,color:t.inkFaint}}>{isTarget?`Drop to move here`:`${countIn(fo.id)} file${countIn(fo.id)!==1?"s":""}${subCount?` · ${subCount} folder${subCount!==1?"s":""}`:""}`}</div>
                 </div>
-                {companyId==="all"&&<span style={{flexShrink:0}}>{coChip(fo.company_id,t)}</span>}
-                <button onClick={e=>{e.stopPropagation();renameFolder(fo);}} title="Rename folder" style={{background:"none",border:"none",cursor:"pointer",color:t.inkFaint,padding:2,flexShrink:0}}><Edit3 size={13}/></button>
+                {companyId==="all"&&!internalDrag&&<span style={{flexShrink:0}}>{coChip(fo.company_id,t)}</span>}
+                {!internalDrag&&<button onClick={e=>{e.stopPropagation();renameFolder(fo);}} title="Rename folder" style={{background:"none",border:"none",cursor:"pointer",color:t.inkFaint,padding:2,flexShrink:0}}><Edit3 size={13}/></button>}
               </div>
             );})}
           </div>
@@ -1749,11 +1795,18 @@ function HubFiles({companyId,me,t}){
                 <div style={{fontSize:12.5,color:t.inkMuted,lineHeight:1.5}}>or click to browse · PDFs, spreadsheets, docs, slides, images<br/>New files upload to <strong style={{color:t.inkMuted}}>{coName}</strong>{curFolder?<> · folder <strong style={{color:t.inkMuted}}>{curFolder.name}</strong></>:null}</div>
               </div>)
         : <div>
-            <div style={{display:"grid",gridTemplateColumns:"1.7fr .8fr .7fr 1fr .8fr 84px",padding:"10px 22px",borderBottom:`1px solid ${t.line}`,fontSize:10,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em"}}>
-              <div>Name</div><div>Company</div><div>Type</div><div>Folder</div><div>Added</div><div/>
+            <div style={{display:"grid",gridTemplateColumns:"18px 1.6fr .8fr .7fr 1fr .8fr 84px",padding:"10px 22px",borderBottom:`1px solid ${t.line}`,fontSize:10,color:t.inkFaint,textTransform:"uppercase",letterSpacing:".06em"}}>
+              <div/><div>Name</div><div>Company</div><div>Type</div><div>Folder</div><div>Added</div><div/>
             </div>
-            {shown.map((f,i)=>(
-              <div key={f.id} style={{display:"grid",gridTemplateColumns:"1.7fr .8fr .7fr 1fr .8fr 84px",padding:"13px 22px",borderBottom:i<shown.length-1?`1px solid ${t.line}`:"none",alignItems:"center"}}>
+            {shown.map((f,i)=>{
+              const isDragging=internalDrag&&internalDrag.kind==="file"&&internalDrag.id===f.id;
+              return(
+              <div key={f.id}
+                draggable
+                onDragStart={e=>startItemDrag(e,"file",f)}
+                onDragEnd={endItemDrag}
+                style={{display:"grid",gridTemplateColumns:"18px 1.6fr .8fr .7fr 1fr .8fr 84px",gap:0,padding:"13px 22px",borderBottom:i<shown.length-1?`1px solid ${t.line}`:"none",alignItems:"center",opacity:isDragging?.45:1,background:isDragging?t.accentSoft:"transparent",cursor:internalDrag?"grabbing":"default"}}>
+                <span title="Drag to a folder" style={{cursor:"grab",color:t.inkGhost,display:"flex",alignItems:"center"}}><GripVertical size={14}/></span>
                 <div onClick={()=>open(f)} style={{display:"flex",alignItems:"center",gap:11,cursor:"pointer",minWidth:0}}>
                   {f.kind==="pdf"?<FileText size={17} style={{color:t.bad,flexShrink:0}}/>:<FileSpreadsheet size={17} style={{color:t.good,flexShrink:0}}/>}
                   <span style={{fontSize:13,color:t.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</span>
@@ -1773,7 +1826,7 @@ function HubFiles({companyId,me,t}){
                   <Trash2 size={15} style={{color:t.inkFaint,cursor:"pointer"}} title="Delete" onClick={()=>del(f)}/>
                 </div>
               </div>
-            ))}
+            );})}
           </div>}
 
         {/* Move-this-folder control, shown inside a folder so you can re-nest it */}
