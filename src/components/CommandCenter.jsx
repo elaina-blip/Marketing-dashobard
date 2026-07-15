@@ -506,6 +506,8 @@ function IntegrationsView({theme:t}){
   const [modal,setModal]=useState(null);
   const [flash,setFlash]=useState("");
   const [demoBusy,setDemoBusy]=useState("");
+  const [uploadBusy,setUploadBusy]=useState(false);
+  const uploadRef=useRef(null);
   const refresh=async()=>{try{setConns(await loadConnections());}catch(e){}finally{setLoading(false);}};
   useEffect(()=>{
     refresh();
@@ -520,6 +522,8 @@ function IntegrationsView({theme:t}){
   const connect=s=>{if(["google","meta","linkedin"].includes(s.kind))window.location.href=`/api/oauth/${s.kind}/start?key=${encodeURIComponent(s.key)}`;else setModal(s);};
   const disconnect=async s=>{setBusy(s.key);try{await disconnectSource(s.key);await refresh();}catch(e){}finally{setBusy("");}};
   const loadDemo=async(clear)=>{setDemoBusy(clear?"clear":"load");try{const r=await fetch(`/api/integrations/demo${clear?"?clear=1":""}`,{method:"POST"});const j=await r.json();if(!r.ok)throw new Error(j.error||"failed");await refresh();setFlash(clear?"Sample data cleared.":"Sample data loaded — open the Dashboard to see it populated.");}catch(e){setFlash("Sample data error: "+(e?.message||e));}finally{setDemoBusy("");}};
+  const onUploadReport=async(e)=>{const file=e.target.files&&e.target.files[0];if(file)e.target.value="";if(!file)return;setUploadBusy(true);try{const fd=new FormData();fd.append("file",file);const r=await fetch("/api/integrations/upload",{method:"POST",body:fd});const j=await r.json();if(!r.ok)throw new Error(j.error||"upload failed");await refresh();const skipMsg=j.skipped?` (${j.skipped} row${j.skipped!==1?"s":""} skipped)`:"";setFlash(`Report uploaded — ${j.inserted} row${j.inserted!==1?"s":""} added across ${(j.providers||[]).length} source${(j.providers||[]).length!==1?"s":""}${skipMsg}. Open the Dashboard to see it.`);}catch(e){setFlash("Upload error: "+(e?.message||e));}finally{setUploadBusy(false);}};
+  const downloadReportTemplate=()=>{const rows=["provider,metric,date,value","ga4,sessions,2026-07-07,540","ga4,conversions,2026-07-07,12","search_console,clicks,2026-07-07,320","search_console,impressions,2026-07-07,9800","google_ads,spend,2026-07-07,210","google_ads,conversions,2026-07-07,8","crm,leads,2026-07-07,6"];const blob=new Blob([rows.join("\n")],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="weekly-report-template.csv";a.click();URL.revokeObjectURL(url);};
   const connectedCount=SOURCES.filter(s=>statusOf(s.key)==="connected").length;
   const anySample=SOURCES.some(s=>{const l=labelOf(s.key);return statusOf(s.key)==="connected"&&l&&/sample/i.test(l);});
   const fmtSync=v=>{if(!v)return "Never synced";try{const d=new Date(v);return d.toLocaleString();}catch{return "Never synced";}};
@@ -540,6 +544,22 @@ function IntegrationsView({theme:t}){
           <div style={{display:"flex",gap:9,flexShrink:0}}>
             <Btn theme={t} accent onClick={()=>loadDemo(false)}>{demoBusy==="load"?"Loading…":anySample?"Refresh sample data":"Load sample data"}</Btn>
             {anySample&&<Btn theme={t} onClick={()=>loadDemo(true)}>{demoBusy==="clear"?"Clearing…":"Clear"}</Btn>}
+          </div>
+        </div>
+      </div>
+      {/* Weekly report upload: populate the dashboard from a CSV you export each week, no OAuth needed. */}
+      <div style={{marginBottom:22,padding:"16px 18px",borderRadius:12,border:`1px solid ${t.lineStrong}`,background:t.bgElevated}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:16,flexWrap:"wrap"}}>
+          <div style={{maxWidth:720}}>
+            <div style={{fontSize:14,fontWeight:700,color:t.ink,marginBottom:5,display:"flex",alignItems:"center",gap:7}}><FileSpreadsheet size={15} style={{color:t.accent}}/>Upload a weekly report</div>
+            <div style={{fontSize:12.5,color:t.inkMuted,lineHeight:1.55}}>
+              Export a CSV each week and upload it here to populate the Dashboard with real numbers — no OAuth app required. The file needs four columns: <strong>provider, metric, date, value</strong> (one row per metric per day). Re-uploading the same dates overwrites cleanly, so there's no double-counting. Download the template to see the exact format.
+            </div>
+          </div>
+          <div style={{display:"flex",gap:9,flexShrink:0}}>
+            <input ref={uploadRef} type="file" accept=".csv,text/csv" onChange={onUploadReport} style={{display:"none"}}/>
+            <Btn theme={t} accent onClick={()=>uploadRef.current&&uploadRef.current.click()}>{uploadBusy?"Uploading…":"Upload report"}</Btn>
+            <Btn theme={t} onClick={downloadReportTemplate}>Template</Btn>
           </div>
         </div>
       </div>
