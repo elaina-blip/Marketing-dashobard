@@ -3,6 +3,14 @@ import React,{useState,useMemo,useEffect,useRef}from"react";
 import{Search,Megaphone,LayoutGrid,Plus,X,Check,Clock,AlertTriangle,Circle,Star,Users,Calendar,MessageSquare,ChevronDown,Building2,Filter,CalendarDays,ChevronLeft,ChevronRight,Paperclip,Link2,FileText,Download,Trash2,Eye,EyeOff,Copy,BarChart2,Mail,Globe,TrendingUp,Zap,Settings,Upload,Sparkles,CheckSquare,Square,Folder,FolderPlus,Edit3,GripVertical,Image,Palette,Phone,Type,FileSpreadsheet}from"lucide-react";
 import{loadTasks,updateTask as dbUpdate,deleteTask as dbDeleteTask,deleteTasks as dbDeleteTasks,setAssignee as dbSetAssignee,addNote as dbAddNote,addLink as dbAddLink,uploadFile as dbUploadFile,fileUrl as dbFileUrl,removeAttachment as dbRemoveAttachment,getTeam,currentName,signOut as dbSignOut,createTask as dbCreateTask,importTasks as dbImportTasks,loadCompanyLogins as dbLoadCompanyLogins,replaceCompanyLogins as dbReplaceCompanyLogins,loadConnections,disconnectSource,loadMetrics,summarizeMetric,loadHubFiles,uploadHubFile,hubFileUrl,deleteHubFile,loadHubFolders,createHubFolder,renameHubFolder,deleteHubFolder,setHubFileFolder,renameHubFile,setHubFolderParent,loadContacts,createContact,deleteContact,loadBrandAssets,saveBrandAsset,uploadBrandLogo,brandAssetUrl,deleteBrandAsset,loadTemplates,saveTemplate,deleteTemplate,setHubFileCompany,setContactCompany,setTemplateCompany}from"@/lib/data";
 import{parseImportFile}from"@/lib/import-tasks";
+import dynamic from"next/dynamic";
+// Loaded on demand: the workbench pulls in xlsx (~130kB gzipped) for spreadsheet
+// parsing, and nobody outside Alliance Permitting ever opens it. Bundling it
+// eagerly tripled the dashboard's first load for everyone.
+const SocialAcquisitionView=dynamic(()=>import("@/components/acquisition/SocialAcquisitionView"),{
+  ssr:false,
+  loading:()=><div style={{flex:1,display:"grid",placeItems:"center",color:"#6F6A63",fontSize:14}}>Loading the workbench…</div>,
+});
 
 // ── COMPANIES ──────────────────────────────────────────────────
 const COMPANIES=[
@@ -2187,9 +2195,12 @@ function HubView({companyId,me,theme:t}){
 }
 
 // ── MAIN APP ──────────────────────────────────────────────────
+// `only` restricts an entry to certain companies. Social Acquisition is an
+// Alliance Permitting workbench (contractor permit data) — it means nothing for
+// ADS or TigerLeads, so it is hidden rather than shown empty.
 const NAV=[
   {group:"Overview",items:[{id:"overview",label:"Dashboard",icon:LayoutGrid},{id:"reports",label:"Reports & Exports",icon:FileText}]},
-  {group:"Channels",items:[{id:"seo",label:"SEO & Organic",icon:Search},{id:"social",label:"Social Media",icon:Globe},{id:"paid",label:"Paid Advertising",icon:BarChart2},{id:"email",label:"Email & Nurture",icon:Mail}]},
+  {group:"Channels",items:[{id:"seo",label:"SEO & Organic",icon:Search},{id:"social",label:"Social Media",icon:Globe},{id:"acquisition",label:"Social Acquisition",icon:Users,only:["aps"]},{id:"paid",label:"Paid Advertising",icon:BarChart2},{id:"email",label:"Email & Nurture",icon:Mail}]},
   {group:"Tasks",items:[{id:"board",label:"Board",icon:LayoutGrid},{id:"calendar",label:"Calendar",icon:CalendarDays},{id:"timeline",label:"SEO Timeline",icon:TrendingUp}]},
   {group:"Growth",items:[{id:"attribution",label:"Lead Attribution",icon:Zap},{id:"integrations",label:"Integrations & Data",icon:Settings},{id:"logins",label:"Company Logins",icon:Link2}]},
   {group:"Hub",items:[{id:"hub",label:"Marketing Hub",icon:Folder}]},
@@ -2227,6 +2238,12 @@ export default function App(){
   const exitEdit=()=>{setEditMode(false);setSelected(new Set());};
   // Leaving edit mode whenever the view or company/track scope changes avoids stale selections.
   useEffect(()=>{setEditMode(false);setSelected(new Set());},[view,cid,track]);
+  // Company-restricted views (Social Acquisition) must not linger after a switch,
+  // or you get a screen with no matching entry in the nav.
+  useEffect(()=>{
+    const item=NAV.flatMap(g=>g.items).find(i=>i.id===view);
+    if(item?.only&&!item.only.includes(cid))setView("overview");
+  },[view,cid]);
   const createTask=async input=>{await dbCreateTask(input);await reload();};
   const importTasks=async rows=>{const n=await dbImportTasks(rows);await reload();return n;};
   // Opens the New Task drawer, optionally pre-filling a deadline (used by the calendar).
@@ -2235,7 +2252,8 @@ export default function App(){
   const defPhase=track==="seo"?SEO_TIMELINE[0].phase:PAID_MASTER[0][0];
   if(loading)return <div style={{minHeight:"100vh",display:"grid",placeItems:"center",background:"#0E0F12",fontFamily:"'IBM Plex Sans',ui-sans-serif,sans-serif",color:"#6F6A63",fontSize:14}}>Loading your command center…</div>;
   if(tasks.length===0)return <SetupScreen onDone={reload} me={me}/>;
-  const isBoardMode=["board","calendar","timeline"].includes(view);
+  // These views manage their own scrolling; the outer <main> must not add a second scrollbar.
+  const isBoardMode=["board","calendar","timeline","acquisition"].includes(view);
   return(
     <div style={{display:"grid",gridTemplateColumns:"248px 1fr",minHeight:"100vh",fontFamily:"'IBM Plex Sans',-apple-system,system-ui,sans-serif",background:t.bg,color:t.ink}}>
       <style>{`*{box-sizing:border-box;margin:0;padding:0;}::-webkit-scrollbar{width:9px;height:9px;}::-webkit-scrollbar-thumb{background:${t.lineStrong};border-radius:5px;border:2px solid ${t.bg};}.kpi-card:hover{box-shadow:${t.shadowHover};transform:translateY(-2px);}.kpi-card:hover .kpi-line{opacity:1!important;}.tbl-row:hover{background:${t.accentWash}!important;}.kan-card:hover{box-shadow:${t.shadowHover};transform:translateY(-2px);}.task-row:hover{background:${t.bgElevated}!important;}.cal-day:hover .cal-add{opacity:1!important;}`}</style>
@@ -2282,7 +2300,7 @@ export default function App(){
           {NAV.map(group=>(
             <div key={group.group} style={{marginTop:22}}>
               <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".12em",color:t.sideTextDim,marginBottom:7,padding:"0 10px",fontWeight:700}}>{group.group}</div>
-              {group.items.map(item=>{
+              {group.items.filter(item=>!item.only||item.only.includes(cid)).map(item=>{
                 const Icon=item.icon;const active=view===item.id;
                 return(
                   <button key={item.id} onClick={()=>setView(item.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"9px 11px",background:active?t.navActiveBg:"none",border:"none",color:active?t.navActiveText:t.sideText,cursor:"pointer",fontSize:13.5,fontWeight:active?500:450,borderRadius:8,marginBottom:2,fontFamily:"inherit",position:"relative",transition:"background .14s,color .14s"}}>
@@ -2383,6 +2401,7 @@ export default function App(){
         {view==="integrations"&&<IntegrationsView theme={t}/>}
         {view==="logins"      &&<LoginsView companyId={cid} theme={t}/>}
         {view==="hub"         &&<HubView companyId={cid} me={me} theme={t}/>}
+        {view==="acquisition" &&<SocialAcquisitionView me={me} theme={t}/>}
         {view==="board"       &&<BoardView tasks={tasks} companyId={cid} track={track} statusFilter={statusF} assigneeFilter={assigneeF} theme={t} onOpen={setOpenTask} onUpdate={update} todayISO={todayISO} weekISO={weekISO} editMode={editMode} selected={selected} onToggleSelect={toggleSelect}/>}
         {view==="calendar"    &&<CalendarView tasks={tasks} companyId={cid} track={track} assigneeFilter={assigneeF} setAssigneeFilter={setAssigneeF} theme={t} onOpen={setOpenTask} onAddTask={openNewTask} onReschedule={(id,date)=>update(id,{deadline:date})} editMode={editMode} selected={selected} onToggleSelect={toggleSelect} onOpenDay={setDayModal} onStartEdit={()=>setEditMode(true)} onExitEdit={exitEdit} onDeleteSelected={()=>{if(selected.size&&window.confirm(`Delete ${selected.size} task${selected.size!==1?"s":""}? This can't be undone.`))removeTasks(selected);}}/>}
         {view==="timeline"    &&<TimelineView tasks={tasks} companyId={cid} setCompanyId={setCid} theme={t}/>}

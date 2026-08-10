@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+
+# next.js build output
+.next/
+out/
+
+# local env — secrets belong in Vercel, never in the repo
+.env
+.env.local
+.env*.local
+
+# misc
+*.tsbuildinfo
+.DS_Store
