@@ -6,7 +6,7 @@
  */
 import React, { useMemo } from "react";
 import {
-  verify, VERDICT_LABEL, foundCount, isTouched, followedCount, targetsFromPlan,
+  verify, computeGroups, VERDICT_LABEL, foundCount, isTouched, isSkipped, followedCount, targetsFromPlan,
 } from "@/lib/acquisition/acquisition-logic";
 import { Card, Badge, Meter, fmtN, pctOf, th, td, SHORT_VERT, vertColor, verdictColor } from "./ui";
 
@@ -59,16 +59,18 @@ export default function DashboardTab({ rows, plan, t }) {
   }, [rows]);
 
   const byVerdict = useMemo(() => {
+    const groupOf = computeGroups(rows);
     const acc = {};
     for (const r of rows) {
-      const v = verify({ name: r.company_name, email: r.email, group: r.records_on_domain }).verdict;
+      const v = verify({ name: r.company_name, email: r.email, group: groupOf(r) }).verdict;
       acc[v] = (acc[v] || 0) + 1;
     }
     return acc;
   }, [rows]);
 
+  // Skipped rows are not work waiting to be done — they are work already dismissed.
   const untouched = useMemo(() =>
-    rows.filter(r => r.stage === "research" && !isTouched(r))
+    rows.filter(r => r.stage === "research" && !isTouched(r) && !isSkipped(r))
       .sort((a, b) => (b.priority_score || b.total_permits) - (a.priority_score || a.total_permits))
       .slice(0, 10), [rows]);
 

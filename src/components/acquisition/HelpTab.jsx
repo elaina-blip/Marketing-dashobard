@@ -69,15 +69,28 @@ export default function HelpTab({ t }) {
         <h3 style={h3}>Step 1 · Research</h3>
         <ol style={ol}>
           <li>Work down the list — it is already sorted with the biggest permit pullers first.</li>
-          <li>Press <b>All</b> on a row to open the website, Google and all three platform searches at once.</li>
-          <li>Mark each platform: <b>green</b> if the profile exists, <b>red</b> if you checked and it is not there, blank if you did not look.</li>
+          <li>Press <b>AI ✦</b>. Where the record has a real company website it asks AI Mode about <b>that URL</b>,
+            which is the fastest and least ambiguous way to identify a company — this is what took research from about
+            three minutes a row to roughly one. Failing a website it uses the state licence number, and only failing
+            both does it fall back to the company name.</li>
+          <li>Use the <b>Employer groups</b> filter to work the large operators first. In testing they came back with
+            all three platforms far more often than smaller firms, so it is the quickest way to bank profiles.</li>
+          <li>If a row is not a real prospect at all — a big-box retailer, a corrupt record — press <b>✕</b> instead of
+            marking it red.</li>
+          <li>Mark each platform: <b>green</b> if the profile exists, <b>red</b> if you checked and it is not there,
+            blank if you did not look.</li>
           <li>Your first mark on a row stamps your name and today&rsquo;s date against it.</li>
           <li>Tick the rows you finished, then press <b>Send to Follow →</b>.</li>
         </ol>
         <div style={callout(false)}>
           <b>Red is data, not a shrug.</b> A hit rate is found ÷ checked. Marking red is what makes the Plan &amp; rates
-          numbers real, and it stops you rechecking the same dead end next month.
+          numbers real, and it stops you rechecking the same dead end next month. <b>✕ is different</b> — it means
+          &ldquo;not a target&rdquo; and is left out of the rates entirely, so a Home Depot cannot drag them down.
         </div>
+        <p style={p}>
+          <b>Press All</b> to open AI Mode, the website and all three platform searches at once, when you would rather
+          check by hand than read an answer.
+        </p>
         <p style={p}>Rows with at least one green go to Follow. Rows red on all three skip straight to Archive.</p>
 
         <h3 style={h3}>Step 2 · Follow</h3>
@@ -131,12 +144,17 @@ export default function HelpTab({ t }) {
             snapshot Trends reads.</li>
         </ol>
 
-        <h3 style={h3}>Why searches use the company, not the name on the record</h3>
+        <h3 style={h3}>Why searches sometimes use the domain, not the name on the record</h3>
         <p style={p}>
           Two thirds of high-permit records are licence qualifiers or field employees of a bigger builder. The name says{" "}
           <i>Christopher James Smith</i>; the email says <code style={{ color: t.accentDeep }}>lennar.com</code>. Searching
-          the person finds a person. So when the domain names a different firm, the tool searches the firm and says so on
-          the row — check it if it ever looks wrong.
+          the person finds a person. So when the name is a bare personal name and the domain names a different firm, the
+          tool searches the firm and says so on the row.
+        </p>
+        <p style={p}>
+          The name wins whenever it stands on its own — an entity marker (LLC, Inc), a trade word, or a licence number
+          attached to it. <i>Reliable Shutters &amp; Screens LLC</i> is a real firm and gets searched as itself, even
+          when the permit was filed from somebody else&rsquo;s mailbox.
         </p>
 
         <h3 style={h3}>The other tabs</h3>

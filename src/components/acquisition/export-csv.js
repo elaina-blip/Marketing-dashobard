@@ -5,30 +5,35 @@
  * lossless. State lives in Supabase now, so this is just a report: same columns
  * as the reference export, so anything built on top of those files still opens.
  */
-import { verify, searchTerm, licenceBoard, licenceNumber, VERDICT_LABEL } from "@/lib/acquisition/acquisition-logic";
+import {
+  verify, searchTerm, licenceBoard, licenceNumber, computeGroups, VERDICT_LABEL,
+} from "@/lib/acquisition/acquisition-logic";
 
 const HEAD = [
   "Company", "Searched As", "Licence No", "Vertical", "Total Permits", "Priority Score", "State",
   "Metro", "Primary Jurisdiction", "Permit Types Seen", "Email", "Domain", "Verdict", "Records on Domain",
   "Licence Board", "Stage", "FB Found?", "IG Found?", "LI Found?", "FB Followed", "IG Followed", "LI Followed",
   "FB Follow-back", "IG Follow-back", "LI Follow-back", "Engagements", "Notes", "Researched By", "Researched On",
-  "Recheck", "Last Seen In Upload",
+  "Recheck", "Last Seen In Upload", "Not A Target",
 ];
 
 const yn = v => (v === true ? "Yes" : v === false ? "No" : "");
 
 export function toCSV(rows) {
+  // Same recomputed employer size the tables show, so an export matches the screen.
+  const groupOf = computeGroups(rows);
   const body = rows.map(r => {
-    const check = verify({ name: r.company_name, email: r.email, group: r.records_on_domain });
+    const group = groupOf(r);
+    const check = verify({ name: r.company_name, email: r.email, group });
     const { term } = searchTerm(r.company_name, check);
     const board = licenceBoard(r.state, r.vertical);
     return [
       r.company_name, term, licenceNumber(r.company_name), r.vertical, r.total_permits, r.priority_score,
       r.state, r.metro, r.primary_jurisdiction, r.permit_types, r.email, check.domain,
-      VERDICT_LABEL[check.verdict], r.records_on_domain || "", board ? board.name : "", r.stage,
+      VERDICT_LABEL[check.verdict], group || "", board ? board.name : "", r.stage,
       yn(r.fb_found), yn(r.ig_found), yn(r.li_found), r.fb_followed, r.ig_followed, r.li_followed,
       yn(r.fb_back), yn(r.ig_back), yn(r.li_back), r.engagements, r.notes, r.researched_by, r.researched_on,
-      r.recheck ? "Yes" : "", r.last_seen_in_upload,
+      r.recheck ? "Yes" : "", r.last_seen_in_upload, r.skip,
     ];
   });
   return [HEAD, ...body]

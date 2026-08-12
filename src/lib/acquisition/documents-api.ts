@@ -15,7 +15,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseUpload, NeedSheetChoice, monthTag } from './parse-upload';
 import {
-  planMerge, refreshedFields, recheckFields,
+  planMerge, refreshedFields, recheckFields, computeGroups,
   type CompanyRow, type IncomingRow, type MergePlan,
 } from './acquisition-logic';
 
@@ -180,7 +180,15 @@ export async function previewMerge(
     .select('id, company_name, email, state, vertical, records_on_domain, fb_found, ig_found, li_found, researched_on');
   if (error) throw new Error(error.message);
 
-  const plan = planMerge((existing ?? []) as unknown as CompanyRow[], parsed.rows);
+  // Employer size is recomputed across the whole set (workbench v13): sibling
+  // domains of one parent count as the same employer, and a file with no
+  // "Records on Domain" column still keeps a builder's field staff apart. Only
+  // ever raises the count, so this can only make domain matching more cautious.
+  const rows = (existing ?? []) as unknown as CompanyRow[];
+  const groupOf = computeGroups(rows);
+  const withGroups = rows.map(r => ({ ...r, records_on_domain: groupOf(r) }));
+
+  const plan = planMerge(withGroups, parsed.rows);
 
   return {
     plan,

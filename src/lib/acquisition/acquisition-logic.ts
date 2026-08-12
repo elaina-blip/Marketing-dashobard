@@ -43,6 +43,10 @@ export interface CompanyRow {
   researched_on: string | null;
   recheck: boolean;
   last_seen_in_upload: string | null;
+  /** Non-empty means "not a target" — a big-box retailer, a corrupt record.
+      Distinct from a red mark: red is "checked, no account" and counts towards
+      the hit rate; this is out of scope and counts towards nothing. */
+  skip: string;
 }
 
 export interface Check {
@@ -60,6 +64,9 @@ export const FREEMAIL = new Set<string>(['gmail.com','yahoo.com','yahoo.es','aol
  'tampabay.rr.com','cfl.rr.com','carolina.rr.com','protonmail.com','mail.com','centurylink.net']);
 export const AGGREGATOR = new Set<string>(['buildzoom.com','blockrenovation.com','buzzfile.com','activatemylicense.com',
  'tempemail.tmp','ecslimited.com','metrocode.com','example.com','noemail.com','email.com','test.com']);
+/* Dead mailboxes and placeholders. These are not filing services and never appear
+   on a blocklist twice, so they are matched by shape: suspended@account.com. */
+export const PLACEHOLDER = /^(account|accounts|noreply|no-reply|donotreply|mail|email|user|admin|none|null|na|test|temp|placeholder|suspended|inactive|unknown|example)\.(com|net|org|info|co)$/i;
 export const COMPETITOR = new Set<string>(['permitflowteam.com','expeditepermit.com']);
 
 const ENTITY = /\b(LLC|L\.?L\.?C|INC|INCORPORATED|CORP|CORPORATION|CO|COMPANY|LP|LLP|LTD|PLLC|PA|DBA|THE|AND|OF)\b/g;
@@ -138,6 +145,9 @@ export function verify(input: { name: string; email: string; group?: number }): 
     return { ...base, verdict: 'unusable', why: 'A competitor filed this — strong target. Search by name.' };
   if (FREEMAIL.has(domain))
     return { ...base, verdict: 'unusable', why: 'Free email provider — no company site to derive.' };
+  if (PLACEHOLDER.test(domain))
+    return { ...base, verdict: 'unusable',
+      why: 'Placeholder or dead mailbox, not a real company domain — search by company name.' };
 
   let score = 0;
   const why: string[] = [];
@@ -184,13 +194,32 @@ export const VERDICT_LABEL: Record<Verdict, string> = {
 
 /* ========================== 4.2 search term substitution ========================== */
 
+/** Markers that make a record name a usable business name on its own. */
+const COMPANY_MARKER = /\b(LLC|L\.?L\.?C|INC|INCORPORATED|CORP|CORPORATION|COMPANY|CO|LP|LLP|LTD|PLLC|PA|DBA|GROUP|ENTERPRISES?|SERVICES?|SOLUTIONS?|SYSTEMS?|INDUSTRIES|ASSOCIATES|PARTNERS|HOLDINGS|CONTRACTING|CONSTRUCTION)\b/i;
+
+/**
+ * The name wins when it is a company in its own right — an entity marker, a
+ * trade word, or a state licence number attached to it. Only a bare personal
+ * name with nothing else is insufficient, and only then does the domain take
+ * over. This stops a real firm like "Reliable Shutters & Screens LLC" being
+ * searched as the domain of whoever filed its permits.
+ */
+export function nameIsSufficient(name: string): boolean {
+  const raw = String(name || '');
+  if (licenceNumber(raw)) return true;
+  if (COMPANY_MARKER.test(raw)) return true;
+  if (tokens(raw).some(t => TRADE.has(t))) return true;
+  return false;
+}
+
 /**
  * Two thirds of high-permit records are licence qualifiers or employees of a
- * larger builder. Searching the person's name finds a person. When the domain
- * names a different firm, search the firm — and always surface `fromDomain`
- * in the UI so the substitution is visible.
+ * larger builder. Searching the person's name finds a person. When the record
+ * name is a bare personal name and the domain names a different firm, search the
+ * firm — and always surface `fromDomain` in the UI so the substitution is visible.
  */
 export function searchTerm(name: string, check: Check): { term: string; fromDomain: boolean } {
+  if (nameIsSufficient(name)) return { term: cleanName(name), fromDomain: false };
   if (check.verdict === 'employer' || check.verdict === 'conflict') {
     const w = domainWords(check.domain);
     if (w) return { term: w, fromDomain: true };
@@ -198,14 +227,111 @@ export function searchTerm(name: string, check: Check): { term: string; fromDoma
   return { term: cleanName(name), fromDomain: false };
 }
 
-export function searchUrls(row: CompanyRow, check: Check, term: string) {
+/* ========================== 4.2b employer grouping ========================== */
+
+/**
+ * Two domains belong to one parent when the shorter is a stem of the longer —
+ * frankgayservices.com and frankgaycommercial.com are the same business.
+ */
+export function parentStem(core: string): string {
+  const SUFFIXES = ['services','service','commercial','residential','construction','contracting',
+    'group','inc','llc','corp','usa','air','mechanical','plumbing','electric',
+    'electrical','roofing','homes','builders','co'];
+  let c = core;
+  for (const s of SUFFIXES) {
+    if (c.length > s.length + 3 && c.endsWith(s)) { c = c.slice(0, -s.length); break; }
+  }
+  return c;
+}
+
+/**
+ * Recomputed across the whole loaded set: sibling domains of one parent count as
+ * the same employer, and a file with no "Records on Domain" column still works.
+ * Returns a lookup that never reports fewer records than the file claimed.
+ */
+export function computeGroups(rows: { email: string; records_on_domain?: number }[]) {
+  const byDomain: Record<string, number> = {};
+  const byStem: Record<string, number> = {};
+  for (const r of rows) {
+    const d = domainOf(r.email);
+    if (!d) continue;
+    if (FREEMAIL.has(d) || AGGREGATOR.has(d) || COMPETITOR.has(d) || PLACEHOLDER.test(d)) continue;
+    byDomain[d] = (byDomain[d] || 0) + 1;
+    const stem = parentStem(domainCore(d));
+    if (stem.length > 3) byStem[stem] = (byStem[stem] || 0) + 1;
+  }
+  return (r: { email: string; records_on_domain?: number }): number => {
+    const own = r.records_on_domain || 0;
+    const d = domainOf(r.email);
+    if (!d) return own;
+    const stem = parentStem(domainCore(d));
+    return Math.max(own, byDomain[d] || 0, stem.length > 3 ? (byStem[stem] || 0) : 0);
+  };
+}
+
+/* ========================== 4.2c AI Mode ========================== */
+
+const TRADE_WORD: Record<string, string> = {
+  'Homebuilders': 'home builder', 'Roofing': 'roofing contractor',
+  'Windows-Doors-Siding': 'windows and doors contractor', 'Solar': 'solar installer',
+  'Mechanical-HVAC': 'HVAC contractor', 'Electrical': 'electrical contractor',
+  'Plumbing': 'plumbing contractor',
+};
+const articleFor = (s: string) => (/^(a|e|i|o|u|hvac)/i.test(s) ? 'an' : 'a');
+
+/**
+ * The domain is only an identity anchor when it is the company's own. Aggregator,
+ * freemail, competitor and shared-filer domains are somebody else's website.
+ */
+export function usableSite(row: { state: string }, check: Check, group = 0): string {
+  if (!check.domain || check.verdict === 'unusable') return '';
+  if (check.verdict === 'conflict' && group <= 1) return '';
+  return 'https://' + check.domain.replace(/^www\./, '');
+}
+
+/**
+ * Google AI Mode (udm=50). Three prompt shapes, strongest anchor first:
+ *   1. WEBSITE — the domain is the company's own. One business, no ambiguity.
+ *                This is the method that took research from 3 min to ~1 min.
+ *   2. LICENCE — no usable domain, but a state licence number. Resolves generic
+ *                names that search alone cannot ("Patriot Electric").
+ *   3. NAME    — last resort. Adds the metro only as a hint, never as a fact,
+ *                because the jurisdiction is where the PERMIT was pulled, not
+ *                where the business is based.
+ */
+export function aiPrompt(row: CompanyRow, check: Check, term: string, group = 0): string {
+  const trade = TRADE_WORD[row.vertical] || 'contractor';
+  const tail = ' For each of the three, give the direct profile URL. If you cannot find a ' +
+    'genuine account for one, say plainly that it does not exist rather than offering a ' +
+    'similarly named business. Check each platform directly — do not infer from the website alone.';
+
+  const site = usableSite(row, check, group);
+  if (site) {
+    return 'This is the website of ' + articleFor(trade) + ' ' + trade + ': ' + site +
+      ". Find that same company's official Facebook page, Instagram profile and LinkedIn company page." + tail;
+  }
+  const licence = licenceNumber(row.company_name);
+  if (licence) {
+    return 'Find the ' + trade + ' holding ' + row.state + ' contractor licence ' + licence +
+      ' (listed as "' + cleanName(row.company_name) + '"). Confirm the business name and city from the licence record, ' +
+      'then find its official Facebook page, Instagram profile and LinkedIn company page.' + tail;
+  }
+  const metro = String(row.metro || '').replace(/\s*\/.*$/, '').trim();
+  return 'Find the official Facebook page, Instagram profile and LinkedIn company page for "' + term +
+    '", ' + articleFor(trade) + ' ' + trade + ' in ' + row.state +
+    (metro && metro !== '—' ? ' (it pulled permits near ' + metro + ', though it may be based elsewhere)' : '') +
+    '.' + tail;
+}
+
+export function searchUrls(row: CompanyRow, check: Check, term: string, group = 0) {
   const city = String(
     row.primary_jurisdiction && row.primary_jurisdiction !== '—'
       ? row.primary_jurisdiction : row.metro || ''
   ).replace(/\(.*\)/, '').trim();
   const q = encodeURIComponent;
   return {
-    site: check.verdict === 'unusable' || !check.domain ? '' : 'https://' + check.domain.replace(/^www\./, ''),
+    site: usableSite(row, check, group),
+    ai: 'https://www.google.com/search?udm=50&q=' + q(aiPrompt(row, check, term, group)),
     google: 'https://www.google.com/search?q=' + q('"' + term + '" ' + city + ' ' + row.state + ' contractor'),
     facebook: 'https://www.facebook.com/search/pages/?q=' + q(term + ' ' + city),
     instagram: 'https://www.instagram.com/explore/search/keyword/?q=' + q(term),
@@ -382,9 +508,14 @@ export function recheckFields(rec: IncomingRow, today: string) {
 export const foundCount = (r: CompanyRow) =>
   (r.fb_found === true ? 1 : 0) + (r.ig_found === true ? 1 : 0) + (r.li_found === true ? 1 : 0);
 
-/** Touched = any of the three flags is non-null. This is what "researched" means. */
+/** A skipped row is out of scope entirely — it must not count as "checked", or a
+    Home Depot with no contractor relevance drags the platform hit rate down. */
+export const isSkipped = (r: CompanyRow) => !!r.skip;
+
+/** Touched = any of the three flags is non-null, on a row that is a real target.
+    This is what "researched" means, and it is the denominator of every rate. */
 export const isTouched = (r: CompanyRow) =>
-  r.fb_found !== null || r.ig_found !== null || r.li_found !== null;
+  !isSkipped(r) && (r.fb_found !== null || r.ig_found !== null || r.li_found !== null);
 
 export const followedCount = (r: CompanyRow) =>
   (r.fb_followed ? 1 : 0) + (r.ig_followed ? 1 : 0) + (r.li_followed ? 1 : 0);
@@ -398,9 +529,14 @@ export const CONFIDENT_SAMPLE = 30;
  * Returns null below MIN_SAMPLE rather than a misleading number.
  */
 export function hitRates(rowsForVertical: CompanyRow[]) {
-  const checked = rowsForVertical.filter(isTouched).length;
+  // Drop skipped rows once, before either side is counted. Marking a row "not a
+  // target" clears its flags, so in practice it could not reach the numerator —
+  // but a rate that depends on the UI having tidied up first is a rate waiting
+  // to go wrong. This matches the acquisition_hit_rates view, which filters both.
+  const scoped = rowsForVertical.filter(r => !isSkipped(r));
+  const checked = scoped.filter(isTouched).length;
   const f = (k: 'fb_found' | 'ig_found' | 'li_found') =>
-    rowsForVertical.filter(r => r[k] === true).length;
+    scoped.filter(r => r[k] === true).length;
   if (checked < MIN_SAMPLE)
     return { checked, fb: null, ig: null, li: null, confident: false };
   return {

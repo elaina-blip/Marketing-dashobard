@@ -318,6 +318,8 @@ tbody tr.touched.sel{background:rgba(56,152,239,.16)}
 .go a.site{background:rgba(56,152,239,.16);color:#1F5FA8}
 .go a.lic-btn{background:rgba(232,163,61,.2);color:#8C5B0D}
 .go button.all{background:rgba(28,192,106,.18);color:#0C6A39}
+.go a.aimode{background:linear-gradient(95deg,#1F5FA8,#7A4FD0);color:#fff;font-weight:700;letter-spacing:.07em}
+.go a.aimode:hover{filter:brightness(1.15);background:linear-gradient(95deg,#1F5FA8,#7A4FD0);color:#fff}
 
 .marks{display:flex;gap:3px}
 .mk{width:32px;height:27px;border-radius:2px;border:1px solid rgba(10,31,48,.28);
@@ -326,6 +328,8 @@ tbody tr.touched.sel{background:rgba(56,152,239,.16)}
 .mk.yes{background:var(--emerald);border-color:var(--emerald);color:#04231A}
 .mk.no{background:rgba(210,84,74,.15);border-color:rgba(210,84,74,.45);color:#9C332B}
 .mk.date{background:rgba(56,152,239,.2);border-color:var(--blue);color:#14487F}
+.mk.skipb{width:26px;color:rgba(10,31,48,.45)}
+.mk.skipb.on{background:rgba(10,31,48,.7);border-color:rgba(10,31,48,.7);color:#fff}
 .eng{width:48px;font-family:var(--mono);font-size:12.5px;padding:4px 5px;border-radius:2px;
   border:1px solid rgba(10,31,48,.18);background:#fff;color:var(--ink);text-align:center}
 .noteIn{width:100%;min-width:130px;font-family:var(--body);font-size:12.5px;padding:4px 6px;border-radius:2px;
@@ -414,6 +418,7 @@ tbody tr.touched.sel{background:rgba(56,152,239,.16)}
         <select id="fBy"><option value="">Anyone</option></select>
         <input type="search" id="fText" placeholder="Search company, domain, jurisdiction">
         <button class="chip" id="fTodo">Untouched only</button>
+        <button class="chip" id="fEmp" title="Large operators — highest hit rate in testing">Employer groups</button>
         <div class="sep"></div>
         <button class="chip" id="dense">Compact</button>
         <span class="spacer"></span>
@@ -471,6 +476,9 @@ const FREEMAIL=new Set(['gmail.com','yahoo.com','yahoo.es','aol.com','hotmail.co
  'tampabay.rr.com','cfl.rr.com','carolina.rr.com','protonmail.com','mail.com','centurylink.net']);
 const AGGREGATOR=new Set(['buildzoom.com','blockrenovation.com','buzzfile.com','activatemylicense.com',
  'tempemail.tmp','ecslimited.com','metrocode.com','example.com','noemail.com','email.com','test.com']);
+/* Dead mailboxes and placeholders. These are not filing services and never appear
+   on a blocklist twice, so they are matched by shape: suspended@account.com. */
+const PLACEHOLDER=/^(account|accounts|noreply|no-reply|donotreply|mail|email|user|admin|none|null|na|test|temp|placeholder|suspended|inactive|unknown|example)\.(com|net|org|info|co)$/i;
 const COMPETITOR=new Set(['permitflowteam.com','expeditepermit.com']);
 const ENTITY=/\b(LLC|L\.?L\.?C|INC|INCORPORATED|CORP|CORPORATION|CO|COMPANY|LP|LLP|LTD|PLLC|PA|DBA|THE|AND|OF)\b/g;
 const TRADE=new Set(['ROOFING','ROOF','ROOFERS','PLUMBING','PLUMBER','ELECTRIC','ELECTRICAL','HVAC','HEATING',
@@ -500,6 +508,8 @@ function verify(rec){
   if(AGGREGATOR.has(dom)) return {...base,verdict:'unusable',why:'Data aggregator domain, not the contractor.'};
   if(COMPETITOR.has(dom)) return {...base,verdict:'unusable',why:'A competitor filed this — strong target. Search by name.'};
   if(FREEMAIL.has(dom)) return {...base,verdict:'unusable',why:'Free email provider — no company site to derive.'};
+  if(PLACEHOLDER.test(dom)) return {...base,verdict:'unusable',
+    why:'Placeholder or dead mailbox, not a real company domain — search by company name.'};
   let score=0;const why=[];
   if(compressed&&core.includes(compressed)){score+=60;why.push('Domain contains the full name.')}
   const matched=distinct.filter(t=>core.includes(t.toLowerCase())&&t.length>3);
@@ -530,17 +540,57 @@ const BOARDS={
 const board=(st,v)=>{const b=BOARDS[st];return b?(b[v]||b.all||null):null};
 const LICENSE=/\b([A-Z]{2,4}\s?\d{5,9})\b/;
 const licenseNo=n=>{const m=String(n||'').toUpperCase().match(LICENSE);return m?m[1].replace(/\s/g,''):''};
+/* Markers that make a record name a usable business name on its own. */
+const COMPANY_MARKER=/\b(LLC|L\.?L\.?C|INC|INCORPORATED|CORP|CORPORATION|COMPANY|CO|LP|LLP|LTD|PLLC|PA|DBA|GROUP|ENTERPRISES?|SERVICES?|SOLUTIONS?|SYSTEMS?|INDUSTRIES|ASSOCIATES|PARTNERS|HOLDINGS|CONTRACTING|CONSTRUCTION)\b/i;
+
+/* The name wins when it is a company in its own right — an entity marker, a
+   trade word, or a state licence number attached to it. Only a bare personal
+   name with nothing else is insufficient, and only then does the domain take
+   over. This stops a real firm like "Reliable Shutters & Screens LLC" being
+   searched as the domain of whoever filed its permits. */
+function nameIsSufficient(name){
+  const raw=String(name||'');
+  if(licenseNo(raw)) return true;
+  if(COMPANY_MARKER.test(raw)) return true;
+  if(tokens(raw).some(t=>TRADE.has(t))) return true;
+  return false;
+}
 function searchTerm(rec,chk){
+  if(nameIsSufficient(rec.name)) return {term:cleanName(rec.name),src:''};
   if(chk.verdict==='employer'||chk.verdict==='conflict'){
     const w=domWords(chk.dom); if(w) return {term:w,src:'from domain'};}
   return {term:cleanName(rec.name),src:''};
 }
 
 /* ================= state ================= */
+/* Two domains belong to one parent when the shorter is a stem of the longer —
+   frankgayservices.com and frankgaycommercial.com are the same business. */
+function parentStem(core){
+  const SUF=['services','service','commercial','residential','construction','contracting',
+             'group','inc','llc','corp','usa','air','mechanical','plumbing','electric',
+             'electrical','roofing','homes','builders','co'];
+  let c=core;
+  for(const s of SUF){ if(c.length>s.length+3 && c.endsWith(s)){ c=c.slice(0,-s.length); break } }
+  return c;
+}
+
+/* Recomputed across the whole loaded set: sibling domains of one parent count as
+   the same employer, and a file with no "Records on Domain" column still works. */
+function computeGroups(raw){
+  const byDom={}, byStem={};
+  raw.forEach(r=>{const d=domainOf(r.e); if(!d)return;
+    if(FREEMAIL.has(d)||AGGREGATOR.has(d)||COMPETITOR.has(d)||PLACEHOLDER.test(d))return;
+    byDom[d]=(byDom[d]||0)+1;
+    const st=parentStem(domCore(d)); if(st.length>3) byStem[st]=(byStem[st]||0)+1;});
+  return r=>{const d=domainOf(r.e); if(!d)return r.g||0;
+    const st=parentStem(domCore(d));
+    return Math.max(r.g||0, byDom[d]||0, st.length>3?(byStem[st]||0):0);};
+}
 function build(raw){
+  const groupOf=computeGroups(raw);
   return raw.map(r=>{
     const rec={name:r.n,vert:r.v,permits:r.p,score:r.s,email:r.e,juris:r.j,metro:r.m,
-               state:r.st,types:r.t,group:r.g||0};
+               state:r.st,types:r.t,group:groupOf(r)};
     const chk=verify(rec),s=searchTerm(rec,chk);
     return {...rec,chk,term:s.term,src:s.src,
       stage:r.stage||'research',
@@ -548,7 +598,7 @@ function build(raw){
       dfb:r.dfb||'',dig:r.dig||'',dli:r.dli||'',
       bfb:r.bfb??null,big:r.big??null,bli:r.bli??null,
       eng:r.eng||0,note:r.note||'',rby:r.rby||'',rdate:r.rdate||'',
-      recheck:r.recheck||false,seen:r.seen||'',sel:false};
+      recheck:r.recheck||false,seen:r.seen||'',skip:r.skip||'',sel:false};
   });
 }
 /* Monthly Plan targets and the estimated presence rates they were built on */
@@ -573,7 +623,7 @@ function recalcTargets(){
 recalcTargets();
 
 let rows=build(QUEUE), source='built-in list', tab='research', dirty=false;
-let page=0, perPage=100, sortKey='score', sortDir=-1, todoOnly=false, compact=false;
+let page=0, perPage=100, sortKey='score', sortDir=-1, todoOnly=false, empOnly=false, compact=false;
 const TEAM=['Weston','Marshall','Elaina','Dena','Sydney'];
 let whoami=TEAM[0];
 /* stamp who did the work and when, the first time a row is touched */
@@ -600,7 +650,10 @@ function fillFilters(){
     const o=document.createElement('option');o.value=k;o.textContent=l;sv.appendChild(o)});
 }
 const found=r=>(r.fb===true?1:0)+(r.ig===true?1:0)+(r.li===true?1:0);
-const touchedRow=r=>r.fb!==null||r.ig!==null||r.li!==null;
+/* A skipped row is out of scope entirely — it must not count as "checked", or a
+   Home Depot with no contractor relevance drags the platform hit rate down. */
+const isSkipped=r=>!!r.skip;
+const touchedRow=r=>!isSkipped(r)&&(r.fb!==null||r.ig!==null||r.li!==null);
 const followedN=r=>(r.dfb?1:0)+(r.dig?1:0)+(r.dli?1:0);
 
 function filtered(){
@@ -613,6 +666,7 @@ function filtered(){
     if(fs&&r.state!==fs)return false;
     const fby=$('#fBy').value; if(fby&&r.rby!==fby)return false;
     if(todoOnly&&(tab==='research'?touchedRow(r):followedN(r)>0))return false;
+    if(empOnly&&r.chk.verdict!=='employer')return false;
     if(t&&!((r.name+' '+r.chk.dom+' '+r.juris+' '+r.metro+' '+r.term).toLowerCase().includes(t)))return false;
     return true;});
   const key=sortKey;
@@ -625,9 +679,49 @@ function filtered(){
     return ((x||0)-(y||0))*sortDir;});
   return out;
 }
+const TRADEWORD={'Homebuilders':'home builder','Roofing':'roofing contractor',
+ 'Windows-Doors-Siding':'windows and doors contractor','Solar':'solar installer',
+ 'Mechanical-HVAC':'HVAC contractor','Electrical':'electrical contractor','Plumbing':'plumbing contractor'};
+const artFor=s=>/^(a|e|i|o|u|hvac)/i.test(s)?'an':'a';
+
+/* Google AI Mode (udm=50). Three prompt shapes, strongest anchor first:
+     1. WEBSITE  — the domain is the company's own. One business, no ambiguity.
+                   This is the method that took research from 3 min to ~1 min.
+     2. LICENCE  — no usable domain, but a state licence number. Resolves
+                   generic names that search alone cannot ("Patriot Electric").
+     3. NAME     — last resort. Adds the metro only as a hint, never as a fact,
+                   because our jurisdiction is where the PERMIT was pulled, not
+                   where the business is based. */
+function aiPrompt(r){
+  const trade=TRADEWORD[r.vert]||'contractor';
+  const tail=' For each of the three, give the direct profile URL. If you cannot find a '+
+    'genuine account for one, say plainly that it does not exist rather than offering a '+
+    'similarly named business. Check each platform directly — do not infer from the website alone.';
+  const site=usableSite(r);
+  if(site)
+    return 'This is the website of '+artFor(trade)+' '+trade+': '+site+
+      '. Find that same company\'s official Facebook page, Instagram profile and LinkedIn company page.'+tail;
+  const lic=licenseNo(r.name);
+  if(lic)
+    return 'Find the '+trade+' holding '+r.state+' contractor licence '+lic+
+      ' (listed as "'+cleanName(r.name)+'"). Confirm the business name and city from the licence record, '+
+      'then find its official Facebook page, Instagram profile and LinkedIn company page.'+tail;
+  const metro=String(r.metro||'').replace(/\s*\/.*$/,'').trim();
+  return 'Find the official Facebook page, Instagram profile and LinkedIn company page for "'+r.term+
+    '", '+artFor(trade)+' '+trade+' in '+r.state+
+    (metro&&metro!=='—'?' (it pulled permits near '+metro+', though it may be based elsewhere)':'')+'.'+tail;
+}
+/* The domain is only an identity anchor when it is the company's own. Aggregator,
+   freemail, competitor and shared-filer domains are somebody else's website. */
+function usableSite(r){
+  if(!r.chk.dom||r.chk.verdict==='unusable')return '';
+  if(r.chk.verdict==='conflict'&&(r.group||0)<=1)return '';
+  return 'https://'+r.chk.dom.replace(/^www\./,'');
+}
 function urlsFor(r){
   const city=String(r.juris&&r.juris!=='—'?r.juris:r.metro||'').replace(/\(.*\)/,'').trim();
-  return {site:r.chk.verdict==='unusable'||!r.chk.dom?'':'https://'+r.chk.dom.replace(/^www\./,''),
+  return {site:usableSite(r),
+    ai:'https://www.google.com/search?udm=50&q='+q(aiPrompt(r)),
     gg:'https://www.google.com/search?q='+q('"'+r.term+'" '+city+' '+r.state+' contractor'),
     fb:'https://www.facebook.com/search/pages/?q='+q(r.term+' '+city),
     ig:'https://www.instagram.com/explore/search/keyword/?q='+q(r.term),
@@ -708,7 +802,7 @@ function drawInner(){
   if(pages>1){$('#pPrev').onclick=()=>{page--;draw()};$('#pNext').onclick=()=>{page++;draw()}}
   $('#shown').textContent=all.length.toLocaleString()+' in '+tab+' · '+rows.length.toLocaleString()+' total · '+source;
   $('#hint').innerHTML=tab==='research'
-    ? 'Click <b>FB/IG/LI</b> to cycle found → none → clear. <b>All</b> opens every search at once. Searches use the <b>company</b>, never a person.'
+    ? 'Start with <b>AI ✦</b> — it anchors on the company website where there is one. <b>FB/IG/LI</b> cycle found → none → clear. <b>✕</b> marks a row as not a target, excluded from hit rates.'
     : tab==='follow' ? 'Click a platform button to stamp today\'s date once you have actually followed them. <b>B</b> marks a follow-back.'
     : 'Completed records. Export, then remove them so next month\'s queue starts clean.';
   counts();
@@ -732,7 +826,10 @@ function rowHTML(r){
   if(r.stage==='research') return '<tr class="'+(r.sel?'sel ':'')+(touchedRow(r)?'touched':'')+'">'+cell0+co+vt+
     '<td><div class="ptype">'+esc(r.types||'—')+'</div></td>'+pm+wh+
     '<td><span class="badge b-'+r.chk.verdict+'">'+VERD[r.chk.verdict]+'</span><div class="why">'+esc(r.chk.why||'')+'</div></td>'+
-    '<td><div class="go"><button class="all" data-all="'+i+'">All</button>'+
+    '<td><div class="go">'+
+      '<a class="aimode" href="'+u.ai+'" target="_blank" rel="noopener" '+
+        'title="Google AI Mode — asks for all three profiles in one query">AI ✦</a>'+
+      '<button class="all" data-all="'+i+'">All</button>'+
       (u.site?'<a class="site" href="'+u.site+'" target="_blank" rel="noopener">Site</a>':'')+
       '<a href="'+u.gg+'" target="_blank" rel="noopener">Google</a>'+
       '<a href="'+u.fb+'" target="_blank" rel="noopener">FB</a>'+
@@ -741,7 +838,9 @@ function rowHTML(r){
       (u.bd?'<a class="lic-btn" href="'+u.bd.u+'" target="_blank" rel="noopener" title="'+
         (u.lic?'Search licence '+esc(u.lic):'Search by name')+' — '+esc(u.bd.n)+'">'+esc(u.bd.n)+(u.lic?' ⚲':'')+'</a>':'')+
     '</div></td>'+
-    '<td><div class="marks">'+mk('fb','FB')+mk('ig','IG')+mk('li','LI')+'</div></td>'+
+    '<td><div class="marks">'+mk('fb','FB')+mk('ig','IG')+mk('li','LI')+
+      '<button class="mk skipb'+(r.skip?' on':'')+'" data-i="'+i+'" data-skip="1" '+
+      'title="Not a target — exclude from hit rates">✕</button></div></td>'+
     '<td>'+(touchedRow(r)
       ? '<div class="byc"><select class="bysel" data-i="'+i+'" data-by="1">'+
           TEAM.map(t=>'<option'+(t===r.rby?' selected':'')+'>'+t+'</option>').join('')+
@@ -778,12 +877,16 @@ function bind(){
     if(touchedRow(r))stampRow(r); else {r.rby='';r.rdate=''}
     touch();draw()});
   $$('[data-by]').forEach(s=>s.onchange=()=>{rows[+s.dataset.i].rby=s.value;touch()});
+  $$('[data-skip]').forEach(b=>b.onclick=()=>{const r=rows[+b.dataset.i];
+    r.skip=r.skip?'':'not a target';
+    if(r.skip){r.fb=r.ig=r.li=null;r.stage='archive'}
+    touch();draw()});
   $$('[data-dt]').forEach(b=>b.onclick=()=>{const r=rows[+b.dataset.i],p=b.dataset.dt;
     r[p]=r[p]?'':today();touch();draw()});
   $$('[data-bk]').forEach(b=>b.onclick=()=>{const r=rows[+b.dataset.i],p=b.dataset.bk;
     r[p]=r[p]===true?false:r[p]===false?null:true;touch();draw()});
   $$('[data-all]').forEach(b=>b.onclick=()=>{const r=rows[+b.dataset.all],u=urlsFor(r);
-    [u.site,u.gg,u.fb,u.ig,u.li].filter(Boolean).forEach(x=>window.open(x,'_blank','noopener'))});
+    [u.ai,u.site,u.fb,u.ig,u.li].filter(Boolean).forEach(x=>window.open(x,'_blank','noopener'))});
   $$('[data-eng]').forEach(el=>el.onchange=()=>{rows[+el.dataset.i].eng=+el.value||0;touch();counts()});
   $$('[data-note]').forEach(el=>el.onchange=()=>{rows[+el.dataset.i].note=el.value;touch()});
   $$('th[data-sort]').forEach(th=>th.onclick=()=>{
@@ -896,7 +999,8 @@ const FIELDMAP={
   stage:['stage'],fb:['fb found?','fb found'],ig:['ig found?','ig found'],li:['li found?','li found'],
   dfb:['fb followed'],dig:['ig followed'],dli:['li followed'],
   bfb:['fb follow-back'],big:['ig follow-back'],bli:['li follow-back'],
-  eng:['engagements'],note:['notes','note'],rby:['researched by','by'],rdate:['researched on','research date']
+  eng:['engagements'],note:['notes','note'],rby:['researched by','by'],rdate:['researched on','research date'],
+  recheck:['recheck'],seen:['last seen in upload','last seen'],skip:['not a target','skip']
 };
 const yn2=v=>{const s=String(v||'').trim().toLowerCase();return s==='yes'?true:s==='no'?false:null};
 function parseImport(text){
@@ -917,7 +1021,8 @@ function parseImport(text){
     bfb:yn2(g(r,'bfb')),big:yn2(g(r,'big')),bli:yn2(g(r,'bli')),
     eng:num(g(r,'eng',0)),note:g(r,'note','')||'',
     rby:g(r,'rby','')||'',rdate:String(g(r,'rdate','')||'').trim(),
-    recheck:String(g(r,'recheck','')||'').trim().toLowerCase()==='yes',seen:g(r,'seen','')||''
+    recheck:String(g(r,'recheck','')||'').trim().toLowerCase()==='yes',seen:g(r,'seen','')||'',
+    skip:g(r,'skip','')||''
   })).filter(r=>String(r.n).trim());
   if(!raw.length)throw new Error('No rows had a company name.');
   raw.sort((a,b)=>(b.s||b.p)-(a.s||a.p));
@@ -946,14 +1051,14 @@ const HEAD_OUT=['Company','Searched As','Licence No','Vertical','Total Permits',
   'Metro','Primary Jurisdiction','Permit Types Seen','Email','Domain','Verdict','Records on Domain',
   'Licence Board','Stage','FB Found?','IG Found?','LI Found?','FB Followed','IG Followed','LI Followed',
   'FB Follow-back','IG Follow-back','LI Follow-back','Engagements','Notes','Researched By','Researched On',
-  'Recheck','Last Seen In Upload'];
+  'Recheck','Last Seen In Upload','Not A Target'];
 function toCSV(list){
   const yn=v=>v===true?'Yes':v===false?'No':'';
   const body=list.map(r=>{const b=board(r.state,r.vert);
     return [r.name,r.term,licenseNo(r.name),r.vert,r.permits,r.score,r.state,r.metro,r.juris,r.types,
       r.email,r.chk.dom,VERD[r.chk.verdict],r.group||'',b?b.n:'',r.stage,
       yn(r.fb),yn(r.ig),yn(r.li),r.dfb,r.dig,r.dli,yn(r.bfb),yn(r.big),yn(r.bli),r.eng,r.note,r.rby,r.rdate,
-      r.recheck?'Yes':'',r.seen]});
+      r.recheck?'Yes':'',r.seen,r.skip]});
   return [HEAD_OUT,...body].map(a=>a.map(c=>{const s=String(c==null?'':c);
     return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(',')).join('\n');
 }
@@ -974,6 +1079,7 @@ $$('.tab').forEach(t=>t.onclick=()=>{
   const f=$('#fBy');TEAM.forEach(t=>{const o=document.createElement('option');o.textContent=t;f.appendChild(o)});})();
 $('#fText').oninput=()=>{page=0;draw()};
 $('#fTodo').onclick=function(){todoOnly=!todoOnly;this.classList.toggle('on',todoOnly);page=0;draw()};
+$('#fEmp').onclick=function(){empOnly=!empOnly;this.classList.toggle('on',empOnly);page=0;draw()};
 $('#dense').onclick=function(){compact=!compact;this.classList.toggle('on',compact);draw()};
 $('#kpiToggle').onclick=function(){
   const off=document.body.classList.toggle('kpi-off');
@@ -1728,7 +1834,9 @@ const HELP=`<div class="help">
 <ol>
 <li>Set <b>Working as</b> to your own name. Everything you mark is stamped with it and today's date.</li>
 <li>Work down the list — it is already sorted with the biggest permit pullers first.</li>
-<li>Press <b>All</b> on a row to open the website, Google, and all three platform searches at once.</li>
+<li>Press <b>AI ✦</b>. Where the record has a real company website it asks AI Mode about <b>that URL</b>, which is the fastest and least ambiguous way to identify a company — this is what took research from about three minutes a row to roughly one. Failing a website it uses the state licence number, and only failing both does it fall back to the company name.</li>
+<li>Use the <b>Employer groups</b> filter to work the large operators first. In testing they came back with all three platforms far more often than smaller firms, so it is the quickest way to bank profiles.</li>
+<li>If a row is not a real prospect at all — a big-box retailer, a corrupt record — press <b>✕</b> instead of marking it red. Red means "checked, no account"; ✕ means "not a target", and it is left out of the hit rates entirely.</li>
 <li>Mark each platform: <b>green</b> if the profile exists, <b>red</b> if you checked and it is not there, blank if you did not look.</li>
 <li>Tick the checkboxes on the rows you finished, then press <b>Send to Follow →</b>.</li>
 </ol>

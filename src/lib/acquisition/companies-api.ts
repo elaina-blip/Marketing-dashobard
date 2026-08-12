@@ -20,7 +20,7 @@ export const COMPANY_COLUMNS =
   "primary_jurisdiction, permit_types, email, records_on_domain, stage, " +
   "fb_found, ig_found, li_found, fb_followed, ig_followed, li_followed, " +
   "fb_back, ig_back, li_back, engagements, notes, researched_by, researched_on, " +
-  "recheck, last_seen_in_upload";
+  "recheck, last_seen_in_upload, skip";
 
 export const today = () => new Date().toISOString().slice(0, 10);
 

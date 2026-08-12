@@ -13,8 +13,8 @@
  */
 import React, { useMemo, useState } from "react";
 import {
-  verify, searchTerm, searchUrls, licenceBoard, licenceNumber,
-  VERDICT_LABEL, foundCount, isTouched, followedCount,
+  verify, searchTerm, searchUrls, licenceBoard, licenceNumber, computeGroups,
+  VERDICT_LABEL, foundCount, isTouched, isSkipped, followedCount,
 } from "@/lib/acquisition/acquisition-logic";
 import { today } from "@/lib/acquisition/companies-api";
 import {
@@ -43,7 +43,7 @@ const HEADS = {
 };
 
 const HINT = {
-  research: "Click FB/IG/LI to cycle found → none → clear. All opens every search at once. Searches use the company, never a person.",
+  research: "Start with AI ✦ — it anchors on the company website where there is one. FB/IG/LI cycle found → none → clear. ✕ marks a row as not a target, excluded from the hit rates.",
   follow: "Stamp a platform once you have actually followed them — the tool records the follow, it never performs one. B marks a follow-back.",
   archive: "Completed records. They stay queryable here; nothing needs removing.",
 };
@@ -55,6 +55,7 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
   const [fBy, setFBy] = useState("");
   const [text, setText] = useState("");
   const [todoOnly, setTodoOnly] = useState(false);
+  const [empOnly, setEmpOnly] = useState(false);
   const [sortKey, setSortKey] = useState("priority_score");
   const [sortDir, setSortDir] = useState(-1);
   const [page, setPage] = useState(0);
@@ -63,13 +64,18 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
   // verify()/searchTerm() are pure and a little expensive, so derive once per load
   // rather than per render of every row.
   const meta = useMemo(() => {
+    // Employer size is recomputed over the whole set, not read off the row: a
+    // builder's field staff on sibling domains are one employer even when the
+    // upload had no "Records on Domain" column.
+    const groupOf = computeGroups(rows);
     const m = new Map();
     for (const r of rows) {
-      const check = verify({ name: r.company_name, email: r.email, group: r.records_on_domain });
+      const group = groupOf(r);
+      const check = verify({ name: r.company_name, email: r.email, group });
       const { term, fromDomain } = searchTerm(r.company_name, check);
       m.set(r.id, {
-        check, term, fromDomain,
-        urls: searchUrls(r, check, term),
+        check, term, fromDomain, group,
+        urls: searchUrls(r, check, term, group),
         licence: licenceNumber(r.company_name),
         board: licenceBoard(r.state, r.vertical),
       });
@@ -90,6 +96,7 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
       if (fBy && r.researched_by !== fBy) return false;
       const m = meta.get(r.id);
       if (fVerdict && m.check.verdict !== fVerdict) return false;
+      if (empOnly && m.check.verdict !== "employer") return false;
       if (todoOnly && (stage === "research" ? isTouched(r) : followedCount(r) > 0)) return false;
       if (q) {
         const hay = `${r.company_name} ${m.check.domain} ${r.primary_jurisdiction} ${r.metro} ${m.term}`.toLowerCase();
@@ -110,7 +117,7 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
       return ((x || 0) - (y || 0)) * sortDir;
     });
     return out;
-  }, [rows, stage, fVert, fState, fBy, fVerdict, text, todoOnly, sortKey, sortDir, meta]);
+  }, [rows, stage, fVert, fState, fBy, fVerdict, text, todoOnly, empOnly, sortKey, sortDir, meta]);
 
   const pages = Math.max(1, Math.ceil(shown.length / PER_PAGE));
   const pageSafe = Math.min(page, pages - 1);
@@ -146,6 +153,12 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
   const cycleBack = (r, key) => onPatch(r.id, { [key]: r[key] === true ? false : r[key] === false ? null : true });
   const stampDate = (r, key) => onPatch(r.id, { [key]: r[key] ? null : today() });
 
+  // "Not a target" is not a fourth platform state. It clears the marks so the row
+  // contributes to neither side of found ÷ checked, and files it out of the way.
+  const toggleSkip = r => onPatch(r.id, r.skip
+    ? { skip: "" }
+    : { skip: "not a target", fb_found: null, ig_found: null, li_found: null, stage: "archive" });
+
   function bulk(patch, alsoStamp) {
     if (!selected.length) return;
     const full = { ...patch };
@@ -178,9 +191,10 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
   const stampMany = key => bulkPerRow(r =>
     (r[`${key}_found`] === true ? { [`${key}_followed`]: today() } : null));
 
+  // AI Mode leads, and Google's plain search drops out — the AI answer replaces it.
   const openAll = r => {
     const u = meta.get(r.id).urls;
-    [u.site, u.google, u.facebook, u.instagram, u.linkedin]
+    [u.ai, u.site, u.facebook, u.instagram, u.linkedin]
       .filter(Boolean).forEach(x => window.open(x, "_blank", "noopener"));
   };
 
@@ -215,6 +229,8 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
         <Btn t={t} kind={todoOnly ? "solid" : "ghost"} onClick={() => { setTodoOnly(v => !v); setPage(0); }}>
           {stage === "research" ? "Untouched only" : "Not yet followed"}
         </Btn>
+        <Btn t={t} kind={empOnly ? "solid" : "ghost"} title="Large operators — highest hit rate in testing"
+          onClick={() => { setEmpOnly(v => !v); setPage(0); }}>Employer groups</Btn>
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 11.5, color: t.inkFaint, fontFamily: "'JetBrains Mono',monospace" }}>
           {fmtN(shown.length)} in {stage} · {fmtN(rows.length)} total
@@ -299,6 +315,10 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
                       <div style={{ display: "flex", gap: 5, marginTop: 4, flexWrap: "wrap" }}>
                         {m.licence && <Badge t={t} color={t.inkMuted}>lic {m.licence}</Badge>}
                         {r.recheck && <Badge t={t} color={t.warn}>recheck</Badge>}
+                        {isSkipped(r) && <Badge t={t} color={t.inkFaint}>{r.skip}</Badge>}
+                        {m.check.verdict === "employer" && m.group > 1 && (
+                          <Badge t={t} color={t.indigo}>{m.group} on domain</Badge>
+                        )}
                       </div>
                     </td>
 
@@ -322,6 +342,10 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
                       </td>
                       <td style={td(t)}>
                         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                          <a href={m.urls.ai} target="_blank" rel="noopener noreferrer"
+                            title="Google AI Mode — asks for all three profiles in one query"
+                            style={{ ...link, color: "#fff", border: "none", fontWeight: 700, letterSpacing: ".07em",
+                              background: "linear-gradient(95deg,#1F5FA8,#7A4FD0)" }}>AI ✦</a>
                           <Btn t={t} kind="solid" onClick={() => openAll(r)} style={{ padding: "3px 8px", fontSize: 11 }}>All</Btn>
                           {m.urls.site && <a href={m.urls.site} target="_blank" rel="noopener noreferrer" style={link}>Site</a>}
                           <a href={m.urls.google} target="_blank" rel="noopener noreferrer" style={link}>Google</a>
@@ -340,6 +364,13 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
                           <Mark t={t} value={r.fb_found} label="FB" onClick={() => cycleFound(r, "fb_found")} />
                           <Mark t={t} value={r.ig_found} label="IG" onClick={() => cycleFound(r, "ig_found")} />
                           <Mark t={t} value={r.li_found} label="LI" onClick={() => cycleFound(r, "li_found")} />
+                          <button onClick={() => toggleSkip(r)}
+                            title={r.skip ? "Marked not a target — click to restore" : "Not a target — exclude from hit rates"}
+                            style={{ borderRadius: 7, padding: "4px 7px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+                              fontFamily: "'JetBrains Mono',monospace",
+                              background: r.skip ? t.inkFaint : t.bgSunk,
+                              color: r.skip ? t.bg : t.inkGhost,
+                              border: `1px solid ${r.skip ? t.inkFaint : t.lineStrong}` }}>✕</button>
                         </div>
                       </td>
                       <td style={{ ...td(t), fontSize: 11.5, color: t.inkMuted, whiteSpace: "nowrap" }}>
