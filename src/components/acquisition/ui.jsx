@@ -91,6 +91,32 @@ export function DateMark({ value, label, onClick, t }) {
   );
 }
 
+/**
+ * A suggested profile awaiting a human verdict. Purple — matching the AI ✦
+ * styling — because purple means proposed, not found. The label opens the
+ * suggested URL so the reviewer can look at it; ✓ and ✗ are the only things
+ * that write to the found flag.
+ */
+export function SuggestMark({ url, label, onConfirm, onReject, t, title }) {
+  const pill = {
+    borderRadius: 7, padding: "4px 7px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+    fontFamily: "'JetBrains Mono',monospace", border: "none", color: "#fff",
+  };
+  return (
+    <span style={{ display: "inline-flex", gap: 2, alignItems: "stretch" }}>
+      <a href={url} target="_blank" rel="noopener noreferrer" title={title || "Open the suggested profile"}
+        style={{ ...pill, background: "linear-gradient(95deg,#1F5FA8,#7A4FD0)", textDecoration: "none",
+          display: "inline-flex", alignItems: "center", letterSpacing: ".04em" }}>
+        {label} ✦
+      </a>
+      <button onClick={onConfirm} title="Confirm — this is them"
+        style={{ ...pill, background: t.goodSoft, color: t.good, border: `1px solid ${t.good}`, padding: "4px 6px" }}>✓</button>
+      <button onClick={onReject} title="Reject — not them"
+        style={{ ...pill, background: t.badSoft, color: t.bad, border: `1px solid ${t.bad}`, padding: "4px 6px" }}>✗</button>
+    </span>
+  );
+}
+
 export function Badge({ children, color, t }) {
   return (
     <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 20, fontSize: 10.5, fontWeight: 700,

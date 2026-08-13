@@ -65,9 +65,12 @@ export default function SocialAcquisitionView({ me = "Someone", theme: t }) {
 
   /* ---------- writes ---------- */
 
-  const patch = useCallback(async (id, p) => {
+  // opts.skipWrite: the caller is writing through its own API (suggestion
+  // confirmation), and only wants the row updated on screen.
+  const patch = useCallback(async (id, p, opts = {}) => {
     const before = rows.find(r => r.id === id);
     setRows(rs => rs.map(r => (r.id === id ? { ...r, ...p } : r)));
+    if (opts.skipWrite) return;
     try {
       await updateCompany(id, p);
     } catch (e) {
@@ -186,6 +189,7 @@ export default function SocialAcquisitionView({ me = "Someone", theme: t }) {
           t={t}
           onPatch={patch}
           onBulk={bulk}
+          onReload={reload}
           onExport={list => downloadCSV(list)}
         />
       )}

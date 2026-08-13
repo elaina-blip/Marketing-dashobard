@@ -47,7 +47,22 @@ export interface CompanyRow {
       Distinct from a red mark: red is "checked, no account" and counts towards
       the hit rate; this is out of scope and counts towards nothing. */
   skip: string;
+
+  /* Enrichment suggestions. Deliberately separate from the found flags so an
+     unconfirmed guess never enters found ÷ checked. Purple in the UI: proposed,
+     not found. Only a person clicking confirm moves one into *_found. */
+  fb_suggested: string | null;
+  ig_suggested: string | null;
+  li_suggested: string | null;
+  enrich_source: 'footer' | 'ai' | null;
+  enrich_note: string | null;
+  enrich_confidence: 'high' | 'medium' | 'low' | null;
+  enriched_at: string | null;
 }
+
+/** True when a row carries at least one suggestion awaiting a human verdict. */
+export const hasSuggestion = (r: CompanyRow) =>
+  !!(r.fb_suggested || r.ig_suggested || r.li_suggested);
 
 export interface Check {
   verdict: Verdict;

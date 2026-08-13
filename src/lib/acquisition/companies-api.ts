@@ -20,7 +20,9 @@ export const COMPANY_COLUMNS =
   "primary_jurisdiction, permit_types, email, records_on_domain, stage, " +
   "fb_found, ig_found, li_found, fb_followed, ig_followed, li_followed, " +
   "fb_back, ig_back, li_back, engagements, notes, researched_by, researched_on, " +
-  "recheck, last_seen_in_upload, skip";
+  "recheck, last_seen_in_upload, skip, " +
+  "fb_suggested, ig_suggested, li_suggested, enrich_source, enrich_note, " +
+  "enrich_confidence, enriched_at";
 
 export const today = () => new Date().toISOString().slice(0, 10);
 
@@ -112,6 +114,18 @@ export async function loadSnapshots(): Promise<SnapshotRow[]> {
   if (error) throw new Error(error.message);
   return (data ?? []) as SnapshotRow[];
 }
+
+/* ========================== enrichment suggestions ========================== */
+
+import { confirmSuggestion as confirmOne, confirmAllOnRow as confirmAll } from "./enrich-confirm";
+
+/** Accept or reject one suggested profile. Stamps attribution like a manual mark. */
+export const confirmSuggestion = (
+  id: string, platform: "fb" | "ig" | "li", accept: boolean, who: string,
+) => confirmOne(supabase, id, platform, accept, who);
+
+/** Accept every suggestion on a row in one click. */
+export const confirmAllOnRow = (id: string, who: string) => confirmAll(supabase, id, who);
 
 export { snapshotMonth } from "./documents-api";
 export { supabase as acquisitionClient };

@@ -14,11 +14,12 @@
 import React, { useMemo, useState } from "react";
 import {
   verify, searchTerm, searchUrls, licenceBoard, licenceNumber, computeGroups,
-  VERDICT_LABEL, foundCount, isTouched, isSkipped, followedCount,
+  VERDICT_LABEL, foundCount, isTouched, isSkipped, hasSuggestion, followedCount,
 } from "@/lib/acquisition/acquisition-logic";
-import { today } from "@/lib/acquisition/companies-api";
+import { today, confirmSuggestion, confirmAllOnRow } from "@/lib/acquisition/companies-api";
+import EnrichBar from "./EnrichBar";
 import {
-  Btn, Mark, DateMark, Badge, Empty, verdictColor, vertColor, SHORT_VERT,
+  Btn, Mark, DateMark, SuggestMark, Badge, Empty, verdictColor, vertColor, SHORT_VERT,
   fmtN, selectStyle, inputStyle, th, td,
 } from "./ui";
 
@@ -48,7 +49,7 @@ const HINT = {
   archive: "Completed records. They stay queryable here; nothing needs removing.",
 };
 
-export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport }) {
+export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport, onReload }) {
   const [fVert, setFVert] = useState("");
   const [fVerdict, setFVerdict] = useState("");
   const [fState, setFState] = useState("");
@@ -159,6 +160,34 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
     ? { skip: "" }
     : { skip: "not a target", fb_found: null, ig_found: null, li_found: null, stage: "archive" });
 
+  /**
+   * Confirming a suggestion is the only path from purple to green, and it stamps
+   * attribution exactly as a manual mark does. The row is patched locally first
+   * so the button responds instantly; the DB call is the source of truth.
+   */
+  async function confirm(r, key, accept) {
+    const patch = {
+      [`${key}_found`]: accept,
+      [`${key}_suggested`]: null,
+      researched_by: r.researched_by || me,
+      researched_on: r.researched_on || today(),
+    };
+    onPatch(r.id, patch, { skipWrite: true });
+    try { await confirmSuggestion(r.id, key, accept, r.researched_by || me); }
+    catch (e) { onReload?.(); }
+  }
+
+  async function confirmRow(r) {
+    const patch = { researched_by: r.researched_by || me, researched_on: r.researched_on || today() };
+    for (const k of ["fb", "ig", "li"]) {
+      patch[`${k}_found`] = !!r[`${k}_suggested`];
+      patch[`${k}_suggested`] = null;
+    }
+    onPatch(r.id, patch, { skipWrite: true });
+    try { await confirmAllOnRow(r.id, r.researched_by || me); }
+    catch (e) { onReload?.(); }
+  }
+
   function bulk(patch, alsoStamp) {
     if (!selected.length) return;
     const full = { ...patch };
@@ -204,6 +233,12 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
+
+      {/* Enrichment is a Research-stage action — there is nothing to pre-fill
+          once a row has moved on to Follow or Archive. */}
+      {stage === "research" && (
+        <EnrichBar selectedIds={selected} t={t} onDone={onReload} />
+      )}
 
       {/* toolbar */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "10px 24px",
@@ -360,10 +395,18 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
                         </div>
                       </td>
                       <td style={td(t)}>
-                        <div style={{ display: "flex", gap: 4 }}>
-                          <Mark t={t} value={r.fb_found} label="FB" onClick={() => cycleFound(r, "fb_found")} />
-                          <Mark t={t} value={r.ig_found} label="IG" onClick={() => cycleFound(r, "ig_found")} />
-                          <Mark t={t} value={r.li_found} label="LI" onClick={() => cycleFound(r, "li_found")} />
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+                          {["fb", "ig", "li"].map(k => (
+                            r[`${k}_suggested`] && r[`${k}_found`] === null ? (
+                              <SuggestMark key={k} t={t} label={k.toUpperCase()} url={r[`${k}_suggested`]}
+                                title={`${r.enrich_note || "Suggested"}${r.enrich_confidence ? ` · ${r.enrich_confidence} confidence` : ""} — open it before deciding`}
+                                onConfirm={() => confirm(r, k, true)}
+                                onReject={() => confirm(r, k, false)} />
+                            ) : (
+                              <Mark key={k} t={t} value={r[`${k}_found`]} label={k.toUpperCase()}
+                                onClick={() => cycleFound(r, `${k}_found`)} />
+                            )
+                          ))}
                           <button onClick={() => toggleSkip(r)}
                             title={r.skip ? "Marked not a target — click to restore" : "Not a target — exclude from hit rates"}
                             style={{ borderRadius: 7, padding: "4px 7px", fontSize: 11, fontWeight: 700, cursor: "pointer",
@@ -372,6 +415,17 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
                               color: r.skip ? t.bg : t.inkGhost,
                               border: `1px solid ${r.skip ? t.inkFaint : t.lineStrong}` }}>✕</button>
                         </div>
+                        {hasSuggestion(r) && (
+                          <div style={{ marginTop: 5, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                            <Btn t={t} onClick={() => confirmRow(r)}
+                              style={{ padding: "2px 7px", fontSize: 10.5 }}>Confirm all</Btn>
+                            <span style={{ fontSize: 10, color: t.inkFaint, maxWidth: 190 }}>
+                              {r.enrich_note}
+                              {r.enrich_confidence && ` · ${r.enrich_confidence}`}
+                              {r.enrich_source && ` · ${r.enrich_source === "footer" ? "from site" : "AI"}`}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td style={{ ...td(t), fontSize: 11.5, color: t.inkMuted, whiteSpace: "nowrap" }}>
                         {isTouched(r) ? <>{r.researched_by || "—"}<div style={{ color: t.inkFaint }}>{r.researched_on || ""}</div></> : "—"}

@@ -93,6 +93,44 @@ export default function HelpTab({ t }) {
         </p>
         <p style={p}>Rows with at least one green go to Follow. Rows red on all three skip straight to Archive.</p>
 
+        <h3 style={h3}>Enrichment — pre-filling the lookup</h3>
+        <p style={p}>
+          Three buttons above the Research table pre-fill profiles so you verify rather than search.
+          They act on your selection, or on everything untouched when nothing is selected.
+        </p>
+        <table style={{ borderCollapse: "collapse", maxWidth: 760, width: "100%", marginBottom: 10 }}>
+          <tbody>
+            {[
+              ["Find from websites", "Free", "Reads each company's own site for social links. No key, no cost, and it cannot fail expensively."],
+              ["Find everything", "Free, then paid", "The free pass first, then AI search on whatever it could not resolve. This is the one to use."],
+              ["AI search only", "Paid", "Skips the free pass. For a second opinion when a website result looks wrong."],
+            ].map(([name, cost, what]) => (
+              <tr key={name}>
+                <td style={{ ...cell, color: t.ink, fontWeight: 600, whiteSpace: "nowrap" }}>{name}</td>
+                <td style={{ ...cell, color: cost === "Free" ? t.good : t.gold, whiteSpace: "nowrap" }}>{cost}</td>
+                <td style={cell}>{what}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={p}>
+          Both paid buttons ask before spending, showing how many records would reach the API and what
+          it would cost. That figure is the <b>ceiling</b> — it assumes the free pass finds nothing, so
+          the real bill always comes in under it.
+        </p>
+        <div style={callout(false)}>
+          <b>Purple means proposed, not found.</b> A suggested profile shows as a purple button; clicking
+          it opens the profile so you can look. <b>✓</b> turns it green, <b>✗</b> turns it red, and{" "}
+          <b>Confirm all</b> takes every suggestion on the row at once. Confirming stamps your name and
+          today&rsquo;s date exactly as a manual mark does.
+        </div>
+        <p style={p}>
+          Nothing is ever promoted automatically, and an enriched row stays in Research until a person
+          moves it. In live testing AI search reported &ldquo;no accounts&rdquo; for a company with an
+          active Facebook page, and a plain web search returned a same-named business in Australia.
+          Enrichment fills the field; you keep the verdict — a wrong follow is worse than a missing one.
+        </p>
+
         <h3 style={h3}>Step 2 · Follow</h3>
         <ol style={ol}>
           <li>Open the profile from the row and follow it <b>by hand</b>.</li>
