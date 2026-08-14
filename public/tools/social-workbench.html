@@ -135,6 +135,39 @@ body.kpi-off #kpis{display:none}
 .dlt{font-size:10.5px;display:block}
 .dlt.up{color:#0C6A39}.dlt.dn{color:#B23B33}.dlt.fl{color:rgba(10,31,48,.45)}
 
+/* prospecting */
+.prosp{display:grid;gap:10px}
+.prhead{background:linear-gradient(120deg,var(--panel),#0C2B33);border:1px solid rgba(255,255,255,.12);
+  border-radius:3px;padding:18px 20px;color:#fff}
+.prhead h2{font-family:var(--disp);font-size:19px;margin:0 0 5px;letter-spacing:-.01em}
+.prhead p{margin:0 0 12px;font-size:13.5px;color:rgba(255,255,255,.88);max-width:860px}
+.pastebox{width:100%;min-height:150px;font-family:var(--mono);font-size:12px;line-height:1.45;
+  padding:10px 12px;border-radius:3px;border:1px solid rgba(255,255,255,.2);
+  background:var(--card);color:#fff;resize:vertical}
+.pastebox::placeholder{color:rgba(255,255,255,.4)}
+.funnel{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:12px 0}
+.fstep{background:var(--card);border:1px solid rgba(255,255,255,.14);border-radius:3px;padding:11px 13px}
+.fstep .fl2{font-family:var(--mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--cyan)}
+.fstep .fv{font-family:var(--disp);font-size:26px;font-weight:600;color:#fff;line-height:1.1;margin-top:5px}
+.fstep .fn2{font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.75);margin-top:3px}
+.fstep.paid{border-color:rgba(232,163,61,.5)}
+.fstep.paid .fl2{color:#F3CE93}
+.prtable{width:100%;font-size:12.5px}
+.prtable th{background:rgba(10,31,48,.07);color:var(--ink);position:static;font-family:var(--mono);
+  font-size:9px;letter-spacing:.09em;text-transform:uppercase;padding:8px 9px;text-align:left}
+.prtable td{padding:7px 9px;border-bottom:1px solid rgba(10,31,48,.08);vertical-align:top}
+.prtable td.c{text-align:center;font-family:var(--mono);font-size:11.5px}
+.prname{font-weight:700;color:#08192A}
+.prhandle{font-family:var(--mono);font-size:11px;color:rgba(10,31,48,.6)}
+.vd{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.07em;text-transform:uppercase;
+  padding:2px 6px;border-radius:2px;font-weight:600;white-space:nowrap}
+.vd-new{background:rgba(28,192,106,.2);color:#0C6A39}
+.vd-known{background:rgba(56,152,239,.18);color:#1F5FA8}
+.vd-person{background:rgba(10,31,48,.09);color:rgba(10,31,48,.55)}
+.vd-unsure{background:rgba(232,163,61,.22);color:#8C5B0D}
+.vd-junk{background:rgba(210,84,74,.14);color:#9C332B}
+.prfilter{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+
 /* documents */
 .docs{display:grid;gap:10px}
 .dochead{background:linear-gradient(120deg,var(--panel),#0C2B33);border:1px solid rgba(255,255,255,.12);
@@ -334,6 +367,8 @@ tbody tr.touched.sel{background:rgba(56,152,239,.16)}
   border:1px solid rgba(10,31,48,.18);background:#fff;color:var(--ink);text-align:center}
 .noteIn{width:100%;min-width:130px;font-family:var(--body);font-size:12.5px;padding:4px 6px;border-radius:2px;
   border:1px solid rgba(10,31,48,.18);background:#fff;color:var(--ink)}
+.rnote{min-width:150px;resize:vertical;line-height:1.35}
+.compact .rnote{rows:1}
 .stamp{font-family:var(--mono);font-size:11px;color:rgba(10,31,48,.72);line-height:1.5}
 
 .empty{padding:46px;text-align:center;color:rgba(10,31,48,.5);font-size:13px}
@@ -396,6 +431,7 @@ tbody tr.touched.sel{background:rgba(56,152,239,.16)}
     <div class="tab on" data-tab="research">Research<span class="n" id="nRes">0</span></div>
     <div class="tab" data-tab="follow">Follow<span class="n" id="nFol">0</span></div>
     <div class="tab" data-tab="archive">Archive<span class="n" id="nArc">0</span></div>
+    <div class="tab" data-tab="prospect">Prospecting<span class="n" id="nPro">0</span></div>
     <div class="tabgap"></div>
     <div class="tab" data-tab="dash">Dashboard</div>
     <div class="tab" data-tab="trends">Trends</div>
@@ -732,7 +768,8 @@ function urlsFor(r){
 const HEADS={
   research:[['','',''],['Company','name','sortable'],['Vertical','vert','sortable'],
     ['Permit types','types',''],['Permits','permits','sortable num'],['Where','state','sortable'],
-    ['Domain check','chk','sortable'],['Open & search','',''],['Found','',''],['By','rby','sortable']],
+    ['Domain check','chk','sortable'],['Open & search','',''],['Found','',''],
+    ['Notes','',''],['By','rby','sortable']],
   follow:[['','',''],['Company','name','sortable'],['Vertical','vert','sortable'],
     ['Permits','permits','sortable num'],['Where','state','sortable'],['Profiles','',''],
     ['Followed on','',''],['Follow-back','',''],['Engagements','eng','sortable'],['Notes','','']],
@@ -761,6 +798,10 @@ function drawInner(){
   if(tab==='trends'){$('#toolbar').classList.add('hidden');$('#pager').innerHTML='';
     $('#view').innerHTML=trendHTML();bindTrend();$('#shown').textContent='';
     $('#hint').innerHTML='Buckets come from the dates stamped when work was done. Dashed lines are the previous period of equal length.';
+    counts();return}
+  if(tab==='prospect'){$('#toolbar').classList.add('hidden');$('#pager').innerHTML='';
+    $('#view').innerHTML=prospectHTML();bindProspect();$('#shown').textContent='';
+    $('#hint').innerHTML='Paste a follower or following list. Everything is filtered free before anything reaches a paid lookup.';
     counts();return}
   if(tab==='docs'){$('#toolbar').classList.add('hidden');$('#pager').innerHTML='';
     $('#view').innerHTML=docsHTML();bindDocs();$('#shown').textContent='';
@@ -841,6 +882,8 @@ function rowHTML(r){
     '<td><div class="marks">'+mk('fb','FB')+mk('ig','IG')+mk('li','LI')+
       '<button class="mk skipb'+(r.skip?' on':'')+'" data-i="'+i+'" data-skip="1" '+
       'title="Not a target — exclude from hit rates">✕</button></div></td>'+
+    '<td><textarea class="noteIn rnote" data-i="'+i+'" data-note="1" rows="2" '+
+      'placeholder="real company name, profile links, anything worth keeping">'+esc(r.note)+'</textarea></td>'+
     '<td>'+(touchedRow(r)
       ? '<div class="byc"><select class="bysel" data-i="'+i+'" data-by="1">'+
           TEAM.map(t=>'<option'+(t===r.rby?' selected':'')+'>'+t+'</option>').join('')+
@@ -849,6 +892,9 @@ function rowHTML(r){
 
   if(r.stage==='follow') return '<tr class="'+(r.sel?'sel ':'')+(followedN(r)?'touched':'')+'">'+cell0+co+vt+pm+wh+
     '<td><div class="go">'+
+      '<a class="aimode" href="'+u.ai+'" target="_blank" rel="noopener" '+
+        'title="Google AI Mode — re-check this company">AI ✦</a>'+
+      (u.site?'<a class="site" href="'+u.site+'" target="_blank" rel="noopener">Site</a>':'')+
       (r.fb===true?'<a href="'+u.fb+'" target="_blank" rel="noopener">FB</a>':'')+
       (r.ig===true?'<a href="'+u.ig+'" target="_blank" rel="noopener">IG</a>':'')+
       (r.li===true?'<a href="'+u.li+'" target="_blank" rel="noopener">LI</a>':'')+
@@ -888,7 +934,9 @@ function bind(){
   $$('[data-all]').forEach(b=>b.onclick=()=>{const r=rows[+b.dataset.all],u=urlsFor(r);
     [u.ai,u.site,u.fb,u.ig,u.li].filter(Boolean).forEach(x=>window.open(x,'_blank','noopener'))});
   $$('[data-eng]').forEach(el=>el.onchange=()=>{rows[+el.dataset.i].eng=+el.value||0;touch();counts()});
-  $$('[data-note]').forEach(el=>el.onchange=()=>{rows[+el.dataset.i].note=el.value;touch()});
+  $$('[data-note]').forEach(el=>{
+    el.onchange=()=>{rows[+el.dataset.i].note=el.value;touch()};
+    el.onblur  =()=>{rows[+el.dataset.i].note=el.value;touch()};});
   $$('th[data-sort]').forEach(th=>th.onclick=()=>{
     const k=th.dataset.sort;
     if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=(k==='permits'||k==='score'||k==='eng')?-1:1}
@@ -949,6 +997,7 @@ function counts(){
   ['research','follow','archive'].forEach(s=>{
     $({research:'#nRes',follow:'#nFol',archive:'#nArc'}[s]).textContent=rows.filter(r=>r.stage===s).length});
   $('#nDoc').textContent=dirFiles.length+shelf.length;
+  $('#nPro').textContent=proRows.filter(r=>r.kind==='new').length;
   const sel=rows.filter(r=>r.sel).length;
   $('#bulk').classList.toggle('hidden',sel===0);$('#selN').textContent=sel;
   $('#bulkResearch').classList.toggle('hidden',tab!=='research');
@@ -1388,6 +1437,295 @@ function bindTrend(){
     if(!MET.some(m=>trOn[m.k]))trOn[k]=1;draw()});
 }
 
+/* ================= prospecting ================= */
+/* Follower/following lists pasted from a profile page. Everything here is free —
+   rules only, no lookups — so a list of several thousand costs nothing to sift.
+   Only what survives is worth a paid enrichment pass.
+
+   NOTE ON PARSING: written to tolerate several paste shapes because platforms
+   change their markup often. Send a real paste that parses badly and the shape
+   can be added — that is cheaper than guessing at a strict format. */
+
+let proPaste='', proPlatform='instagram', proRows=[], proFilter='new';
+
+/* TRADE exists to STRIP generic words out of company names, so it is deliberately
+   narrow. Detecting whether a pasted name is a trade business needs a much wider
+   vocabulary — gutters, screens, concrete, paving and so on are companies, not
+   filler. This list is additive and safe to extend. */
+const PRO_TRADE=new Set([...TRADE,
+ 'GUTTERS','GUTTER','SCREENS','SCREEN','SHUTTERS','SHUTTER','ENCLOSURES','ENCLOSURE',
+ 'CONCRETE','MASONRY','STUCCO','PAVING','ASPHALT','FENCE','FENCING','DECK','DECKING',
+ 'POOL','POOLS','SPA','LANDSCAPE','LANDSCAPING','IRRIGATION','PAINTING','PAINTERS',
+ 'DRYWALL','FLOORING','FLOORS','TILE','CABINETS','COUNTERTOPS','GRANITE','INSULATION',
+ 'FRAMING','CARPENTRY','WELDING','EXCAVATION','GRADING','DEMOLITION','SEPTIC','WELL',
+ 'GENERATOR','GENERATORS','LIGHTING','SECURITY','ALARM','GARAGE','AWNING','AWNINGS',
+ 'CANOPY','LANAI','PATIO','PORCH','SUNROOM','SUNROOMS','PERGOLA','RAILING','RAILINGS',
+ 'CHIMNEY','WATERPROOFING','SEALING','SEALCOATING','PRESSURE','CLEANING','RESTORATION',
+ 'REMEDIATION','MITIGATION','INSPECTION','INSPECTIONS','SURVEYING','ENGINEERING',
+ 'ARCHITECT','ARCHITECTS','DESIGN','BUILD','BUILDING','SUPPLY','SUPPLIES','DISTRIBUTION',
+ 'DISTRIBUTORS','WHOLESALE','MATERIALS','LUMBER','HARDWARE','EQUIPMENT','RENTAL',
+ 'RENTALS','TRUSS','TRUSSES','STEEL','ALUMINUM','VINYL','ROOFS','SOLARPOWER',
+ 'PHOTOVOLTAIC','ENERGY','CLIMATE','COMFORT','REFRIGERATION','DUCT','SHEETMETAL',
+ 'EXCAVATING','UTILITIES','PLUMBERS','ELECTRICIANS','MECHANICALS','TRADES','TRADE',
+ 'PERMITTING','PERMITS','EXPEDITING','CONSULTING','CONSULTANTS','MANAGEMENT',
+ 'PROPERTIES','REALTY','DEVELOPERS','RENOVATIONS','RENOVATION','REMODEL','REMODELERS',
+ 'HANDYMAN','MAINTENANCE','REPAIR','REPAIRS','INSTALL','INSTALLATION','INSTALLERS',
+ 'SIDINGS','WINDOWS','DOORS','ENTRY','IMPACT','HURRICANE','STORM']);
+
+const PRO_NOISE=/^(follow|following|followers|message|remove|verified|suggested for you|follows you|see all|search|new|mutual|friend|add friend|connect|pending|·|•|-|—)$/i;
+
+/* Real pastes carry metadata lines that belong to the entry ABOVE them, not to a
+   company of their own — a location under a page, a job title under a person.
+   Left in, they become phantom records and shift every pairing after them. */
+const PRO_META=[
+  /^[A-Z][A-Za-z.\- ]+,\s*(A[LKZR]|C[AOT]|D[EC]|FL|GA|HI|I[ADLN]|K[SY]|LA|M[ADEINOST]|N[CDEHJMVY]|O[HKR]|P[AR]|RI|S[CD]|T[NX]|UT|V[AT]|W[AIVY]|Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New\s\w+|North\s\w+|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode\sIsland|South\s\w+|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West\sVirginia|Wisconsin|Wyoming|Puerto\sRico)\s*$/,
+  /\bat\s+[A-Z]/,                       /* "Attorney at Morgan & Morgan" */
+  /^\d[\d.,]*[KMkm]?\s*(followers?|following|likes?|posts?|connections?)\b/i,
+  /^(works? at|studied at|lives in|from|went to)\b/i,
+];
+const isMetaLine=s=>PRO_META.some(re=>re.test(s));
+
+const PERSON_HINT=/^(mr|mrs|ms|dr)\.?\s/i;
+
+/* Words that make a name a business even with no trade word — a supplier, agency
+   or institution is still worth seeing. Deliberately broad: a false include costs
+   one glance, a false drop loses a prospect silently. */
+const BIZ_HINT=new Set(['AGENCY','MEDIA','GROUP','SOLUTIONS','SYSTEMS','COMPONENTS','LABS','LAB',
+ 'UNIVERSITY','COLLEGE','ACADEMY','INSTITUTE','FOUNDATION','ASSOCIATION','COUNCIL','CHAMBER',
+ 'DIRECT','CENTER','CENTRE','INSURANCE','REALTY','REAL','ESTATE','LAW','ATTORNEYS','ATTORNEY',
+ 'BREWING','CARS','AUTO','MOTORS','SALES','STAFFING','RECRUITING','CONSULTING','CONSULTANTS',
+ 'PARTNERS','ENTERPRISE','HOLDINGS','VENTURES','STUDIO','STUDIOS','WORKS','WORKSHOP','SHOP',
+ 'STORE','MARKET','TRADING','LOGISTICS','TRANSPORT','FLEET','RENTAL','RENTALS','LEASING',
+ 'FINANCIAL','CAPITAL','BANK','CREDIT','TITLE','ESCROW','MORTGAGE','ADVERTISING','MARKETING',
+ 'DIGITAL','TECH','TECHNOLOGIES','TECHNOLOGY','SOFTWARE','DESIGNS','GRAPHICS','PRINTING',
+ 'SCREENPRINTING','SIGNS','SIGNAGE','WRAPS','PROMOTIONS','EVENTS','CATERING','CLEANING',
+ 'JANITORIAL','SECURITY','GUARD','PROTECTION','STORAGE','MOVING','HAULING','RECYCLING',
+ 'DISPOSAL','ENVIRONMENTAL','TESTING','LABORATORY','COLLECTIONS','SERVICES','METAL','METALS',
+ 'STEEL','PLASTICS','PRODUCTS','MANUFACTURING','INDUSTRIAL','WHOLESALE','OUTLET','DEPOT',
+ 'PODCAST','SCHOOL','TRAINING','JOBS','CAREERS','TALENT','PTO','PTA','CITY','COUNTY','TOWN']);
+
+/* A pasted line is a handle when it looks like one and carries no spaces. */
+/* Instagram usernames are always lowercase and never contain spaces. A display
+   name with any capital letter therefore is NOT a handle — which is what tells
+   "Kayla" apart from "geotiquedesigns" when they sit on consecutive lines. */
+const looksHandle=s=>/^@?[a-z0-9._-]{3,30}$/.test(s) && !/\s/.test(s);
+/* A line that is a URL, or carries a tab / double space, is its own record and
+   must never be swallowed as the previous line's display name. */
+const isOwnRecord=s=>/https?:|\.com\//i.test(s) || /\t|\s{2,}/.test(s) || looksHandle(s);
+
+function parsePaste(text, platform){
+  /* Facebook and LinkedIn paste display names only — there are no handles, so
+     handle detection there produces nothing but wrong pairings. */
+  const hasHandles = platform==='instagram';
+  const raw=String(text||'').replace(/\r/g,'').split('\n')
+    .map(l=>l.replace(/\u00a0/g,' ').trim())
+    .filter(l=>l && !PRO_NOISE.test(l) && !isMetaLine(l));
+
+  const out=[]; const seen=new Set();
+  const push=(handle,name)=>{
+    handle=(handle||'').replace(/^@/,'').trim();
+    name=(name||'').trim();
+    const key=(handle||name).toLowerCase();
+    if(!key||seen.has(key))return; seen.add(key);
+    out.push({handle,name:name||handle});
+  };
+
+  for(let i=0;i<raw.length;i++){
+    const line=raw[i];
+
+    /* a pasted profile URL — the most reliable shape of all */
+    const m=line.match(/(?:instagram|facebook|linkedin)\.com\/(?:company\/|in\/)?([A-Za-z0-9._-]+)/i);
+    if(m){
+      const nxt=raw[i+1];
+      /* only claim the next line as the display name if it is not itself a record */
+      if(nxt && !isOwnRecord(nxt) && nxt.length<60){
+        push(m[1], nxt); i++;
+      } else push(m[1], '');
+      continue;
+    }
+
+    /* "handle  Display Name" on one line, tab or double-space separated */
+    const two=line.split(/\t|\s{2,}/).map(x=>x.trim()).filter(Boolean);
+    if(hasHandles && two.length>=2 && looksHandle(two[0])){ push(two[0], two.slice(1).join(' ')); continue; }
+    if(hasHandles && two.length>=2 && looksHandle(two[two.length-1])){
+      push(two[two.length-1], two.slice(0,-1).join(' ')); continue; }
+
+    /* handle on its own line, display name on the next — the common IG shape */
+    if(hasHandles && looksHandle(line)){
+      const nxt=raw[i+1];
+      /* Display names run long — a bio line can be 100 characters. The old 60
+         limit split real pairs in two and orphaned the name. */
+      if(nxt && !isOwnRecord(nxt) && nxt.length<=120){ push(line,nxt); i++; }
+      else push(line,'');
+      continue;
+    }
+
+    /* a plain display name with no handle — common on LinkedIn */
+    if(line.length>2 && line.length<=140) push('', line);
+  }
+  return out;
+}
+
+/* Free classification. Reuses the same name rules as the rest of the tool. */
+function classifyProspect(p, knownKeys){
+  const text=(p.name+' '+p.handle).replace(/[._-]/g,' ');
+  const toks=tokens(text);
+  /* Handles run words together — "gafroofing", "tampabayhvac" — so token matching
+     alone misses them. Fall back to a substring scan of the collapsed text. */
+  const flat=text.toUpperCase().replace(/[^A-Z]/g,'');
+  const hasTrade=toks.some(t=>PRO_TRADE.has(t)) ||
+    ['ROOFING','ROOFER','PLUMBING','PLUMBER','ELECTRIC','HVAC','SOLAR','WINDOW','DOOR',
+     'SIDING','GUTTER','CONCRETE','PAVING','FENCE','POOL','SUPPLY','BUILDER','CONTRACT',
+     'MECHANICAL','HEATING','COOLING','GLASS','SCREEN','SHUTTER','CONSTRUCT','DRAIN',
+     'SEPTIC','TEMPSERVICE','AIRCOND','REFRIGER','INSULAT','MASONRY','STUCCO','LANDSCAP',
+     'IRRIGAT','PAINTING','DRYWALL','FLOORING','CABINET','COUNTERTOP','WELDING','EXCAVAT',
+     'DEMOLITION','GENERATOR','LIGHTING','GARAGE','AWNING','LANAI','PATIO','SUNROOM',
+     'PERGOLA','RAILING','CHIMNEY','WATERPROOF','SEALCOAT','PRESSUREWASH','RESTORATION',
+     'REMEDIATION','TOOLS','TOOLCOR','CRANE','LIFT','SCAFFOLD','TRUSS','LUMBER','HARDWARE',
+     'LEADS','ADS','MARKETING'].some(t=>flat.includes(t));
+  const hasEntity=COMPANY_MARKER.test(text);
+  const key=normKey(p.name)||normKey(p.handle);
+
+  const hasBiz=toks.some(t=>BIZ_HINT.has(t));
+
+  if(key && knownKeys.has(key)) return {kind:'known', why:'Already in your list'};
+  if(!p.name && !p.handle)      return {kind:'junk',  why:'Nothing usable'};
+  if(PERSON_HINT.test(p.name))  return {kind:'person',why:'Personal title'};
+  if(hasTrade||hasEntity)       return {kind:'new',
+    why:hasEntity&&hasTrade?'Trade and entity words':hasEntity?'Entity word':'Trade word'};
+  if(hasBiz)                    return {kind:'new', why:'Business word'};
+
+  /* Two capitalised words and nothing else reads as a person — but only when no
+     business word was found above, so "Sunshine Gutters" and "Appliance Direct"
+     never reach here. */
+  /* Two or three capitalised words and nothing else. Unicode-aware so accented
+     names are caught, and tolerant of a middle initial. Only reached when no
+     trade, entity or business word was found above. */
+  if(/^\p{Lu}[\p{Ll}'’-]+(\s+\p{Lu}\.?)?(\s+\p{Lu}[\p{Ll}'’-]+){1,2}$/u.test(p.name.trim()))
+    return {kind:'person',why:'Reads as a personal name'};
+  if(/^[a-z0-9._]+$/.test(p.name) && !p.handle)   return {kind:'junk', why:'No business signal'};
+
+  /* Everything else is genuinely ambiguous. Show it rather than discard it — a
+     wrongly dropped company is lost silently, a wrongly kept one costs a glance. */
+  if(p.name && p.name.length>3) return {kind:'unsure', why:'No clear signal either way'};
+  return {kind:'junk', why:'No business signal'};
+}
+
+function runProspect(){
+  const known=new Set();
+  rows.forEach(r=>{const k=normKey(r.name); if(k)known.add(k);});
+  const parsed=parsePaste(proPaste, proPlatform);
+  proRows=parsed.map(p=>({...p, ...classifyProspect(p,known)}));
+  draw();
+}
+
+function prospectHTML(){
+  const n=k=>proRows.filter(r=>r.kind===k).length;
+  const total=proRows.length;
+  const newN=n('new'), knownN=n('known'), personN=n('person'), junkN=n('junk'), unsureN=n('unsure');
+
+  const head='<div class="prhead"><h2>Prospecting</h2>'+
+    '<p>Paste a follower or following list from a supplier, manufacturer, association or competitor account. '+
+    'Their followers are contractors — which is the audience the permit scraper cannot reach. Everything below '+
+    'is filtered by rules alone, at no cost, so only a short list ever reaches a paid lookup.</p>'+
+    '<div class="trrow" style="margin-bottom:9px">'+
+      '<label>Pasted from '+
+      '<select id="prPlat">'+['instagram','facebook','linkedin'].map(p=>
+        '<option value="'+p+'"'+(proPlatform===p?' selected':'')+'>'+p.charAt(0).toUpperCase()+p.slice(1)+'</option>').join('')+
+      '</select></label>'+
+      '<span class="spacer"></span>'+
+      (total?'<span class="folderpath">'+total.toLocaleString()+' names parsed</span>':'')+
+    '</div>'+
+    '<textarea class="pastebox" id="prPaste" placeholder="Select the follower list on the profile page, copy, and paste it here. Handles, display names and profile URLs all work — the parser copes with mixed shapes.">'+esc(proPaste)+'</textarea>'+
+    '<div class="trrow" style="margin-top:9px">'+
+      '<button class="solid" id="prRun">Parse and filter</button>'+
+      '<button class="ghost" id="prClear">Clear</button>'+
+      '<span class="docwarn">Scroll the whole list before copying — these lists load in chunks</span>'+
+      '<span class="spacer"></span>'+
+      (proFilter==='unsure'&&unsureN
+        ?'<button class="solid" id="prAdd">Add '+unsureN+' unsure to Research →</button>'
+        :newN?'<button class="solid" id="prAdd">Add '+newN+' to Research →</button>':'')+
+    '</div></div>';
+
+  const funnel=total?'<div class="funnel">'+
+    '<div class="fstep"><div class="fl2">Pasted</div><div class="fv">'+total.toLocaleString()+'</div>'+
+      '<div class="fn2">names found</div></div>'+
+    '<div class="fstep"><div class="fl2">Look like businesses</div><div class="fv">'+(newN+knownN).toLocaleString()+'</div>'+
+      '<div class="fn2">trade or entity words</div></div>'+
+    '<div class="fstep"><div class="fl2">Already yours</div><div class="fv">'+knownN.toLocaleString()+'</div>'+
+      '<div class="fn2">skip — no cost</div></div>'+
+    '<div class="fstep paid"><div class="fl2">New to you</div><div class="fv">'+newN.toLocaleString()+'</div>'+
+      '<div class="fn2">worth enriching · ~$'+(newN*0.02).toFixed(2)+'</div></div>'+
+    '<div class="fstep"><div class="fl2">Worth a look</div><div class="fv">'+unsureN.toLocaleString()+'</div>'+
+      '<div class="fn2">ambiguous — scan these</div></div>'+
+    '<div class="fstep"><div class="fl2">Filtered out</div><div class="fv">'+(personN+junkN).toLocaleString()+'</div>'+
+      '<div class="fn2">'+personN+' people · '+junkN+' no signal</div></div>'+
+  '</div>':'';
+
+  const shown=proRows.filter(r=>proFilter==='all'||r.kind===proFilter);
+  const body=shown.slice(0,300).map(r=>
+    '<tr><td><span class="prname">'+esc(r.name)+'</span>'+
+      (r.handle?'<div class="prhandle">@'+esc(r.handle)+'</div>':'')+'</td>'+
+    '<td class="c"><span class="vd vd-'+r.kind+'">'+
+      ({new:'New',unsure:'Unsure',known:'Known',person:'Person',junk:'No signal'})[r.kind]+'</span></td>'+
+    '<td class="c">'+esc(r.why)+'</td></tr>').join('');
+
+  const chips=['new','unsure','known','person','junk','all'].map(k=>
+    '<button class="chip'+(proFilter===k?' on':'')+'" data-prf="'+k+'">'+
+    ({new:'New to you',unsure:'Worth a look',known:'Already yours',person:'People',junk:'No signal',all:'Everything'})[k]+
+    ' '+(k==='all'?total:n(k))+'</button>').join('');
+
+  const list=total?'<div class="dcard"><h3>Parsed names</h3>'+
+    '<div class="prfilter">'+chips+'</div>'+
+    (shown.length?'<div style="overflow:auto;max-height:52vh"><table class="prtable"><thead><tr>'+
+      '<th>Name</th><th class="c">Verdict</th><th class="c">Why</th></tr></thead><tbody>'+body+'</tbody></table></div>'+
+      (shown.length>300?'<div class="dnote">Showing the first 300 of '+shown.length.toLocaleString()+'.</div>':'')
+      :'<div class="docempty">Nothing in that group.</div>')+'</div>':'';
+
+  const guide='<div class="dcard"><h3>Where the good lists are</h3>'+
+    '<div class="dnote"><b>Not your target contractors\u2019 followers</b> — those are mostly homeowners. '+
+    'Mine accounts whose audience is contractors by definition:</div>'+
+    '<div class="dnote"><b>Suppliers and distributors</b> — ABC Supply, SRS, Beacon, Ferguson, local lumber yards. '+
+    'Almost every follower is a trade business, so the filtering is done for you.</div>'+
+    '<div class="dnote"><b>Manufacturers</b> — GAF, Owens Corning, James Hardie, Carrier.</div>'+
+    '<div class="dnote"><b>Association chapters</b> — FRSA, FHBA, local HBA. Members are companies by definition.</div>'+
+    '<div class="dnote"><b>Competitors</b> — anyone following a permit expediter already has the pain APS solves.</div>'+
+    '<div class="dnote"><b>Better still, engagement rather than followers.</b> Who liked or commented on a '+
+    'supplier\u2019s recent post is a far stronger signal than a passive follow, and the list is short enough to '+
+    'work through by hand.</div>'+
+    '<div class="callout"><b>Names that come back \u201cNew to you\u201d are twice useful.</b> They are prospects, and '+
+    'they are also a coverage check — a real contractor absent from 31,758 permit records is a gap in what the '+
+    'scraper reaches, worth knowing about on its own.</div>'+
+  '</div>';
+
+  return '<div class="prosp">'+head+funnel+list+guide+'</div>';
+}
+
+function bindProspect(){
+  const p=$('#prPaste'); if(p)p.onchange=()=>{proPaste=p.value};
+  const pl=$('#prPlat'); if(pl)pl.onchange=()=>{proPlatform=pl.value};
+  const run=$('#prRun'); if(run)run.onclick=()=>{const t=$('#prPaste'); proPaste=t?t.value:proPaste; runProspect()};
+  const cl=$('#prClear'); if(cl)cl.onclick=()=>{proPaste='';proRows=[];draw()};
+  $$('[data-prf]').forEach(b=>b.onclick=()=>{proFilter=b.dataset.prf;draw()});
+  const add=$('#prAdd');
+  if(add)add.onclick=()=>{
+    const fresh=proRows.filter(r=>r.kind==='new'||(proFilter==='unsure'&&r.kind==='unsure'));
+    if(!fresh.length)return;
+    if(!confirm('Add '+fresh.length+' companies to Research?\n\nThey arrive with no permit data, so they rank '+
+                'below scraped records until you fill anything in.'))return;
+    const add2=build(fresh.map(r=>({
+      n:r.name, v:'', p:0, s:0, e:'', j:'—',
+      m:'from '+proPlatform, st:'', t:'', g:0,
+      stage:'research', note:'Prospecting · '+proPlatform+(r.handle?' · @'+r.handle:'')
+    })));
+    rows=rows.concat(add2);
+    proRows=proRows.filter(r=>r.kind!=='new');
+    touch(); fillFilters();
+    tab='research'; $$('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab==='research'));
+    draw();
+  };
+}
+
 /* ================= documents ================= */
 let dirHandle=null, dirFiles=[], shelf=[], docMsg='';
 const FS_OK = typeof window!=='undefined' && 'showDirectoryPicker' in window;
@@ -1796,7 +2134,7 @@ const HELP=`<div class="help">
 <h2>How this works</h2>
 <p class="intro">Three stages, left to right. A company moves Research → Follow → Archive, and nothing moves on its own — you push it.</p>
 
-<svg viewBox="0 0 900 190" class="flow" role="img" aria-label="Research to Follow to Archive, with measurement feeding the next month">
+<svg viewBox="0 0 900 196" class="flow" role="img" aria-label="Research to Follow to Archive, with measurement feeding the next month">
 <defs><marker id="fa" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
 <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
 
@@ -1828,6 +2166,10 @@ const HELP=`<div class="help">
 
 <path d="M801 78 L801 138 L104 138 L104 84" fill="none" stroke="#534AB7" stroke-width="1.2" stroke-dasharray="4 4" marker-end="url(#fa)"/>
 <text x="700" y="132" text-anchor="middle" class="fs2">measured rates set next month's quotas</text>
+
+<rect x="14" y="152" width="180" height="30" rx="6" fill="#FBF1DE" stroke="#8C5B0D" stroke-width="0.8"/>
+<text x="104" y="168" text-anchor="middle" class="fs">Prospecting (optional)</text>
+<path d="M104 152 L104 84" fill="none" stroke="#8C5B0D" stroke-width="1" stroke-dasharray="3 3" marker-end="url(#fa)"/>
 </svg>
 
 <h3>Step 1 · Research</h3>
@@ -1837,6 +2179,7 @@ const HELP=`<div class="help">
 <li>Press <b>AI ✦</b>. Where the record has a real company website it asks AI Mode about <b>that URL</b>, which is the fastest and least ambiguous way to identify a company — this is what took research from about three minutes a row to roughly one. Failing a website it uses the state licence number, and only failing both does it fall back to the company name.</li>
 <li>Use the <b>Employer groups</b> filter to work the large operators first. In testing they came back with all three platforms far more often than smaller firms, so it is the quickest way to bank profiles.</li>
 <li>If a row is not a real prospect at all — a big-box retailer, a corrupt record — press <b>✕</b> instead of marking it red. Red means "checked, no account"; ✕ means "not a target", and it is left out of the hit rates entirely.</li>
+<li>Use the <b>Notes</b> box for anything worth keeping — the real company name when the record only gave a person, a profile link you found the long way round, or why you marked something red. Notes travel with the row through Follow and Archive and survive export.</li>
 <li>Mark each platform: <b>green</b> if the profile exists, <b>red</b> if you checked and it is not there, blank if you did not look.</li>
 <li>Tick the checkboxes on the rows you finished, then press <b>Send to Follow →</b>.</li>
 </ol>
@@ -1845,7 +2188,7 @@ const HELP=`<div class="help">
 
 <h3>Step 2 · Follow</h3>
 <ol>
-<li>Open the profile from the row and follow it <b>by hand</b>.</li>
+<li>Open the profile from the row and follow it <b>by hand</b>. <b>AI ✦</b> and <b>Site</b> are here too, so you can re-check a company without going back to Research.</li>
 <li>Click the platform button to stamp today's date, so the tool knows it is done.</li>
 <li>Days later, mark <b>Follow-back</b> when they follow you back, and count engagements as you comment.</li>
 <li>When a company is finished, select it and press <b>Archive →</b>.</li>
@@ -1891,12 +2234,33 @@ const HELP=`<div class="help">
 <h3>Why searches use the company, not the name on the record</h3>
 <p>Two thirds of high-permit records are licence qualifiers or field employees of a bigger builder. The name says <i>Christopher James Smith</i>; the email says <code>lennar.com</code>. Searching the person finds a person. So when the domain names a different firm, the tool searches the firm and shows a blue tag saying so — override it manually if it ever gets one wrong.</p>
 
+<h3>Prospecting — finding companies the scraper never saw</h3>
+<p>The permit data only knows contractors who pulled a permit in a jurisdiction TigerLeads covers. Plenty of good businesses sit outside that, and this is how you reach them.</p>
+<ol>
+<li>Open a <b>supplier, manufacturer, association or competitor</b> account — not one of your target contractors. A roofer's followers are homeowners; ABC Supply's followers are roofers.</li>
+<li>Open their follower or following list and <b>scroll all the way to the bottom before copying</b>. These lists load a chunk at a time, so a page showing 2,700 followers will only copy the few hundred actually rendered. Scroll, then select, then copy.</li>
+<li>Press <b>Parse and filter</b>. Everything is sorted by rules alone, at no cost.</li>
+<li>Review the <b>New to you</b> group, then <b>Add to Research</b>. They join the queue like any other company.</li>
+</ol>
+<table>
+<tr><th>Verdict</th><th>What it means</th></tr>
+<tr><td><b>New to you</b></td><td>Reads as a business and is not already in your list. This is the group worth having.</td></tr>
+<tr><td><b>Already yours</b></td><td>Matches a company you already have — skipped, so you never pay to look up something twice.</td></tr>
+<tr><td><b>Worth a look</b></td><td>Ambiguous — a name with no clear signal either way. Scan these rather than lose a real company silently; you can add them from this group too.</td></tr>
+<tr><td><b>People</b></td><td>Personal names with no company signal.</td></tr>
+<tr><td><b>No signal</b></td><td>Nothing usable — interface text, initials, empty handles.</td></tr>
+</table>
+<div class="callout"><b>The "New to you" count is worth reading twice.</b> Those are prospects, but they are also a coverage report: a real contractor absent from 31,758 permit records is a gap in what the scraper reaches, and that is useful to know on its own.</div>
+<p>Added companies arrive with no permit count, so they rank below scraped records until you fill something in. That is deliberate — a company you know files 800 permits a year should outrank one you found on a follower list.</p>
+<div class="callout warn"><b>Copy and paste by hand.</b> Do not install a bulk-export extension and do not run one from the APS accounts. Reading a public page and noting the businesses is ordinary research; automated extraction is what gets accounts banned, and the account at risk is the one this whole project exists to build.</div>
+
 <h3>The other tabs</h3>
 <table>
 <tr><th>Tab</th><th>What it is for</th></tr>
 <tr><td><b>Dashboard</b></td><td>Where the month stands right now — pacing, funnel, platform warnings, and the highest-value companies you have not touched</td></tr>
 <tr><td><b>Trends</b></td><td>The same numbers over time, broken down by vertical, state or person</td></tr>
 <tr><td><b>Plan &amp; rates</b></td><td>Set the monthly quotas, and push measured rates into them</td></tr>
+<tr><td><b>Prospecting</b></td><td>Paste follower lists to find companies the permit scraper never saw</td></tr>
 <tr><td><b>Documents</b></td><td>Load and save files from a folder on your drive</td></tr>
 </table>
 </div>`;

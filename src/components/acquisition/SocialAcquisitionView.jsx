@@ -21,6 +21,7 @@ import {
 import { isTouched, followedCount } from "@/lib/acquisition/acquisition-logic";
 import { downloadCSV } from "./export-csv";
 import QueueTab from "./QueueTab";
+import ProspectingTab from "./ProspectingTab";
 import DocumentsTab from "./DocumentsTab";
 import PlanTab from "./PlanTab";
 import DashboardTab from "./DashboardTab";
@@ -34,6 +35,7 @@ const TABS = [
   { id: "research", label: "Research", group: 0 },
   { id: "follow", label: "Follow", group: 0 },
   { id: "archive", label: "Archive", group: 0 },
+  { id: "prospect", label: "Prospecting", group: 0 },
   { id: "dash", label: "Dashboard", group: 1 },
   { id: "trends", label: "Trends", group: 1 },
   { id: "rates", label: "Plan & rates", group: 1 },
@@ -193,6 +195,7 @@ export default function SocialAcquisitionView({ me = "Someone", theme: t }) {
           onExport={list => downloadCSV(list)}
         />
       )}
+      {tab === "prospect" && <ProspectingTab rows={rows} me={me} t={t} onReload={reload} />}
       {tab === "dash" && <DashboardTab rows={rows} plan={plan} t={t} />}
       {tab === "trends" && <TrendsTab rows={rows} snapshots={snapshots} t={t} />}
       {tab === "rates" && <PlanTab rows={rows} plan={plan} t={t} onSavePlan={savePlan} />}

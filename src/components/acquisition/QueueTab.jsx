@@ -29,7 +29,7 @@ const HEADS = {
   research: [
     ["Company", "company_name"], ["Vertical", "vertical"], ["Permit types", null],
     ["Permits", "total_permits", "num"], ["Where", "state"], ["Domain check", "verdict"],
-    ["Open & search", null], ["Found", null], ["By", "researched_by"],
+    ["Open & search", null], ["Found", null], ["Notes", null], ["By", "researched_by"],
   ],
   follow: [
     ["Company", "company_name"], ["Vertical", "vertical"], ["Permits", "total_permits", "num"],
@@ -427,6 +427,15 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
                           </div>
                         )}
                       </td>
+                      {/* Notes belong on Research too, not just Follow — the real
+                          company name and the profile links are found here. */}
+                      <td style={td(t)}>
+                        <textarea defaultValue={r.notes || ""} rows={2}
+                          placeholder="real company name, profile links, anything worth keeping"
+                          onBlur={e => { if (e.target.value !== r.notes) onPatch(r.id, { notes: e.target.value }); }}
+                          style={{ ...inputStyle(t), width: 170, minWidth: 150, resize: "vertical",
+                            lineHeight: 1.35, fontSize: 11.5 }} />
+                      </td>
                       <td style={{ ...td(t), fontSize: 11.5, color: t.inkMuted, whiteSpace: "nowrap" }}>
                         {isTouched(r) ? <>{r.researched_by || "—"}<div style={{ color: t.inkFaint }}>{r.researched_on || ""}</div></> : "—"}
                       </td>
@@ -434,7 +443,15 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
 
                     {stage === "follow" && <>
                       <td style={td(t)}>
+                        {/* AI and Site carry over to Follow: re-checking a company
+                            here is the same lookup, and it was a click away on
+                            Research but three tabs away once the row moved on. */}
                         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                          <a href={m.urls.ai} target="_blank" rel="noopener noreferrer"
+                            title="Google AI Mode — re-check this company"
+                            style={{ ...link, color: "#fff", border: "none", fontWeight: 700,
+                              background: "linear-gradient(95deg,#1F5FA8,#7A4FD0)" }}>AI ✦</a>
+                          {m.urls.site && <a href={m.urls.site} target="_blank" rel="noopener noreferrer" style={link}>Site</a>}
                           {r.fb_found === true && <a href={m.urls.facebook} target="_blank" rel="noopener noreferrer" style={link}>FB</a>}
                           {r.ig_found === true && <a href={m.urls.instagram} target="_blank" rel="noopener noreferrer" style={link}>IG</a>}
                           {r.li_found === true && <a href={m.urls.linkedin} target="_blank" rel="noopener noreferrer" style={link}>LI</a>}

@@ -115,6 +115,109 @@ export async function loadSnapshots(): Promise<SnapshotRow[]> {
   return (data ?? []) as SnapshotRow[];
 }
 
+/* ========================== prospecting ========================== */
+
+import { normKey } from "./acquisition-logic";
+import type { ClassifiedName, Platform, ProspectSummary } from "./prospect-parse";
+
+/**
+ * normKey() of every company already held, for the "Already yours" verdict.
+ * Built from the rows already in memory — no extra round trip, and it matches
+ * what the merge-on-import path considers the same company.
+ */
+export const knownKeySet = (rows: { company_name: string }[]) =>
+  new Set(rows.map(r => normKey(r.company_name)).filter(k => k.length > 3));
+
+/**
+ * Adds pasted names to Research.
+ *
+ * They arrive with no permit count and no priority score, and that is correct:
+ * a firm known to file 800 permits a year should outrank one spotted on a
+ * follower list. Never backfill a score to make these sort higher.
+ */
+export async function addProspects(
+  names: ClassifiedName[],
+  platform: Platform,
+  sourceAccount: string,
+  knownKeys?: Set<string>,
+): Promise<number> {
+  if (!names.length) return 0;
+
+  // The parser dedupes on handle-or-name, so one company pasted both as a
+  // profile URL and as a bare display name survives as two entries. Collapse on
+  // normKey here — the same key the merge-on-import path uses — so a paste
+  // cannot create two rows for one firm, or re-add one already in the queue.
+  const seen = new Set(knownKeys ?? []);
+  const unique = names.filter(n => {
+    const key = normKey(n.name) || normKey(n.handle);
+    if (!key) return true;             // nothing to key on; let it through
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  if (!unique.length) return 0;
+
+  const rows = unique.map(n => ({
+    company_name: n.name || n.handle,
+    stage: "research" as const,
+    source: "prospecting",
+    source_platform: platform,
+    source_account: sourceAccount || null,
+    social_handle: n.handle || null,
+    notes: n.handle ? `@${n.handle} · from ${sourceAccount || platform}` : `from ${sourceAccount || platform}`,
+  }));
+  let added = 0;
+  for (let i = 0; i < rows.length; i += 500) {
+    const { data, error } = await supabase
+      .from("acquisition_companies").insert(rows.slice(i, i + 500)).select("id");
+    if (error) throw new Error(`Could not add: ${error.message}`);
+    added += data?.length ?? 0;
+  }
+  return added;
+}
+
+/** One row per paste, so the same list is not mined twice. */
+export async function recordProspectRun(run: {
+  platform: Platform;
+  sourceAccount: string;
+  pastedLines: number;
+  summary: ProspectSummary;
+  addedToResearch: number;
+  runBy: string;
+}): Promise<void> {
+  const { error } = await supabase.from("acquisition_prospect_runs").insert({
+    platform: run.platform,
+    source_account: run.sourceAccount || null,
+    pasted_lines: run.pastedLines,
+    parsed_names: run.summary.total,
+    count_new: run.summary.new,
+    count_known: run.summary.known,
+    count_unsure: run.summary.unsure,
+    count_person: run.summary.person,
+    count_junk: run.summary.junk,
+    added_to_research: run.addedToResearch,
+    run_by: run.runBy,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export interface ProspectRunRow {
+  id: string; platform: string; source_account: string | null;
+  parsed_names: number; count_new: number; added_to_research: number;
+  run_by: string | null; run_at: string;
+}
+
+/** Recent pastes — the "have I mined this list already?" check. */
+export async function loadProspectRuns(limit = 20): Promise<ProspectRunRow[]> {
+  const { data, error } = await supabase
+    .from("acquisition_prospect_runs")
+    .select("id, platform, source_account, parsed_names, count_new, added_to_research, run_by, run_at")
+    .order("run_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ProspectRunRow[];
+}
+
 /* ========================== enrichment suggestions ========================== */
 
 import { confirmSuggestion as confirmOne, confirmAllOnRow as confirmAll } from "./enrich-confirm";
