@@ -11,15 +11,16 @@
  *
  * Dependency: npm i @anthropic-ai/sdk
  *
- * CHANGED FROM THE SUPPLIED FILE — three lines in enrichWithAi(), no prompt text
- * touched. The supplied version named `claude-sonnet-4-6` with the basic
- * `web_search_20250305` tool; the current Sonnet is `claude-sonnet-5`, which
- * supports `web_search_20260209` (dynamic filtering — results are filtered
- * before they reach the context window, which is exactly what this pass wants).
- * Sonnet tier is kept deliberately: the ticket's $0.01–0.03 per-record estimate
- * and the dry-run quote are built on Sonnet pricing, and Opus would break both.
- * max_tokens is raised because Sonnet 5 runs adaptive thinking by default and
- * max_tokens caps thinking + response together — 1024 would truncate the JSON.
+ * CHANGED FROM THE SUPPLIED FILE — three values in enrichWithAi(), no prompt
+ * text and no spend-guard logic touched. The supplied file names
+ * `claude-sonnet-4-6` with the basic `web_search_20250305` tool; the current
+ * Sonnet is `claude-sonnet-5`, which supports `web_search_20260209` (dynamic
+ * filtering — results are filtered before they reach the context window, which
+ * is exactly what this pass wants). Sonnet tier is kept deliberately: the
+ * $0.01–0.03 per-record estimate and the dry-run quote are built on Sonnet
+ * pricing. max_tokens is raised because Sonnet 5 runs adaptive thinking by
+ * default and max_tokens caps thinking + response together — 1024 truncates
+ * the JSON before it is closed.
  * -----------------------------------------------------------------------------
  */
 
@@ -132,6 +133,70 @@ const isRealUrl = (v: unknown, host: RegExp): string | null => {
   return host.test(s) ? s.replace(/\/$/, '') : null;
 };
 
+
+/* ========================== spend guards ========================== */
+
+/**
+ * Free-mail and consumer ISP domains. A record on one of these has no company
+ * website to identify it by, so the only searchable thing is the name.
+ */
+const FREEMAIL_DOMAINS = new Set([
+  'gmail.com','yahoo.com','yahoo.es','aol.com','hotmail.com','outlook.com','icloud.com',
+  'msn.com','live.com','me.com','mac.com','ymail.com','rocketmail.com','comcast.net',
+  'bellsouth.net','att.net','verizon.net','sbcglobal.net','earthlink.net','charter.net',
+  'cox.net','windstream.net','embarqmail.com','tampabay.rr.com','cfl.rr.com',
+  'carolina.rr.com','protonmail.com','mail.com','centurylink.net',
+]);
+
+/**
+ * A domain about permitting is a filing service, not the contractor —
+ * centralfloridapermitting.com, gulfcoastpermitting.com, apiprocessing.com.
+ * Searching it finds the filer, which is never the company we want.
+ */
+const FILER_DOMAIN = /(permit|permitting|expedit|filing|processing|codecompliance)/i;
+
+/** Entity or trade words that make a record name a company in its own right. */
+const COMPANY_MARKER =
+  /\b(LLC|L\.?L\.?C|INC|INCORPORATED|CORP|CORPORATION|COMPANY|CO|LP|LLP|LTD|PLLC|PA|DBA|GROUP|ENTERPRISES?|SERVICES?|SOLUTIONS?|SYSTEMS?|INDUSTRIES|ASSOCIATES|PARTNERS|HOLDINGS|CONTRACTING|CONSTRUCTION|ROOFING|PLUMBING|ELECTRIC|ELECTRICAL|HVAC|HEATING|COOLING|AIR|MECHANICAL|SOLAR|WINDOWS?|DOORS?|SIDING|GLASS|BUILDERS?|HOMES?|EXTERIORS?|GUTTERS?|SCREENS?|SHUTTERS?|CONCRETE|MASONRY|PAVING|FENCE|POOL)\b/i;
+
+/** A licence number in the name identifies the business on its own. */
+const LICENCE_IN_NAME = /\b[A-Z]{2,4}\s?\d{5,9}\b/;
+
+export interface SkipDecision { skip: boolean; reason: string; }
+
+/**
+ * Decides whether a record is worth paying to search.
+ *
+ * The rule that matters: a record needs at least ONE identifying anchor — a
+ * company website, a licence number, or a name that reads as a business. A bare
+ * personal name on a Gmail address has none of the three, and searching it
+ * returns a person or the wrong company. Paying for that is worse than skipping
+ * it, because a confident wrong answer costs more than a blank.
+ */
+export function shouldSkipAi(input: EnrichInput): SkipDecision {
+  const name = String(input.companyName || '').trim();
+  const domain = String(input.website || '').replace(/^https?:\/\//, '')
+                   .replace(/^www\./, '').replace(/\/.*$/, '').toLowerCase();
+
+  if (!name) return { skip: true, reason: 'No company name on the record' };
+
+  // A permit-filing domain belongs to the filer, never the contractor.
+  if (domain && FILER_DOMAIN.test(domain))
+    return { skip: true, reason: `${domain} is a permit filing service, not the contractor` };
+
+  const nameIsCompany = COMPANY_MARKER.test(name) || LICENCE_IN_NAME.test(name);
+  const hasRealSite = !!domain && !FREEMAIL_DOMAINS.has(domain);
+
+  if (nameIsCompany || hasRealSite || input.licenceNumber) return { skip: false, reason: '' };
+
+  return {
+    skip: true,
+    reason: domain
+      ? `Personal name on ${domain} — nothing identifying to search`
+      : 'Personal name with no email — nothing identifying to search',
+  };
+}
+
 export async function enrichWithAi(
   client: Anthropic,
   input: EnrichInput,
@@ -196,11 +261,22 @@ export async function enrichAiBatch(
     delayMs?: number;
     /** Hard stop, so a runaway loop cannot spend all night. */
     maxRecords?: number;
+    /** Skip records with nothing identifying to search. Leave true. */
+    applySkipRules?: boolean;
     onProgress?: (done: number, total: number) => void;
+    onSkip?: (id: string, reason: string) => void;
   } = {},
 ): Promise<Map<string, AiResult>> {
-  const cap = Math.min(items.length, opts.maxRecords ?? 250);
-  const queue = items.slice(0, cap);
+  const eligible = (opts.applySkipRules ?? true)
+    ? items.filter(i => {
+        const d = shouldSkipAi(i);
+        if (d.skip) opts.onSkip?.(i.id, d.reason);
+        return !d.skip;
+      })
+    : items;
+
+  const cap = Math.min(eligible.length, opts.maxRecords ?? 5000);
+  const queue = eligible.slice(0, cap);
   const concurrency = opts.concurrency ?? 3;
   const delayMs = opts.delayMs ?? 250;
   const results = new Map<string, AiResult>();

@@ -19,27 +19,45 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
 import { enrichFooterBatch } from './enrich-footer';
-import { enrichAiBatch, estimateCost, type EnrichInput } from './enrich-ai';
-import { verify, licenceNumber, computeGroups, usableSite, type CompanyRow } from './acquisition-logic';
+import { enrichAiBatch, estimateCost, shouldSkipAi, type EnrichInput } from './enrich-ai';
+import {
+  verify, licenceNumber, computeGroups, usableSite, type CompanyRow,
+} from './acquisition-logic';
 
 export interface EnrichSummary {
   attempted: number;
   resolved: number;        // at least one profile suggested
   empty: number;           // loaded/searched fine, nothing there
+  /** Loaded but client-rendered — header/footer were never in the HTML. */
+  jsShell?: number;
+  /** A bot wall answered instead of the site. */
+  blocked?: number;
+  /** No usable company domain, so the free pass could not run at all. */
+  noDomain?: number;
+  /** Passed over by the spend guards — nothing identifying to search. */
+  skipped?: number;
   failed: number;
   suggestions: { fb: number; ig: number; li: number };
   estimatedCost?: { low: string; high: string };
 }
 
 type Suggestion = {
-  fb_suggested: string | null;
-  ig_suggested: string | null;
-  li_suggested: string | null;
-  enrich_source: 'footer' | 'ai';
-  enrich_note: string;
-  enrich_confidence: 'high' | 'medium' | 'low' | null;
+  fb_suggested?: string | null;
+  ig_suggested?: string | null;
+  li_suggested?: string | null;
+  enrich_source?: 'footer' | 'ai';
+  enrich_note?: string;
+  enrich_confidence?: 'high' | 'medium' | 'low' | null;
+  enrich_outcome: string;
+  enrich_pass: 'footer' | 'ai' | 'both';
   enriched_at: string;
 };
+
+// appendNoteOnce and setSiteVerified live in enrich-confirm.ts alongside the
+// confirm helpers, so client components can import them without pulling the
+// Anthropic SDK into the browser bundle.
+import { appendNoteOnce } from './enrich-confirm';
+export { appendNoteOnce, setSiteVerified } from './enrich-confirm';
 
 async function writeSuggestions(
   sb: SupabaseClient,
@@ -77,45 +95,95 @@ export async function runFooterEnrichment(
 ): Promise<EnrichSummary> {
   const rows = await loadCandidates(sb, opts.ids);
 
-  // Same employer grouping and same usable-site rule the Research tab applies, so
-  // enrichment anchors on exactly the domain the AI ✦ button would have used.
+  // Same employer grouping and same usable-site rule the Research tab applies,
+  // so the free pass reads exactly the domain the AI button would have used.
   const groupOf = computeGroups(rows);
-  const targets = rows
-    .map(r => {
-      const group = groupOf(r);
-      return { row: r, group, chk: verify({ name: r.company_name, email: r.email, group }) };
-    })
+  const checked = rows.map(r => {
+    const group = groupOf(r);
+    return {
+      row: r, group,
+      chk: verify({ name: r.company_name, email: r.email, group }),
+    };
+  });
+
+  const now = new Date().toISOString();
+  const updates: { id: string; patch: Suggestion }[] = [];
+
+  // Rows with no company domain cannot be scraped at all — a free-mail address,
+  // an aggregator, or no email. Stamp them so they are visibly accounted for
+  // rather than looking untouched, and so the AI pass knows to pick them up.
+  const noDomain = checked.filter(({ row, chk, group }) => !usableSite(row, chk, group));
+  for (const { row } of noDomain) {
+    updates.push({
+      id: row.id as string,
+      patch: { enrich_outcome: 'no_domain', enrich_pass: 'footer', enriched_at: now,
+               enrich_note: 'No company website to read — needs a name search' },
+    });
+  }
+
+  const targets = checked
     .filter(({ row, chk, group }) => !!usableSite(row, chk, group))
-    .slice(0, opts.limit ?? 500)
+    .slice(0, opts.limit ?? 5000)
     .map(({ row, chk }) => ({ id: row.id as string, domain: chk.domain }));
 
   const results = await enrichFooterBatch(targets, { onProgress: opts.onProgress });
 
-  const now = new Date().toISOString();
-  const updates: { id: string; patch: Suggestion }[] = [];
   const summary: EnrichSummary = {
     attempted: targets.length, resolved: 0, empty: 0, failed: 0,
+    noDomain: noDomain.length, jsShell: 0, blocked: 0,
     suggestions: { fb: 0, ig: 0, li: 0 },
   };
 
   for (const [id, r] of results) {
-    if (r.outcome === 'error') { summary.failed++; continue; }
-    if (r.outcome === 'none')  { summary.empty++;  continue; }
+    // Every outcome is stamped, including the empty ones. A row that was checked
+    // and had nothing must look different from a row that was never attempted.
+    const base = { enrich_outcome: r.outcome, enrich_pass: 'footer' as const, enriched_at: now };
+
+    if (r.outcome === 'error') {
+      summary.failed++;
+      updates.push({ id, patch: { ...base, enrich_note: r.error || 'Website did not load' } });
+      continue;
+    }
+    if (r.outcome === 'blocked') {
+      summary.blocked = (summary.blocked ?? 0) + 1;
+      updates.push({ id, patch: { ...base,
+        enrich_note: 'A bot wall answered instead of the site — needs a look by hand or the AI pass' } });
+      continue;
+    }
+    // A client-rendered page is NOT the same as "no accounts". The footer icons
+    // are real; they are just assembled in the browser. Counting these as empty
+    // would tell the AI pass to skip exactly the sites that most need it.
+    if (r.outcome === 'js_shell') {
+      summary.jsShell = (summary.jsShell ?? 0) + 1;
+      updates.push({ id, patch: { ...base,
+        enrich_note: 'Site builds its header and footer in the browser — links are not in the page source' } });
+      continue;
+    }
+    if (r.outcome === 'none') {
+      summary.empty++;
+      updates.push({ id, patch: { ...base,
+        enrich_note: 'Website read, no social links listed on it' } });
+      continue;
+    }
     summary.resolved++;
     if (r.facebook)  summary.suggestions.fb++;
     if (r.instagram) summary.suggestions.ig++;
     if (r.linkedin)  summary.suggestions.li++;
+
+    const how = r.method === 'jsonld' ? ' (structured data)'
+              : r.method === 'raw'    ? ' (page source)' : '';
     updates.push({
       id,
       patch: {
+        ...base,
         fb_suggested: r.facebook,
         ig_suggested: r.instagram,
         li_suggested: r.linkedin,
         enrich_source: 'footer',
-        enrich_note: r.sourceUrl ? `Listed on ${r.sourceUrl}` : 'Listed on the company website',
-        // A link published by the company on its own site is as good as it gets.
-        enrich_confidence: 'high',
-        enriched_at: now,
+        enrich_note: (r.sourceUrl ? `Listed on ${r.sourceUrl}` : 'Listed on the company website') + how,
+        // A link published by the company on its own site is as good as it gets —
+        // unless it came from loose page source, which is a weaker match.
+        enrich_confidence: r.method === 'raw' ? 'medium' : 'high',
       },
     });
   }
@@ -155,8 +223,10 @@ export async function runAiEnrichment(
     return !a.fb_suggested && !a.ig_suggested && !a.li_suggested;
   });
 
+  // Default matches the free pass so "run the whole file" means the whole file.
+  // The dry run still shows the count and cost before anything is spent.
   const groupOf = computeGroups(rows);
-  const inputs: EnrichInput[] = pending.slice(0, opts.limit ?? 100).map(r => {
+  const inputs: EnrichInput[] = pending.slice(0, opts.limit ?? 5000).map(r => {
     const group = groupOf(r);
     const chk = verify({ name: r.company_name, email: r.email, group });
     return {
@@ -165,35 +235,64 @@ export async function runAiEnrichment(
       vertical: r.vertical,
       state: r.state,
       metro: r.metro,
-      // usableSite() rejects a shared-filer domain, which would otherwise anchor
-      // the prompt on somebody else's company website.
+      // usableSite() also rejects a shared-filer domain, which would otherwise
+      // anchor the prompt on somebody else's company website.
       website: usableSite(r, chk, group) || null,
       licenceNumber: licenceNumber(r.company_name) || null,
     };
   });
 
   if (opts.dryRun) {
+    // Apply the same guards, or the quoted cost is higher than the real one.
+    const worthIt = inputs.filter(i => !shouldSkipAi(i).skip);
     return {
-      attempted: inputs.length, resolved: 0, empty: 0, failed: 0,
+      attempted: worthIt.length, resolved: 0, empty: 0, failed: 0,
+      skipped: inputs.length - worthIt.length,
       suggestions: { fb: 0, ig: 0, li: 0 },
-      estimatedCost: estimateCost(inputs.length),
+      estimatedCost: estimateCost(worthIt.length),
     };
   }
 
   const client = new Anthropic({ apiKey });
-  const results = await enrichAiBatch(client, inputs, { onProgress: opts.onProgress });
+  const skipped: { id: string; reason: string }[] = [];
+  const results = await enrichAiBatch(client, inputs, {
+    onProgress: opts.onProgress,
+    onSkip: (id, reason) => skipped.push({ id, reason }),
+  });
 
   const now = new Date().toISOString();
   const updates: { id: string; patch: Suggestion }[] = [];
+  // Skipped records are stamped too, so the row shows WHY it was passed over
+  // rather than looking untouched.
+  for (const sk of skipped) {
+    updates.push({ id: sk.id, patch: {
+      enrich_outcome: 'skipped', enrich_pass: 'ai', enriched_at: now,
+      enrich_note: sk.reason } });
+  }
+
   const summary: EnrichSummary = {
-    attempted: inputs.length, resolved: 0, empty: 0, failed: 0,
+    attempted: inputs.length - skipped.length, resolved: 0, empty: 0, failed: 0,
+    skipped: skipped.length,
     suggestions: { fb: 0, ig: 0, li: 0 },
-    estimatedCost: estimateCost(inputs.length),
+    estimatedCost: estimateCost(inputs.length - skipped.length),
   };
 
   for (const [id, r] of results) {
-    if (r.outcome === 'error') { summary.failed++; continue; }
-    if (r.outcome === 'none')  { summary.empty++;  continue; }
+    // As with the free pass, every attempted row is stamped — including the ones
+    // that came back empty. Otherwise a checked row looks skipped.
+    const base = { enrich_outcome: r.outcome, enrich_pass: 'ai' as const, enriched_at: now };
+
+    if (r.outcome === 'error') {
+      summary.failed++;
+      updates.push({ id, patch: { ...base, enrich_note: r.error || 'AI search failed' } });
+      continue;
+    }
+    if (r.outcome === 'none') {
+      summary.empty++;
+      updates.push({ id, patch: { ...base,
+        enrich_note: r.note || 'AI searched and found no accounts' } });
+      continue;
+    }
     summary.resolved++;
     if (r.facebook)  summary.suggestions.fb++;
     if (r.instagram) summary.suggestions.ig++;
@@ -203,13 +302,13 @@ export async function runAiEnrichment(
     updates.push({
       id,
       patch: {
+        ...base,
         fb_suggested: r.facebook,
         ig_suggested: r.instagram,
         li_suggested: r.linkedin,
         enrich_source: 'ai',
         enrich_note: (r.note || 'Found by AI search') + where,
         enrich_confidence: r.confidence,
-        enriched_at: now,
       },
     });
   }
@@ -265,7 +364,10 @@ export async function runFullEnrichment(
     onProgress: (d, t) => opts.onProgress?.('footer', d, t),
   });
 
-  // onlyUnresolved defaults true, so this automatically skips footer hits.
+  // onlyUnresolved defaults true, so this skips rows the footer pass resolved.
+  // Everything it could NOT read — a client-rendered page, a bot wall, a site
+  // that timed out, or a record with no company domain at all — falls through
+  // here, which is exactly the set the paid pass exists for.
   const ai = await runAiEnrichment(sb, apiKey, {
     ids: opts.ids,
     limit: opts.aiLimit,

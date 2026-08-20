@@ -22,7 +22,8 @@ export const COMPANY_COLUMNS =
   "fb_back, ig_back, li_back, engagements, notes, researched_by, researched_on, " +
   "recheck, last_seen_in_upload, skip, " +
   "fb_suggested, ig_suggested, li_suggested, enrich_source, enrich_note, " +
-  "enrich_confidence, enriched_at";
+  "enrich_confidence, enriched_at, enrich_outcome, enrich_pass, " +
+  "site_verified, site_checked_by, site_checked_at";
 
 export const today = () => new Date().toISOString().slice(0, 10);
 
@@ -220,7 +221,11 @@ export async function loadProspectRuns(limit = 20): Promise<ProspectRunRow[]> {
 
 /* ========================== enrichment suggestions ========================== */
 
-import { confirmSuggestion as confirmOne, confirmAllOnRow as confirmAll } from "./enrich-confirm";
+import {
+  confirmSuggestion as confirmOne,
+  confirmAllOnRow as confirmAll,
+  setSiteVerified as setVerified,
+} from "./enrich-confirm";
 
 /** Accept or reject one suggested profile. Stamps attribution like a manual mark. */
 export const confirmSuggestion = (
@@ -229,6 +234,13 @@ export const confirmSuggestion = (
 
 /** Accept every suggestion on a row in one click. */
 export const confirmAllOnRow = (id: string, who: string) => confirmAll(supabase, id, who);
+
+/**
+ * Records whether the derived website really is this company's. Marking it wrong
+ * clears the suggestions read off it — they came from somebody else's site.
+ */
+export const setSiteVerified = (id: string, verified: boolean | null, who: string) =>
+  setVerified(supabase, id, verified, who);
 
 export { snapshotMonth } from "./documents-api";
 export { supabase as acquisitionClient };

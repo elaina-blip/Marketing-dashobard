@@ -12,6 +12,52 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+/**
+ * Appends a line to notes without ever duplicating it. Enrichment can run more
+ * than once over the same row, and a notes field that grows a new copy of the
+ * same sentence each time is worse than no note at all.
+ */
+export async function appendNoteOnce(
+  sb: SupabaseClient, id: string, line: string,
+): Promise<void> {
+  const { data } = await sb.from('acquisition_companies').select('notes').eq('id', id).single();
+  const current = String(data?.notes || '');
+  if (current.includes(line)) return;
+  await sb.from('acquisition_companies')
+    .update({ notes: current ? `${current} · ${line}` : line }).eq('id', id);
+}
+
+/**
+ * Records whether the derived website really belongs to this company.
+ *
+ *   true  — correct site
+ *   false — wrong company, so any suggestion taken from it is suspect
+ *   null  — not checked
+ *
+ * Marking a site wrong clears the suggestions that came from it, because they
+ * were read off somebody else's website.
+ */
+export async function setSiteVerified(
+  sb: SupabaseClient, id: string, verified: boolean | null, who: string,
+): Promise<void> {
+  const patch: Record<string, unknown> = {
+    site_verified: verified,
+    site_checked_by: verified === null ? null : who,
+    site_checked_at: verified === null ? null : new Date().toISOString(),
+  };
+  if (verified === false) {
+    patch.fb_suggested = null;
+    patch.ig_suggested = null;
+    patch.li_suggested = null;
+  }
+  const { error } = await sb.from('acquisition_companies').update(patch).eq('id', id);
+  if (error) throw new Error(error.message);
+
+  if (verified === false) {
+    await appendNoteOnce(sb, id, 'Website belongs to a different company');
+  }
+}
+
 /** Promotes (or rejects) one platform suggestion. `accept` becomes the found flag. */
 export async function confirmSuggestion(
   sb: SupabaseClient,

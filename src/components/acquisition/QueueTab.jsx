@@ -16,7 +16,10 @@ import {
   verify, searchTerm, searchUrls, licenceBoard, licenceNumber, computeGroups,
   VERDICT_LABEL, foundCount, isTouched, isSkipped, hasSuggestion, followedCount,
 } from "@/lib/acquisition/acquisition-logic";
-import { today, confirmSuggestion, confirmAllOnRow } from "@/lib/acquisition/companies-api";
+import { OUTCOME, SiteVerdict } from "./enrich-ui";
+import {
+  today, confirmSuggestion, confirmAllOnRow, setSiteVerified,
+} from "@/lib/acquisition/companies-api";
 import EnrichBar from "./EnrichBar";
 import {
   Btn, Mark, DateMark, SuggestMark, Badge, Empty, verdictColor, vertColor, SHORT_VERT,
@@ -175,6 +178,18 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
     onPatch(r.id, patch, { skipWrite: true });
     try { await confirmSuggestion(r.id, key, accept, r.researched_by || me); }
     catch (e) { onReload?.(); }
+  }
+
+  /**
+   * Whether the derived website really is this company's. Marking it wrong also
+   * clears the suggestions read off it — they came from somebody else's site.
+   */
+  async function markSite(r, verified) {
+    const patch = { site_verified: verified, site_checked_by: verified === null ? null : me };
+    if (verified === false) { patch.fb_suggested = null; patch.ig_suggested = null; patch.li_suggested = null; }
+    onPatch(r.id, patch, { skipWrite: true });
+    try { await setSiteVerified(r.id, verified, me); }
+    catch { onReload?.(); }
   }
 
   async function confirmRow(r) {
@@ -382,7 +397,13 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
                             style={{ ...link, color: "#fff", border: "none", fontWeight: 700, letterSpacing: ".07em",
                               background: "linear-gradient(95deg,#1F5FA8,#7A4FD0)" }}>AI ✦</a>
                           <Btn t={t} kind="solid" onClick={() => openAll(r)} style={{ padding: "3px 8px", fontSize: 11 }}>All</Btn>
-                          {m.urls.site && <a href={m.urls.site} target="_blank" rel="noopener noreferrer" style={link}>Site</a>}
+                          {m.urls.site && <a href={m.urls.site} target="_blank" rel="noopener noreferrer"
+                            style={{ ...link, ...(r.site_verified === false ? { color: t.bad, borderColor: `${t.bad}66` }
+                                              : r.site_verified === true ? { color: t.good, borderColor: `${t.good}66` } : {}) }}>Site</a>}
+                          {m.urls.site && (
+                            <SiteVerdict t={t} value={r.site_verified}
+                              onSet={v => markSite(r, v)} />
+                          )}
                           <a href={m.urls.google} target="_blank" rel="noopener noreferrer" style={link}>Google</a>
                           <a href={m.urls.facebook} target="_blank" rel="noopener noreferrer" style={link}>FB</a>
                           <a href={m.urls.instagram} target="_blank" rel="noopener noreferrer" style={link}>IG</a>
@@ -415,6 +436,14 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
                               color: r.skip ? t.bg : t.inkGhost,
                               border: `1px solid ${r.skip ? t.inkFaint : t.lineStrong}` }}>✕</button>
                         </div>
+                        {!hasSuggestion(r) && r.enrich_outcome && OUTCOME[r.enrich_outcome] && (
+                          <div style={{ marginTop: 5 }}
+                            title={r.enrich_note || OUTCOME[r.enrich_outcome].hint}>
+                            <Badge t={t} color={OUTCOME[r.enrich_outcome].color(t)}>
+                              {OUTCOME[r.enrich_outcome].label}
+                            </Badge>
+                          </div>
+                        )}
                         {hasSuggestion(r) && (
                           <div style={{ marginTop: 5, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                             <Btn t={t} onClick={() => confirmRow(r)}

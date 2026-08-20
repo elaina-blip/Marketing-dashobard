@@ -58,7 +58,25 @@ export interface CompanyRow {
   enrich_note: string | null;
   enrich_confidence: 'high' | 'medium' | 'low' | null;
   enriched_at: string | null;
+
+  /* Audit trail. Every row a pass TOUCHED is stamped, found or not — otherwise a
+     checked-and-empty row is indistinguishable from one never attempted. */
+  enrich_outcome:
+    'found' | 'none' | 'js_shell' | 'blocked' | 'error' | 'no_domain' | 'skipped' | null;
+  enrich_pass: 'footer' | 'ai' | 'both' | null;
+
+  /* Human verdict on whether the derived website is really this company's.
+     null = not checked · true = correct site · false = wrong site. */
+  site_verified: boolean | null;
+  site_checked_by: string | null;
+  site_checked_at: string | null;
 }
+
+/** Outcomes worth a paid retry: the free pass failed for a reason other than
+    the company genuinely listing nothing. */
+export const worthAiRetry = (r: CompanyRow) =>
+  r.enrich_outcome === 'js_shell' || r.enrich_outcome === 'blocked' ||
+  r.enrich_outcome === 'error' || r.enrich_outcome === 'no_domain';
 
 /** True when a row carries at least one suggestion awaiting a human verdict. */
 export const hasSuggestion = (r: CompanyRow) =>

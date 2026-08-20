@@ -103,11 +103,24 @@ export default function EnrichBar({ selectedIds, t, onDone }) {
       if (final) {
         const c = final.combined || {};
         const s = c.suggestions || { fb: 0, ig: 0, li: 0 };
+        // Every outcome is reported, not just the hits. "Nothing found" and
+        // "could not read the site" are different answers, and only the second
+        // is worth spending on again.
+        const also = [
+          c.empty     ? `${fmtN(c.empty)} listed nothing` : "",
+          c.jsShell   ? `${fmtN(c.jsShell)} build their footer in the browser` : "",
+          c.blocked   ? `${fmtN(c.blocked)} hit a bot wall` : "",
+          c.noDomain  ? `${fmtN(c.noDomain)} have no company site` : "",
+          c.skipped   ? `${fmtN(c.skipped)} skipped as nothing to search` : "",
+          c.failed    ? `${fmtN(c.failed)} failed` : "",
+        ].filter(Boolean).join(" · ");
+        const retry = (c.jsShell || 0) + (c.blocked || 0) + (c.noDomain || 0) + (c.failed || 0);
         setMsg({
-          text: `Checked ${fmtN(c.attempted)} — ${fmtN(c.resolved)} came back with something ` +
-                `(${fmtN(s.fb)} FB · ${fmtN(s.ig)} IG · ${fmtN(s.li)} LI), ` +
-                `${fmtN(c.empty)} had nothing, ${fmtN(c.failed)} failed. ` +
-                `Suggestions are purple until you confirm them.`,
+          text: `${fmtN(c.resolved)} of ${fmtN(c.attempted)} came back with something ` +
+                `(${fmtN(s.fb)} FB · ${fmtN(s.ig)} IG · ${fmtN(s.li)} LI)` +
+                (also ? `. ${also}` : "") +
+                (retry ? `. ${fmtN(retry)} are worth an AI pass — the site was there, it just could not be read.` : "") +
+                ` Suggestions are purple until you confirm them.`,
         });
         onDone?.();
       }
