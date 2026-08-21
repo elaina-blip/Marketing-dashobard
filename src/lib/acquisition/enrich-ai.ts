@@ -13,14 +13,16 @@
  *
  * CHANGED FROM THE SUPPLIED FILE — three values in enrichWithAi(), no prompt
  * text and no spend-guard logic touched. The supplied file names
- * `claude-sonnet-4-6` with the basic `web_search_20250305` tool; the current
+ * `claude-sonnet-4-6` with the basic `web_search_20250305` tool. The current
  * Sonnet is `claude-sonnet-5`, which supports `web_search_20260209` (dynamic
- * filtering — results are filtered before they reach the context window, which
- * is exactly what this pass wants). Sonnet tier is kept deliberately: the
- * $0.01–0.03 per-record estimate and the dry-run quote are built on Sonnet
- * pricing. max_tokens is raised because Sonnet 5 runs adaptive thinking by
- * default and max_tokens caps thinking + response together — 1024 truncates
- * the JSON before it is closed.
+ * filtering — results are filtered before they reach the context window,
+ * which is exactly what this pass wants). Sonnet tier is kept deliberately:
+ * the $0.01–0.03 per-record estimate and the dry-run quote are built on
+ * Sonnet pricing. max_tokens is raised because Sonnet 5 runs adaptive
+ * thinking by default and max_tokens caps thinking + response together —
+ * 1024 truncates the JSON before it is closed.
+ *
+ * This is the string Anthropic usage reports, so it is the deployed one.
  * -----------------------------------------------------------------------------
  */
 
@@ -93,8 +95,12 @@ Respond with ONLY a JSON object, no preamble and no markdown fences:
  "resolvedName":"the canonical business name","resolvedCity":"city, state where it is based",
  "confidence":"high|medium|low","note":"one short sentence on how you identified it"}`.trim();
 
-  if (input.website) {
-    return `This is the website of ${article(trade)} ${trade}: ${input.website}
+  // A filing service's domain is not this company's website, so it can never be
+  // the anchor — fall through to the licence number or the name.
+  const site = domainIsUnusable(input.website) ? null : input.website;
+
+  if (site) {
+    return `This is the website of ${article(trade)} ${trade}: ${site}
 
 Find that same company's official Facebook page, Instagram profile and LinkedIn company page.
 
@@ -149,9 +155,13 @@ const FREEMAIL_DOMAINS = new Set([
 ]);
 
 /**
- * A domain about permitting is a filing service, not the contractor —
- * centralfloridapermitting.com, gulfcoastpermitting.com, apiprocessing.com.
- * Searching it finds the filer, which is never the company we want.
+ * A DOMAIN about permitting belongs to a filing service, not the contractor —
+ * gulfcoastpermitting.com, apiprocessing.com. Searching that domain finds the
+ * filer, which is never the company we want.
+ *
+ * The same word BEFORE the @ means the opposite: permits@acmeroofing.com is
+ * simply the contractor's own permit desk, and acmeroofing.com is exactly the
+ * domain we want. Only the domain half is ever tested here.
  */
 const FILER_DOMAIN = /(permit|permitting|expedit|filing|processing|codecompliance)/i;
 
@@ -180,21 +190,41 @@ export function shouldSkipAi(input: EnrichInput): SkipDecision {
 
   if (!name) return { skip: true, reason: 'No company name on the record' };
 
-  // A permit-filing domain belongs to the filer, never the contractor.
-  if (domain && FILER_DOMAIN.test(domain))
-    return { skip: true, reason: `${domain} is a permit filing service, not the contractor` };
-
   const nameIsCompany = COMPANY_MARKER.test(name) || LICENCE_IN_NAME.test(name);
-  const hasRealSite = !!domain && !FREEMAIL_DOMAINS.has(domain);
+  const isFilerDomain = !!domain && FILER_DOMAIN.test(domain);
+  const hasRealSite = !!domain && !FREEMAIL_DOMAINS.has(domain) && !isFilerDomain;
 
-  if (nameIsCompany || hasRealSite || input.licenceNumber) return { skip: false, reason: '' };
+  // A filing-service domain is useless for identifying the contractor — but the
+  // record name may still be a real company. "RELIABLE SHUTTERS & SCREENS LLC"
+  // on apiprocessing.com is findable by name; skipping it loses a real prospect.
+  // Only the DOMAIN is discarded, never the row.
+  if (nameIsCompany || input.licenceNumber) return { skip: false, reason: '' };
+  if (hasRealSite) return { skip: false, reason: '' };
 
+  if (isFilerDomain) {
+    return {
+      skip: true,
+      reason: `Personal name on ${domain}, a permit filing service — nothing identifying to search`,
+    };
+  }
   return {
     skip: true,
     reason: domain
       ? `Personal name on ${domain} — nothing identifying to search`
       : 'Personal name with no email — nothing identifying to search',
   };
+}
+
+/**
+ * True when the derived website must NOT be used as the search anchor, even
+ * though the row is worth searching. Callers should drop `website` and let the
+ * prompt fall back to the licence number or the company name.
+ */
+export function domainIsUnusable(website?: string | null): boolean {
+  const d = String(website || '').replace(/^https?:\/\//, '').replace(/^www\./, '')
+              .replace(/\/.*$/, '').toLowerCase();
+  if (!d) return false;
+  return FREEMAIL_DOMAINS.has(d) || FILER_DOMAIN.test(d);
 }
 
 export async function enrichWithAi(

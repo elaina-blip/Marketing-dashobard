@@ -23,7 +23,7 @@ import {
 import EnrichBar from "./EnrichBar";
 import {
   Btn, Mark, DateMark, SuggestMark, Badge, Empty, verdictColor, vertColor, SHORT_VERT,
-  fmtN, selectStyle, inputStyle, th, td,
+  fmtN, selectStyle, inputStyle, th, td, paperTheme,
 } from "./ui";
 
 const PER_PAGE = 100;
@@ -47,7 +47,7 @@ const HEADS = {
 };
 
 const HINT = {
-  research: "Start with AI ✦ — it anchors on the company website where there is one. FB/IG/LI cycle found → none → clear. ✕ marks a row as not a target, excluded from the hit rates.",
+  research: "Start with AI ✦ — it anchors on the company website where there is one. FB/IG/LI cycle found → none → clear. → sends a marked row onward. ✕ marks it not a target, excluded from the hit rates.",
   follow: "Stamp a platform once you have actually followed them — the tool records the follow, it never performs one. B marks a follow-back.",
   archive: "Completed records. They stay queryable here; nothing needs removing.",
 };
@@ -64,6 +64,10 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
   const [sortDir, setSortDir] = useState(-1);
   const [page, setPage] = useState(0);
   const [sel, setSel] = useState(() => new Set());
+
+  // Everything inside the table renders against the light surface. The bar,
+  // toolbar and footer around it stay on the dashboard's dark chrome.
+  const p = useMemo(() => paperTheme(t), [t]);
 
   // verify()/searchTerm() are pure and a little expensive, so derive once per load
   // rather than per render of every row.
@@ -316,11 +320,11 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
       )}
 
       {/* table */}
-      <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
+      <div style={{ flex: 1, overflow: "auto", minHeight: 0, background: p.bg }}>
         {!rows.length ? (
-          <Empty t={t}>No records loaded yet.<br />Upload a list on <b>Documents</b>, then press Load.</Empty>
+          <Empty t={p}>No records loaded yet.<br />Upload a list on <b>Documents</b>, then press Load.</Empty>
         ) : !shown.length ? (
-          <Empty t={t}>
+          <Empty t={p}>
             {stage === "follow" ? <>Nothing here yet. Mark rows on <b>Research</b> and use <b>Send to Follow</b>.</>
               : stage === "archive" ? "Nothing archived yet."
                 : "Nothing matches those filters."}
@@ -329,7 +333,7 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <th style={{ ...th(t), width: 34 }}>
+                <th style={{ ...th(p), width: 34 }}>
                   <input type="checkbox"
                     checked={slice.length > 0 && slice.every(r => sel.has(r.id))}
                     onChange={e => setSel(s => {
@@ -340,8 +344,8 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
                 </th>
                 {heads.map(([label, key, cls]) => (
                   <th key={label} onClick={() => sortBy(key)}
-                    style={{ ...th(t), cursor: key ? "pointer" : "default", textAlign: cls === "num" ? "right" : "left" }}>
-                    {label}{sortKey === key ? <span style={{ color: t.accent }}> {sortDir > 0 ? "▲" : "▼"}</span> : null}
+                    style={{ ...th(p), cursor: key ? "pointer" : "default", textAlign: cls === "num" ? "right" : "left" }}>
+                    {label}{sortKey === key ? <span style={{ color: p.accent }}> {sortDir > 0 ? "▲" : "▼"}</span> : null}
                   </th>
                 ))}
               </tr>
@@ -351,57 +355,57 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
                 const m = meta.get(r.id);
                 const picked = sel.has(r.id);
                 return (
-                  <tr key={r.id} style={{ background: picked ? t.accentWash : "transparent" }}>
-                    <td style={td(t)}><input type="checkbox" checked={picked} onChange={() => toggleSel(r.id)} /></td>
+                  <tr key={r.id} style={{ background: picked ? p.accentWash : "transparent" }}>
+                    <td style={td(p)}><input type="checkbox" checked={picked} onChange={() => toggleSel(r.id)} /></td>
 
-                    <td style={{ ...td(t), minWidth: 220 }}>
-                      <div style={{ fontWeight: 600, color: t.ink }}>{r.company_name}</div>
-                      <div style={{ fontSize: 11, color: t.inkFaint }}>{r.email || "—"}</div>
+                    <td style={{ ...td(p), minWidth: 220 }}>
+                      <div style={{ fontWeight: 600, color: p.ink }}>{r.company_name}</div>
+                      <div style={{ fontSize: 11, color: p.inkFaint }}>{r.email || "—"}</div>
                       {m.fromDomain && (
-                        <div style={{ fontSize: 10.5, color: t.warn, marginTop: 3 }}>
+                        <div style={{ fontSize: 10.5, color: p.warn, marginTop: 3 }}>
                           searching “{m.term}” from domain
                         </div>
                       )}
                       <div style={{ display: "flex", gap: 5, marginTop: 4, flexWrap: "wrap" }}>
-                        {m.licence && <Badge t={t} color={t.inkMuted}>lic {m.licence}</Badge>}
-                        {r.recheck && <Badge t={t} color={t.warn}>recheck</Badge>}
-                        {isSkipped(r) && <Badge t={t} color={t.inkFaint}>{r.skip}</Badge>}
+                        {m.licence && <Badge t={p} color={p.inkMuted}>lic {m.licence}</Badge>}
+                        {r.recheck && <Badge t={p} color={p.warn}>recheck</Badge>}
+                        {isSkipped(r) && <Badge t={p} color={p.inkFaint}>{r.skip}</Badge>}
                         {m.check.verdict === "employer" && m.group > 1 && (
-                          <Badge t={t} color={t.indigo}>{m.group} on domain</Badge>
+                          <Badge t={p} color={p.indigo}>{m.group} on domain</Badge>
                         )}
                       </div>
                     </td>
 
-                    <td style={td(t)}><Badge t={t} color={vertColor(r.vertical, t)}>{SHORT_VERT(r.vertical)}</Badge></td>
+                    <td style={td(p)}><Badge t={p} color={vertColor(r.vertical, p)}>{SHORT_VERT(r.vertical)}</Badge></td>
 
                     {stage === "research" && (
-                      <td style={{ ...td(t), fontSize: 11, color: t.inkMuted, maxWidth: 170 }}>{r.permit_types || "—"}</td>
+                      <td style={{ ...td(p), fontSize: 11, color: p.inkMuted, maxWidth: 170 }}>{r.permit_types || "—"}</td>
                     )}
 
-                    <td style={{ ...td(t), textAlign: "right", fontFamily: "'JetBrains Mono',monospace" }}>{fmtN(r.total_permits)}</td>
+                    <td style={{ ...td(p), textAlign: "right", fontFamily: "'JetBrains Mono',monospace" }}>{fmtN(r.total_permits)}</td>
 
-                    <td style={{ ...td(t), fontSize: 11.5, color: t.inkMuted, whiteSpace: "nowrap" }}>
-                      <b style={{ color: t.ink }}>{r.state}</b> · {r.primary_jurisdiction}
+                    <td style={{ ...td(p), fontSize: 11.5, color: p.inkMuted, whiteSpace: "nowrap" }}>
+                      <b style={{ color: p.ink }}>{r.state}</b> · {r.primary_jurisdiction}
                       <div>{r.metro}</div>
                     </td>
 
                     {stage === "research" && <>
-                      <td style={{ ...td(t), maxWidth: 220 }}>
-                        <Badge t={t} color={verdictColor(m.check.verdict, t)}>{VERDICT_LABEL[m.check.verdict]}</Badge>
-                        <div style={{ fontSize: 10.5, color: t.inkFaint, marginTop: 4 }}>{m.check.why}</div>
+                      <td style={{ ...td(p), maxWidth: 220 }}>
+                        <Badge t={p} color={verdictColor(m.check.verdict, p)}>{VERDICT_LABEL[m.check.verdict]}</Badge>
+                        <div style={{ fontSize: 10.5, color: p.inkFaint, marginTop: 4 }}>{m.check.why}</div>
                       </td>
-                      <td style={td(t)}>
+                      <td style={td(p)}>
                         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                           <a href={m.urls.ai} target="_blank" rel="noopener noreferrer"
                             title="Google AI Mode — asks for all three profiles in one query"
                             style={{ ...link, color: "#fff", border: "none", fontWeight: 700, letterSpacing: ".07em",
                               background: "linear-gradient(95deg,#1F5FA8,#7A4FD0)" }}>AI ✦</a>
-                          <Btn t={t} kind="solid" onClick={() => openAll(r)} style={{ padding: "3px 8px", fontSize: 11 }}>All</Btn>
+                          <Btn t={p} kind="solid" onClick={() => openAll(r)} style={{ padding: "3px 8px", fontSize: 11 }}>All</Btn>
                           {m.urls.site && <a href={m.urls.site} target="_blank" rel="noopener noreferrer"
-                            style={{ ...link, ...(r.site_verified === false ? { color: t.bad, borderColor: `${t.bad}66` }
-                                              : r.site_verified === true ? { color: t.good, borderColor: `${t.good}66` } : {}) }}>Site</a>}
+                            style={{ ...link, ...(r.site_verified === false ? { color: p.bad, borderColor: `${p.bad}66` }
+                                              : r.site_verified === true ? { color: p.good, borderColor: `${p.good}66` } : {}) }}>Site</a>}
                           {m.urls.site && (
-                            <SiteVerdict t={t} value={r.site_verified}
+                            <SiteVerdict t={p} value={r.site_verified}
                               onSet={v => markSite(r, v)} />
                           )}
                           <a href={m.urls.google} target="_blank" rel="noopener noreferrer" style={link}>Google</a>
@@ -411,20 +415,20 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
                           {m.board && (
                             <a href={m.board.url} target="_blank" rel="noopener noreferrer"
                               title={`${m.licence ? `Search licence ${m.licence}` : "Search by name"} — ${m.board.name}`}
-                              style={{ ...link, color: t.gold, borderColor: `${t.gold}66` }}>{m.board.name}</a>
+                              style={{ ...link, color: p.gold, borderColor: `${p.gold}66` }}>{m.board.name}</a>
                           )}
                         </div>
                       </td>
-                      <td style={td(t)}>
+                      <td style={td(p)}>
                         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
                           {["fb", "ig", "li"].map(k => (
                             r[`${k}_suggested`] && r[`${k}_found`] === null ? (
-                              <SuggestMark key={k} t={t} label={k.toUpperCase()} url={r[`${k}_suggested`]}
-                                title={`${r.enrich_note || "Suggested"}${r.enrich_confidence ? ` · ${r.enrich_confidence} confidence` : ""} — open it before deciding`}
+                              <SuggestMark key={k} t={p} label={k.toUpperCase()} url={r[`${k}_suggested`]}
+                                source={r.enrich_source} note={r.enrich_note} confidence={r.enrich_confidence}
                                 onConfirm={() => confirm(r, k, true)}
                                 onReject={() => confirm(r, k, false)} />
                             ) : (
-                              <Mark key={k} t={t} value={r[`${k}_found`]} label={k.toUpperCase()}
+                              <Mark key={k} t={p} value={r[`${k}_found`]} label={k.toUpperCase()}
                                 onClick={() => cycleFound(r, `${k}_found`)} />
                             )
                           ))}
@@ -432,23 +436,36 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
                             title={r.skip ? "Marked not a target — click to restore" : "Not a target — exclude from hit rates"}
                             style={{ borderRadius: 7, padding: "4px 7px", fontSize: 11, fontWeight: 700, cursor: "pointer",
                               fontFamily: "'JetBrains Mono',monospace",
-                              background: r.skip ? t.inkFaint : t.bgSunk,
-                              color: r.skip ? t.bg : t.inkGhost,
-                              border: `1px solid ${r.skip ? t.inkFaint : t.lineStrong}` }}>✕</button>
+                              background: r.skip ? p.inkFaint : p.bgSunk,
+                              color: r.skip ? p.bg : p.inkGhost,
+                              border: `1px solid ${r.skip ? p.inkFaint : p.lineStrong}` }}>✕</button>
+                          {/* Send this one row onward without scrolling back to the
+                              bulk bar. Same rule as the bulk action: anything with a
+                              profile goes to Follow, checked-and-absent on all three
+                              goes straight to Archive. */}
+                          {isTouched(r) && !r.skip && (
+                            <button onClick={() => onPatch(r.id, { stage: foundCount(r) ? "follow" : "archive" })}
+                              title={foundCount(r) ? "Send to Follow" : "No profiles found — send straight to Archive"}
+                              style={{ borderRadius: 7, padding: "4px 7px", fontSize: 12, fontWeight: 700,
+                                cursor: "pointer", fontFamily: "'JetBrains Mono',monospace",
+                                background: p.goodSoft, color: p.good, border: `1px solid ${p.good}` }}>
+                              {foundCount(r) ? "→" : "⤓"}
+                            </button>
+                          )}
                         </div>
                         {!hasSuggestion(r) && r.enrich_outcome && OUTCOME[r.enrich_outcome] && (
                           <div style={{ marginTop: 5 }}
                             title={r.enrich_note || OUTCOME[r.enrich_outcome].hint}>
-                            <Badge t={t} color={OUTCOME[r.enrich_outcome].color(t)}>
+                            <Badge t={p} color={OUTCOME[r.enrich_outcome].color(p)}>
                               {OUTCOME[r.enrich_outcome].label}
                             </Badge>
                           </div>
                         )}
                         {hasSuggestion(r) && (
                           <div style={{ marginTop: 5, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                            <Btn t={t} onClick={() => confirmRow(r)}
+                            <Btn t={p} onClick={() => confirmRow(r)}
                               style={{ padding: "2px 7px", fontSize: 10.5 }}>Confirm all</Btn>
-                            <span style={{ fontSize: 10, color: t.inkFaint, maxWidth: 190 }}>
+                            <span style={{ fontSize: 10, color: p.inkFaint, maxWidth: 190 }}>
                               {r.enrich_note}
                               {r.enrich_confidence && ` · ${r.enrich_confidence}`}
                               {r.enrich_source && ` · ${r.enrich_source === "footer" ? "from site" : "AI"}`}
@@ -458,20 +475,20 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
                       </td>
                       {/* Notes belong on Research too, not just Follow — the real
                           company name and the profile links are found here. */}
-                      <td style={td(t)}>
+                      <td style={td(p)}>
                         <textarea defaultValue={r.notes || ""} rows={2}
                           placeholder="real company name, profile links, anything worth keeping"
                           onBlur={e => { if (e.target.value !== r.notes) onPatch(r.id, { notes: e.target.value }); }}
-                          style={{ ...inputStyle(t), width: 170, minWidth: 150, resize: "vertical",
+                          style={{ ...inputStyle(p), width: 170, minWidth: 150, resize: "vertical",
                             lineHeight: 1.35, fontSize: 11.5 }} />
                       </td>
-                      <td style={{ ...td(t), fontSize: 11.5, color: t.inkMuted, whiteSpace: "nowrap" }}>
-                        {isTouched(r) ? <>{r.researched_by || "—"}<div style={{ color: t.inkFaint }}>{r.researched_on || ""}</div></> : "—"}
+                      <td style={{ ...td(p), fontSize: 11.5, color: p.inkMuted, whiteSpace: "nowrap" }}>
+                        {isTouched(r) ? <>{r.researched_by || "—"}<div style={{ color: p.inkFaint }}>{r.researched_on || ""}</div></> : "—"}
                       </td>
                     </>}
 
                     {stage === "follow" && <>
-                      <td style={td(t)}>
+                      <td style={td(p)}>
                         {/* AI and Site carry over to Follow: re-checking a company
                             here is the same lookup, and it was a click away on
                             Research but three tabs away once the row moved on. */}
@@ -484,48 +501,48 @@ export default function QueueTab({ stage, rows, me, t, onPatch, onBulk, onExport
                           {r.fb_found === true && <a href={m.urls.facebook} target="_blank" rel="noopener noreferrer" style={link}>FB</a>}
                           {r.ig_found === true && <a href={m.urls.instagram} target="_blank" rel="noopener noreferrer" style={link}>IG</a>}
                           {r.li_found === true && <a href={m.urls.linkedin} target="_blank" rel="noopener noreferrer" style={link}>LI</a>}
-                          {foundCount(r) === 0 && <span style={{ fontSize: 11, color: t.inkFaint }}>none found</span>}
+                          {foundCount(r) === 0 && <span style={{ fontSize: 11, color: p.inkFaint }}>none found</span>}
                         </div>
                       </td>
-                      <td style={td(t)}>
+                      <td style={td(p)}>
                         <div style={{ display: "flex", gap: 4 }}>
-                          {r.fb_found === true && <DateMark t={t} value={r.fb_followed} label="FB" onClick={() => stampDate(r, "fb_followed")} />}
-                          {r.ig_found === true && <DateMark t={t} value={r.ig_followed} label="IG" onClick={() => stampDate(r, "ig_followed")} />}
-                          {r.li_found === true && <DateMark t={t} value={r.li_followed} label="LI" onClick={() => stampDate(r, "li_followed")} />}
+                          {r.fb_found === true && <DateMark t={p} value={r.fb_followed} label="FB" onClick={() => stampDate(r, "fb_followed")} />}
+                          {r.ig_found === true && <DateMark t={p} value={r.ig_followed} label="IG" onClick={() => stampDate(r, "ig_followed")} />}
+                          {r.li_found === true && <DateMark t={p} value={r.li_followed} label="LI" onClick={() => stampDate(r, "li_followed")} />}
                         </div>
                       </td>
-                      <td style={td(t)}>
+                      <td style={td(p)}>
                         <div style={{ display: "flex", gap: 4 }}>
-                          {r.fb_found === true && <Mark t={t} value={r.fb_back} label="FB" onClick={() => cycleBack(r, "fb_back")} />}
-                          {r.ig_found === true && <Mark t={t} value={r.ig_back} label="IG" onClick={() => cycleBack(r, "ig_back")} />}
-                          {r.li_found === true && <Mark t={t} value={r.li_back} label="LI" onClick={() => cycleBack(r, "li_back")} />}
+                          {r.fb_found === true && <Mark t={p} value={r.fb_back} label="FB" onClick={() => cycleBack(r, "fb_back")} />}
+                          {r.ig_found === true && <Mark t={p} value={r.ig_back} label="IG" onClick={() => cycleBack(r, "ig_back")} />}
+                          {r.li_found === true && <Mark t={p} value={r.li_back} label="LI" onClick={() => cycleBack(r, "li_back")} />}
                         </div>
                       </td>
-                      <td style={{ ...td(t), textAlign: "right" }}>
+                      <td style={{ ...td(p), textAlign: "right" }}>
                         <input type="number" min={0} defaultValue={r.engagements || 0}
                           onBlur={e => { const n = Number(e.target.value) || 0; if (n !== r.engagements) onPatch(r.id, { engagements: n }); }}
-                          style={{ ...inputStyle(t), width: 70, textAlign: "right" }} />
+                          style={{ ...inputStyle(p), width: 70, textAlign: "right" }} />
                       </td>
-                      <td style={td(t)}>
+                      <td style={td(p)}>
                         <input defaultValue={r.notes || ""} placeholder="notes"
                           onBlur={e => { if (e.target.value !== r.notes) onPatch(r.id, { notes: e.target.value }); }}
-                          style={{ ...inputStyle(t), width: 180 }} />
+                          style={{ ...inputStyle(p), width: 180 }} />
                       </td>
                     </>}
 
                     {stage === "archive" && <>
-                      <td style={{ ...td(t), fontSize: 11.5, color: t.inkMuted }}>{foundCount(r)} of 3</td>
-                      <td style={{ ...td(t), fontSize: 11, color: t.inkMuted }}>
+                      <td style={{ ...td(p), fontSize: 11.5, color: p.inkMuted }}>{foundCount(r)} of 3</td>
+                      <td style={{ ...td(p), fontSize: 11, color: p.inkMuted }}>
                         {[r.fb_followed && `FB ${r.fb_followed}`, r.ig_followed && `IG ${r.ig_followed}`, r.li_followed && `LI ${r.li_followed}`]
                           .filter(Boolean).map(s => <div key={s}>{s}</div>)}
                       </td>
-                      <td style={{ ...td(t), fontSize: 11.5, color: t.inkMuted }}>
+                      <td style={{ ...td(p), fontSize: 11.5, color: p.inkMuted }}>
                         {[r.fb_back === true && "FB", r.ig_back === true && "IG", r.li_back === true && "LI"].filter(Boolean).join(" ") || "—"}
                       </td>
-                      <td style={{ ...td(t), fontSize: 11.5, color: t.inkMuted, whiteSpace: "nowrap" }}>
-                        {r.researched_by || "—"}<div style={{ color: t.inkFaint }}>{r.researched_on || ""}</div>
+                      <td style={{ ...td(p), fontSize: 11.5, color: p.inkMuted, whiteSpace: "nowrap" }}>
+                        {r.researched_by || "—"}<div style={{ color: p.inkFaint }}>{r.researched_on || ""}</div>
                       </td>
-                      <td style={{ ...td(t), fontSize: 11.5, color: t.inkMuted, maxWidth: 200 }}>{r.notes || "—"}</td>
+                      <td style={{ ...td(p), fontSize: 11.5, color: p.inkMuted, maxWidth: 200 }}>{r.notes || "—"}</td>
                     </>}
                   </tr>
                 );

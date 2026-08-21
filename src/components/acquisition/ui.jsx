@@ -31,6 +31,48 @@ export const verdictColor = (verdict, t) => ({
 export const fmtN = n => (Number(n) || 0).toLocaleString();
 export const pctOf = (a, b) => (b > 0 ? Math.min(100, Math.round((a / b) * 100)) : 0);
 
+
+/**
+ * The table surface is LIGHT on purpose.
+ *
+ * Dense rows of colour-coded badges read better dark-on-light, which is why the
+ * reference HTML uses a light table under a dark header. Rendering it on the
+ * dashboard's navy left the reference's text colours — tuned for light — muddy
+ * and hard to read.
+ *
+ * Rather than hand-inverting every colour at every call site, this returns the
+ * same token names with light values. Pass it as `t` to anything inside the
+ * table and every existing component renders correctly with no changes.
+ */
+export const paperTheme = t => ({
+  ...t,
+  bg: "#FFFFFF",
+  bgCard: "#FFFFFF",
+  bgElevated: "#FFFFFF",
+  bgSunk: "rgba(10,31,48,.045)",
+
+  ink: "#08192A",
+  inkMuted: "rgba(10,31,48,.74)",
+  inkFaint: "rgba(10,31,48,.56)",
+  inkGhost: "rgba(10,31,48,.34)",
+
+  line: "rgba(10,31,48,.10)",
+  lineStrong: "rgba(10,31,48,.20)",
+
+  /* Badge colours lifted from the reference stylesheet's .vd-* rules, so a
+     verdict is the same colour here as in the tool Weston already knows. */
+  good: "#0C6A39",     goodSoft: "rgba(28,192,106,.18)",
+  bad: "#9C332B",      badSoft: "rgba(210,84,74,.15)",
+  warn: "#8C5B0D",     warnSoft: "rgba(232,163,61,.22)",
+  accent: "#1F5FA8",   accentSoft: "rgba(56,152,239,.18)",
+  accentDeep: "#14487F", accentWash: "rgba(56,152,239,.07)",
+  gold: "#8C5B0D",     goldSoft: "rgba(232,163,61,.22)",
+  teal: "#0F6E56",     tealSoft: "rgba(15,110,86,.14)",
+  indigo: "#534AB7",   indigoSoft: "rgba(83,74,183,.14)",
+
+  shadowCard: "0 1px 2px rgba(10,31,48,.10)",
+});
+
 export function Card({ title, right, children, t, style }) {
   return (
     <div style={{ background: t.bgCard, border: `1px solid ${t.line}`, borderRadius: 12, padding: 18, boxShadow: t.shadowCard, ...style }}>
@@ -97,19 +139,33 @@ export function DateMark({ value, label, onClick, t }) {
  * suggested URL so the reviewer can look at it; ✓ and ✗ are the only things
  * that write to the found flag.
  */
-export function SuggestMark({ url, label, onConfirm, onReject, t, title }) {
+export function SuggestMark({ url, label, source, note, confidence, onConfirm, onReject, t }) {
   const pill = {
     borderRadius: 7, padding: "4px 7px", fontSize: 11, fontWeight: 700, cursor: "pointer",
     fontFamily: "'JetBrains Mono',monospace", border: "none", color: "#fff",
   };
+  // A link the company published on its own site is stronger evidence than an AI
+  // match, so the two are told apart at a glance rather than only on hover.
+  const fromSite = source === "footer";
+  const glyph = fromSite ? "⌂" : "✦";           // house vs spark
+  const grad = fromSite
+    ? "linear-gradient(95deg,#1F5FA8,#2E8B74)"           // site: cooler, greener
+    : "linear-gradient(95deg,#1F5FA8,#7A4FD0)";          // AI: the AI-Mode purple
+  const why = [
+    fromSite ? "Listed on the company's own website" : "Found by AI search",
+    note || "",
+    confidence ? `${confidence} confidence` : "",
+  ].filter(Boolean).join(" · ");
+
   return (
     <span style={{ display: "inline-flex", gap: 2, alignItems: "stretch" }}>
-      <a href={url} target="_blank" rel="noopener noreferrer" title={title || "Open the suggested profile"}
-        style={{ ...pill, background: "linear-gradient(95deg,#1F5FA8,#7A4FD0)", textDecoration: "none",
-          display: "inline-flex", alignItems: "center", letterSpacing: ".04em" }}>
-        {label} ✦
+      <a href={url} target="_blank" rel="noopener noreferrer"
+        title={`${why} — open it before deciding`}
+        style={{ ...pill, background: grad, textDecoration: "none",
+          display: "inline-flex", alignItems: "center", gap: 3, letterSpacing: ".04em" }}>
+        {label}<span style={{ fontSize: 9, opacity: .95 }}>{glyph}</span>
       </a>
-      <button onClick={onConfirm} title="Confirm — this is them"
+      <button onClick={onConfirm} title={`Confirm — this is them. ${why}`}
         style={{ ...pill, background: t.goodSoft, color: t.good, border: `1px solid ${t.good}`, padding: "4px 6px" }}>✓</button>
       <button onClick={onReject} title="Reject — not them"
         style={{ ...pill, background: t.badSoft, color: t.bad, border: `1px solid ${t.bad}`, padding: "4px 6px" }}>✗</button>

@@ -365,6 +365,9 @@ tbody tr.touched.sel{background:rgba(56,152,239,.16)}
 .mk.yes{background:var(--emerald);border-color:var(--emerald);color:#04231A}
 .mk.no{background:rgba(210,84,74,.15);border-color:rgba(210,84,74,.45);color:#9C332B}
 .mk.date{background:rgba(56,152,239,.2);border-color:var(--blue);color:#14487F}
+.mk.sendb{width:28px;background:rgba(28,192,106,.18);border-color:rgba(28,192,106,.55);
+  color:#0C6A39;font-size:13px;font-weight:700}
+.mk.sendb:hover{background:var(--emerald);color:#04231A}
 .mk.skipb{width:26px;color:rgba(10,31,48,.45)}
 .mk.skipb.on{background:rgba(10,31,48,.7);border-color:rgba(10,31,48,.7);color:#fff}
 .eng{width:48px;font-family:var(--mono);font-size:12.5px;padding:4px 5px;border-radius:2px;
@@ -885,7 +888,13 @@ function rowHTML(r){
     '</div></td>'+
     '<td><div class="marks">'+mk('fb','FB')+mk('ig','IG')+mk('li','LI')+
       '<button class="mk skipb'+(r.skip?' on':'')+'" data-i="'+i+'" data-skip="1" '+
-      'title="Not a target — exclude from hit rates">✕</button></div></td>'+
+      'title="Not a target — exclude from hit rates">✕</button>'+
+      (touchedRow(r)&&!r.skip
+        ? '<button class="mk sendb" data-i="'+i+'" data-send="1" title="'+
+          (found(r)?'Send to Follow':'No profiles found — send straight to Archive')+
+          '">'+(found(r)?'→':'⤓')+'</button>'
+        : '')+
+      '</div></td>'+
     '<td><textarea class="noteIn rnote" data-i="'+i+'" data-note="1" rows="2" '+
       'placeholder="real company name, profile links, anything worth keeping">'+esc(r.note)+'</textarea></td>'+
     '<td>'+(touchedRow(r)
@@ -927,6 +936,12 @@ function bind(){
     if(touchedRow(r))stampRow(r); else {r.rby='';r.rdate=''}
     touch();draw()});
   $$('[data-by]').forEach(s=>s.onchange=()=>{rows[+s.dataset.i].rby=s.value;touch()});
+  $$('[data-send]').forEach(b=>b.onclick=()=>{
+    const r=rows[+b.dataset.i];
+    /* Same rule as the bulk action: anything with a profile goes to Follow,
+       anything checked and absent on all three skips straight to Archive. */
+    r.stage=found(r)?'follow':'archive';
+    r.sel=false; touch(); draw();});
   $$('[data-skip]').forEach(b=>b.onclick=()=>{const r=rows[+b.dataset.i];
     r.skip=r.skip?'':'not a target';
     if(r.skip){r.fb=r.ig=r.li=null;r.stage='archive'}
@@ -2185,7 +2200,7 @@ const HELP=`<div class="help">
 <li>If a row is not a real prospect at all — a big-box retailer, a corrupt record — press <b>✕</b> instead of marking it red. Red means "checked, no account"; ✕ means "not a target", and it is left out of the hit rates entirely.</li>
 <li>Use the <b>Notes</b> box for anything worth keeping — the real company name when the record only gave a person, a profile link you found the long way round, or why you marked something red. Notes travel with the row through Follow and Archive and survive export.</li>
 <li>Mark each platform: <b>green</b> if the profile exists, <b>red</b> if you checked and it is not there, blank if you did not look.</li>
-<li>Tick the checkboxes on the rows you finished, then press <b>Send to Follow →</b>.</li>
+<li>Press the green <b>→</b> on the row to send it onward as soon as you have marked it — no need to scroll back up. It goes to Follow if you found anything and straight to Archive if you marked all three red. For a batch, tick the checkboxes instead and use <b>Send to Follow</b> in the bar at the top.</li>
 </ol>
 <div class="callout"><b>Red is data, not a shrug.</b> A hit rate is found ÷ checked. Marking red is what makes the Plan &amp; rates numbers real, and it stops you rechecking the same dead end next month.</div>
 <p>Rows with at least one green go to Follow. Rows red on all three skip straight to Archive.</p>

@@ -56,7 +56,6 @@ type Suggestion = {
 // appendNoteOnce and setSiteVerified live in enrich-confirm.ts alongside the
 // confirm helpers, so client components can import them without pulling the
 // Anthropic SDK into the browser bundle.
-import { appendNoteOnce } from './enrich-confirm';
 export { appendNoteOnce, setSiteVerified } from './enrich-confirm';
 
 async function writeSuggestions(
@@ -100,10 +99,7 @@ export async function runFooterEnrichment(
   const groupOf = computeGroups(rows);
   const checked = rows.map(r => {
     const group = groupOf(r);
-    return {
-      row: r, group,
-      chk: verify({ name: r.company_name, email: r.email, group }),
-    };
+    return { row: r, group, chk: verify({ name: r.company_name, email: r.email, group }) };
   });
 
   const now = new Date().toISOString();
@@ -126,7 +122,10 @@ export async function runFooterEnrichment(
     .slice(0, opts.limit ?? 5000)
     .map(({ row, chk }) => ({ id: row.id as string, domain: chk.domain }));
 
-  const results = await enrichFooterBatch(targets, { onProgress: opts.onProgress });
+  // Concurrency 8: chunks are short, and these are separate hosts.
+  const results = await enrichFooterBatch(targets, {
+    concurrency: 8, onProgress: opts.onProgress,
+  });
 
   const summary: EnrichSummary = {
     attempted: targets.length, resolved: 0, empty: 0, failed: 0,
@@ -235,8 +234,9 @@ export async function runAiEnrichment(
       vertical: r.vertical,
       state: r.state,
       metro: r.metro,
-      // usableSite() also rejects a shared-filer domain, which would otherwise
-      // anchor the prompt on somebody else's company website.
+      // usableSite() also rejects a shared-filer domain. domainIsUnusable() in
+      // enrich-ai then drops a freemail or permit-filer host from the prompt
+      // without discarding the row — it is still searchable by name.
       website: usableSite(r, chk, group) || null,
       licenceNumber: licenceNumber(r.company_name) || null,
     };
@@ -256,6 +256,7 @@ export async function runAiEnrichment(
   const client = new Anthropic({ apiKey });
   const skipped: { id: string; reason: string }[] = [];
   const results = await enrichAiBatch(client, inputs, {
+    concurrency: 6,
     onProgress: opts.onProgress,
     onSkip: (id, reason) => skipped.push({ id, reason }),
   });
@@ -393,9 +394,139 @@ export async function runFullEnrichment(
   };
 }
 
+
+/* ========================== chunked runs ========================== */
+
+/**
+ * WHY THIS EXISTS
+ *
+ * A single long-running enrichment hits Vercel's function ceiling — 300s on
+ * Hobby, 800s on Pro — and is killed. Because results were accumulated in memory
+ * and written at the end, a timeout lost EVERY record in the batch while the API
+ * calls had already been paid for. That happened live: ~2M tokens and 52 web
+ * searches burned, nothing written.
+ *
+ * Two changes fix it properly, at any plan level:
+ *   1. Each chunk WRITES BEFORE IT RETURNS. A timeout now costs the current
+ *      chunk, never the whole run.
+ *   2. The client loops. One click by the user, many short calls underneath,
+ *      each comfortably inside the limit.
+ *
+ * Raising the plan does not fix this. At 10–20s per record, 258 records needs
+ * 1,000–1,700s even at 800s — still a timeout, just a later one.
+ */
+
+export interface ChunkResult {
+  summary: EnrichSummary;
+  /** Records still waiting after this chunk. Zero means the run is complete. */
+  remaining: number;
+  /** Call again while true. */
+  hasMore: boolean;
+}
+
+/** Small enough that a slow chunk still lands well inside the limit. */
+export const FOOTER_CHUNK = 40;
+export const AI_CHUNK = 15;
+
+/**
+ * One chunk of the free pass. Always writes before returning.
+ *
+ * No offset is needed: enriched rows drop out of the candidate pool on the next
+ * call, so repeated calls advance naturally. That also gives resume for free —
+ * an interrupted run picks up where it stopped.
+ */
+export async function runFooterChunk(
+  sb: SupabaseClient,
+  opts: { ids?: string[]; chunkSize?: number;
+          onProgress?: (d: number, t: number) => void } = {},
+): Promise<ChunkResult> {
+  const size = opts.chunkSize ?? FOOTER_CHUNK;
+  const summary = await runFooterEnrichment(sb, {
+    ids: opts.ids, limit: size, onProgress: opts.onProgress,
+  });
+  const remaining = await countFooterRemaining(sb, opts.ids);
+  return { summary, remaining, hasMore: remaining > 0 };
+}
+
+/** One chunk of the paid pass. Same contract. */
+export async function runAiChunk(
+  sb: SupabaseClient,
+  apiKey: string,
+  opts: { ids?: string[]; chunkSize?: number;
+          onProgress?: (d: number, t: number) => void } = {},
+): Promise<ChunkResult> {
+  const size = opts.chunkSize ?? AI_CHUNK;
+  const summary = await runAiEnrichment(sb, apiKey, {
+    ids: opts.ids, limit: size, onlyUnresolved: true, onProgress: opts.onProgress,
+  });
+  const remaining = await countAiRemaining(sb, opts.ids);
+  return { summary, remaining, hasMore: remaining > 0 };
+}
+
+/** Rows the free pass has not yet stamped. */
+export async function countFooterRemaining(
+  sb: SupabaseClient, ids?: string[],
+): Promise<number> {
+  let q = sb.from('acquisition_companies')
+    .select('id', { count: 'exact', head: true })
+    .eq('stage', 'research')
+    .is('fb_found', null).is('ig_found', null).is('li_found', null)
+    .is('enriched_at', null);
+  if (ids?.length) q = q.in('id', ids);
+  const { count, error } = await q;
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+/**
+ * Rows the paid pass should still try: no confirmed mark, no suggestion yet, and
+ * either never enriched or enriched with an outcome the scraper could not
+ * resolve — a client-rendered page, a bot wall, or a site that would not load.
+ */
+export async function countAiRemaining(
+  sb: SupabaseClient, ids?: string[],
+): Promise<number> {
+  let q = sb.from('acquisition_companies')
+    .select('id', { count: 'exact', head: true })
+    .eq('stage', 'research')
+    .is('fb_found', null).is('ig_found', null).is('li_found', null)
+    .is('fb_suggested', null).is('ig_suggested', null).is('li_suggested', null)
+    .or('enrich_pass.is.null,enrich_pass.eq.footer');
+  if (ids?.length) q = q.in('id', ids);
+  const { count, error } = await q;
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+/**
+ * Combined pass, one chunk at a time. The client calls this repeatedly until
+ * hasMore is false — free work first, then paid on whatever the free pass could
+ * not read.
+ */
+export async function runFullChunk(
+  sb: SupabaseClient,
+  apiKey: string,
+  opts: { ids?: string[]; onProgress?: (phase: 'footer' | 'ai', d: number, t: number) => void } = {},
+): Promise<ChunkResult & { phase: 'footer' | 'ai' }> {
+  const footerLeft = await countFooterRemaining(sb, opts.ids);
+  if (footerLeft > 0) {
+    const r = await runFooterChunk(sb, {
+      ids: opts.ids,
+      onProgress: (d, t) => opts.onProgress?.('footer', d, t),
+    });
+    // Never report complete while paid work is still outstanding.
+    const aiLeft = await countAiRemaining(sb, opts.ids);
+    return { ...r, phase: 'footer', remaining: r.remaining + aiLeft,
+             hasMore: r.remaining + aiLeft > 0 };
+  }
+  const r = await runAiChunk(sb, apiKey, {
+    ids: opts.ids,
+    onProgress: (d, t) => opts.onProgress?.('ai', d, t),
+  });
+  return { ...r, phase: 'ai' };
+}
+
 /* ========================== confirm / reject ========================== */
 
-// Moved to enrich-confirm.ts so client components can import them without
-// pulling the Anthropic SDK into the browser bundle. Re-exported here so
-// server-side callers can still reach them from this module.
+// Also in enrich-confirm.ts, re-exported here for server-side callers.
 export { confirmSuggestion, confirmAllOnRow } from './enrich-confirm';
